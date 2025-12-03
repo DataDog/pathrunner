@@ -1,0 +1,823 @@
+package core
+
+import (
+	"bufio"
+	"context"
+	"fmt"
+	"os"
+	"os/exec"
+	"pathrunner/pkg/modules"
+	"pathrunner/pkg/utils"
+	"runtime"
+	"strings"
+	"time"
+
+	"github.com/aquasecurity/table"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
+)
+
+type IdentityManager struct {
+	identities       map[string]*modules.Identity
+	current          *modules.Identity
+	getLastResult    func() string
+	updateCompletion func()
+}
+
+func NewIdentityManager(getLastResult func() string, updateCompletion func()) *IdentityManager {
+	return &IdentityManager{
+		identities:       make(map[string]*modules.Identity),
+		getLastResult:    getLastResult,
+		updateCompletion: updateCompletion,
+	}
+}
+
+func (im *IdentityManager) GetCurrent() *modules.Identity {
+	return im.current
+}
+
+func (im *IdentityManager) GetIdentities() map[string]*modules.Identity {
+	return im.identities
+}
+
+func (im *IdentityManager) ListIdentities() error {
+	if len(im.identities) == 0 {
+		fmt.Println("No identities configured.")
+		fmt.Println("Use 'identity add' to add credentials.")
+		return nil
+	}
+
+	// Create table
+	t := table.New(os.Stdout)
+	t.SetHeaders("Name", "Type", "Profile/Source", "Expires", "Status", "Current")
+	t.SetHeaderStyle(table.StyleBold)
+	t.SetRowLines(false)
+	t.SetLineStyle(table.StyleCyan)
+	t.SetDividers(table.UnicodeRoundedDividers)
+	t.SetAlignment(table.AlignLeft)
+
+	// Add rows
+	for name, identity := range im.identities {
+		status := "✓ valid"
+		if identity.IsExpired() {
+			status = "✗ expired"
+		}
+
+		current := ""
+		if im.current != nil && im.current.Name == name {
+			current = "●"
+		}
+
+		source := identity.Profile
+		if source == "" {
+			switch identity.Type {
+			case "env":
+				source = "environment"
+			case "keys":
+				source = "access keys"
+			case "assumed_role":
+				source = "assumed role"
+			default:
+				source = identity.Type
+			}
+		}
+
+		expires := "never"
+		if identity.ExpiresAt != nil {
+			expires = identity.ExpiresAt.Format("15:04:05")
+		} else if identity.Type == "profile" {
+			expires = "auto-refresh"
+		}
+
+		t.AddRow(name, identity.Type, source, expires, status, current)
+	}
+
+	// Print table
+	fmt.Println("Configured identities:")
+	fmt.Println()
+	t.Render()
+	fmt.Println()
+
+	if im.current != nil {
+		fmt.Printf("Current identity: %s\n", im.current.Name)
+	} else {
+		fmt.Println("No current identity selected.")
+	}
+
+	return nil
+}
+
+func (im *IdentityManager) ShowCurrent() error {
+	if im.current == nil {
+		fmt.Println("No current identity selected.")
+		return nil
+	}
+
+	// Get caller identity info first
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// GetConfig() will provide fresh credentials for profile identities
+	stsClient := sts.NewFromConfig(im.current.GetConfig())
+	result, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+	if err != nil {
+		fmt.Printf("Error getting caller identity: %v\n", err)
+		return nil
+	}
+
+	// Create table
+	t := table.New(os.Stdout)
+	t.SetHeaders("Property", "Value")
+	t.SetHeaderStyle(table.StyleBold)
+	t.SetRowLines(false)
+	t.SetLineStyle(table.StyleCyan)
+	t.SetDividers(table.UnicodeRoundedDividers)
+	t.SetAlignment(table.AlignLeft)
+
+	// Add basic identity info
+	t.AddRow("Name", im.current.Name)
+	t.AddRow("Type", im.current.Type)
+	t.AddRow("Region", im.current.Region)
+
+	if im.current.Profile != "" {
+		t.AddRow("Profile", im.current.Profile)
+	}
+
+	// Add AWS caller identity info
+	t.AddRow("Account", aws.ToString(result.Account))
+	t.AddRow("User/Role ARN", aws.ToString(result.Arn))
+
+	// Add expiration info
+	if im.current.ExpiresAt != nil {
+		t.AddRow("Expires", im.current.ExpiresAt.Format("2006-01-02 15:04:05 MST"))
+		if im.current.IsExpired() {
+			t.AddRow("Status", "EXPIRED")
+		} else {
+			t.AddRow("Status", "Valid")
+		}
+	} else {
+		t.AddRow("Status", "Valid (no expiration)")
+	}
+
+	// Print table
+	fmt.Printf("Current Identity: %s\n", im.current.Name)
+	fmt.Println()
+	t.Render()
+	fmt.Println()
+
+	return nil
+}
+
+func (im *IdentityManager) AddIdentity(args []string) error {
+	if len(args) == 0 {
+		return im.addFromEnvironment()
+	}
+
+	switch args[0] {
+	case "--from-output":
+		customName := im.extractNameFlag(args[1:])
+		return im.addFromLastOutput(customName)
+	case "--from-file":
+		if len(args) < 2 {
+			return fmt.Errorf("--from-file requires file path")
+		}
+		filePath := args[1]
+		customName := im.extractNameFlag(args[2:])
+		return im.addFromFile(filePath, customName)
+	case "--from-clipboard":
+		customName := im.extractNameFlag(args[1:])
+		return im.addFromClipboard(customName)
+	case "--profile":
+		if len(args) < 2 {
+			return fmt.Errorf("--profile requires profile name")
+		}
+		return im.addFromProfile(args[1])
+	case "--keys":
+		if len(args) < 3 {
+			return fmt.Errorf("--keys requires access-key-id and secret-access-key")
+		}
+		sessionToken := ""
+		if len(args) > 3 {
+			sessionToken = args[3]
+		}
+		return im.addFromKeys(args[1], args[2], sessionToken)
+	default:
+		return fmt.Errorf("unknown add option: %s", args[0])
+	}
+}
+
+// extractNameFlag extracts the --name flag value from args
+func (im *IdentityManager) extractNameFlag(args []string) string {
+	for i, arg := range args {
+		if arg == "--name" && i+1 < len(args) {
+			return args[i+1]
+		}
+	}
+	return ""
+}
+
+// promptForIdentityName prompts the user to provide a custom name for the identity
+// Returns the custom name if provided, or empty string if user declines
+func (im *IdentityManager) promptForIdentityName(suggestedName string) string {
+	fmt.Printf("\nSuggested identity name: %s\n", suggestedName)
+	fmt.Print("Enter a custom name (or press Enter to use suggested name): ")
+
+	// Use bufio.Reader to properly handle input without leaving buffer residue
+	reader := bufio.NewReader(os.Stdin)
+	customName, err := reader.ReadString('\n')
+	if err != nil {
+		// If there's an error reading, just use the suggested name
+		return suggestedName
+	}
+
+	customName = strings.TrimSpace(customName)
+	if customName == "" {
+		return suggestedName
+	}
+
+	return customName
+}
+
+func (im *IdentityManager) addFromEnvironment() error {
+	cfg, err := config.LoadDefaultConfig(context.TODO())
+	if err != nil {
+		return fmt.Errorf("failed to load AWS config from environment: %v", err)
+	}
+
+	identity := &modules.Identity{
+		Name:   "default",
+		Type:   "env",
+		Region: cfg.Region,
+	}
+	identity.SetConfig(cfg)
+
+	if err := identity.Validate(); err != nil {
+		return fmt.Errorf("environment credentials validation failed: %v", err)
+	}
+
+	im.identities[identity.Name] = identity
+	if im.current == nil {
+		im.current = identity
+	}
+
+	// Update completion with new identity
+	if im.updateCompletion != nil {
+		im.updateCompletion()
+	}
+
+	fmt.Printf("Added identity '%s' from environment variables\n", identity.Name)
+
+	// Prompt to switch to the new identity
+	im.promptToSwitch(identity.Name)
+	return nil
+}
+
+func (im *IdentityManager) addFromProfile(profileName string) error {
+	// Test that profile exists by trying to load it once
+	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithSharedConfigProfile(profileName))
+	if err != nil {
+		return fmt.Errorf("failed to load AWS profile '%s': %v", profileName, err)
+	}
+
+	// If profile doesn't specify a region, use a default
+	region := cfg.Region
+	if region == "" {
+		region = "us-east-1"
+		fmt.Println("Profile does not specify a region, using default: us-east-1")
+	}
+
+	identity := &modules.Identity{
+		Name:    profileName,
+		Type:    "profile",
+		Profile: profileName,
+		Region:  region,
+	}
+	// Store minimal config for fallback, but GetConfig() will create fresh ones
+	identity.SetConfig(cfg)
+
+	// Validate that the profile works - this will use GetConfig() which creates fresh config
+	if err := identity.Validate(); err != nil {
+		return fmt.Errorf("profile credentials validation failed: %v", err)
+	}
+
+	im.identities[identity.Name] = identity
+	if im.current == nil {
+		im.current = identity
+	}
+
+	// Update completion with new identity
+	if im.updateCompletion != nil {
+		im.updateCompletion()
+	}
+
+	fmt.Printf("Added identity '%s' from AWS profile\n", identity.Name)
+	fmt.Printf("Profile credentials will be refreshed automatically on each use\n")
+
+	// Prompt to switch to the new identity
+	im.promptToSwitch(identity.Name)
+	return nil
+}
+
+func (im *IdentityManager) addFromKeys(accessKeyID, secretKey, sessionToken string) error {
+	creds := credentials.NewStaticCredentialsProvider(accessKeyID, secretKey, sessionToken)
+
+	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithCredentialsProvider(creds))
+	if err != nil {
+		return fmt.Errorf("failed to create config from keys: %v", err)
+	}
+
+	name := fmt.Sprintf("keys_%s", accessKeyID[len(accessKeyID)-4:])
+
+	identity := &modules.Identity{
+		Name:         name,
+		Type:         "keys",
+		AccessKeyID:  accessKeyID,
+		SecretKey:    secretKey,
+		SessionToken: sessionToken,
+		Region:       cfg.Region,
+	}
+	identity.SetConfig(cfg)
+
+	if sessionToken != "" {
+		expiresAt := time.Now().Add(1 * time.Hour)
+		identity.ExpiresAt = &expiresAt
+	}
+
+	if err := identity.Validate(); err != nil {
+		return fmt.Errorf("access key credentials validation failed: %v", err)
+	}
+
+	im.identities[identity.Name] = identity
+	if im.current == nil {
+		im.current = identity
+	}
+
+	// Update completion with new identity
+	if im.updateCompletion != nil {
+		im.updateCompletion()
+	}
+
+	fmt.Printf("Added identity '%s' from access keys\n", identity.Name)
+
+	// Prompt to switch to the new identity
+	im.promptToSwitch(identity.Name)
+	return nil
+}
+
+func (im *IdentityManager) addFromLastOutput(customName string) error {
+	fmt.Println("Parsing credentials from last command output...")
+
+	if im.getLastResult == nil {
+		return fmt.Errorf("no result retrieval function available")
+	}
+
+	lastResult := im.getLastResult()
+	if lastResult == "" {
+		return fmt.Errorf("no previous exploit output available")
+	}
+
+	extractedCreds, err := utils.ExtractCredentialsFromText(lastResult)
+	if err != nil {
+		return fmt.Errorf("failed to extract credentials: %v", err)
+	}
+
+	// Create AWS credentials provider
+	creds := credentials.NewStaticCredentialsProvider(
+		extractedCreds.AccessKeyID,
+		extractedCreds.SecretAccessKey,
+		extractedCreds.SessionToken,
+	)
+
+	cfg, err := config.LoadDefaultConfig(context.TODO(),
+		config.WithCredentialsProvider(creds),
+		config.WithRegion(extractedCreds.Region),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create config from extracted credentials: %v", err)
+	}
+
+	// Determine identity name
+	var identityName string
+	if customName != "" {
+		// Use the --name flag value
+		identityName = customName
+	} else {
+		// Prompt user for a custom name
+		suggestedName := extractedCreds.GenerateIdentityName()
+		identityName = im.promptForIdentityName(suggestedName)
+	}
+
+	identity := &modules.Identity{
+		Name:         identityName,
+		Type:         "keys",
+		AccessKeyID:  extractedCreds.AccessKeyID,
+		SecretKey:    extractedCreds.SecretAccessKey,
+		SessionToken: extractedCreds.SessionToken,
+		Region:       extractedCreds.Region,
+	}
+	identity.SetConfig(cfg)
+
+	// Set expiration for session tokens (typically 1 hour for Lambda roles)
+	if extractedCreds.SessionToken != "" {
+		expiresAt := time.Now().Add(1 * time.Hour)
+		identity.ExpiresAt = &expiresAt
+	}
+
+	// Validate the credentials
+	if err := identity.Validate(); err != nil {
+		return fmt.Errorf("extracted credentials validation failed: %v", err)
+	}
+
+	// Add to identity manager
+	im.identities[identity.Name] = identity
+
+	// Switch to the new identity if no current identity
+	if im.current == nil {
+		im.current = identity
+	}
+
+	// Update completion with new identity
+	if im.updateCompletion != nil {
+		im.updateCompletion()
+	}
+
+	fmt.Printf("Successfully added identity '%s' from exploit output\n", identity.Name)
+	fmt.Printf("Source: %s\n", extractedCreds.Source)
+	fmt.Printf("Access Key: %s\n", extractedCreds.AccessKeyID)
+	fmt.Printf("Region: %s\n", extractedCreds.Region)
+	if extractedCreds.SessionToken != "" {
+		fmt.Printf("Session Token: Present (expires in ~1 hour)\n")
+	}
+
+	// Prompt to switch to the new identity
+	im.promptToSwitch(identity.Name)
+
+	return nil
+}
+
+func (im *IdentityManager) addFromFile(filePath string, customName string) error {
+	fmt.Printf("Reading credentials from file: %s\n", filePath)
+
+	// Read file contents
+	fileData, err := os.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to read file: %v", err)
+	}
+
+	fileContent := string(fileData)
+	if fileContent == "" {
+		return fmt.Errorf("file is empty")
+	}
+
+	// Extract credentials using the same logic as --from-output
+	extractedCreds, err := utils.ExtractCredentialsFromText(fileContent)
+	if err != nil {
+		return fmt.Errorf("failed to extract credentials: %v", err)
+	}
+
+	// Create AWS credentials provider
+	creds := credentials.NewStaticCredentialsProvider(
+		extractedCreds.AccessKeyID,
+		extractedCreds.SecretAccessKey,
+		extractedCreds.SessionToken,
+	)
+
+	cfg, err := config.LoadDefaultConfig(context.TODO(),
+		config.WithCredentialsProvider(creds),
+		config.WithRegion(extractedCreds.Region),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create config from extracted credentials: %v", err)
+	}
+
+	// Determine identity name
+	var identityName string
+	if customName != "" {
+		// Use the --name flag value
+		identityName = customName
+	} else {
+		// Prompt user for a custom name
+		suggestedName := extractedCreds.GenerateIdentityName()
+		identityName = im.promptForIdentityName(suggestedName)
+	}
+
+	identity := &modules.Identity{
+		Name:         identityName,
+		Type:         "keys",
+		AccessKeyID:  extractedCreds.AccessKeyID,
+		SecretKey:    extractedCreds.SecretAccessKey,
+		SessionToken: extractedCreds.SessionToken,
+		Region:       extractedCreds.Region,
+	}
+	identity.SetConfig(cfg)
+
+	// Set expiration for session tokens
+	if extractedCreds.SessionToken != "" {
+		expiresAt := time.Now().Add(1 * time.Hour)
+		identity.ExpiresAt = &expiresAt
+	}
+
+	// Validate the credentials
+	if err := identity.Validate(); err != nil {
+		return fmt.Errorf("extracted credentials validation failed: %v", err)
+	}
+
+	// Add to identity manager
+	im.identities[identity.Name] = identity
+
+	// Switch to the new identity if no current identity
+	if im.current == nil {
+		im.current = identity
+	}
+
+	// Update completion with new identity
+	if im.updateCompletion != nil {
+		im.updateCompletion()
+	}
+
+	fmt.Printf("Successfully added identity '%s' from file\n", identity.Name)
+	fmt.Printf("Source: %s\n", extractedCreds.Source)
+	fmt.Printf("Access Key: %s\n", extractedCreds.AccessKeyID)
+	fmt.Printf("Region: %s\n", extractedCreds.Region)
+	if extractedCreds.SessionToken != "" {
+		fmt.Printf("Session Token: Present (expires in ~1 hour)\n")
+	}
+
+	// Prompt to switch to the new identity
+	im.promptToSwitch(identity.Name)
+
+	return nil
+}
+
+func (im *IdentityManager) addFromClipboard(customName string) error {
+	fmt.Println("Attempting to read from clipboard...")
+
+	// Try to read from OS clipboard first
+	clipboardText, err := readOSClipboard()
+
+	if err != nil || clipboardText == "" {
+		// Clipboard failed or empty, prompt user to paste
+		fmt.Println("Unable to read from system clipboard.")
+		fmt.Println("Please paste your credentials below, then press Ctrl+D (or Cmd+D on Mac):")
+		fmt.Println("Note: In REPL mode, use 'identity add --from-file <path>' for multi-line credentials.")
+		fmt.Println()
+
+		// Read from stdin until EOF
+		var input strings.Builder
+		scanner := bufio.NewScanner(os.Stdin)
+		for scanner.Scan() {
+			input.WriteString(scanner.Text())
+			input.WriteString("\n")
+		}
+
+		if err := scanner.Err(); err != nil {
+			return fmt.Errorf("failed to read input: %v", err)
+		}
+
+		clipboardText = input.String()
+	} else {
+		fmt.Println("Successfully read from system clipboard")
+		fmt.Println("Note: Do not paste anything - credentials already captured from clipboard")
+	}
+
+	if strings.TrimSpace(clipboardText) == "" {
+		return fmt.Errorf("no input provided")
+	}
+
+	// Extract credentials using the same logic as --from-output
+	extractedCreds, err := utils.ExtractCredentialsFromText(clipboardText)
+	if err != nil {
+		return fmt.Errorf("failed to extract credentials: %v", err)
+	}
+
+	// Create AWS credentials provider
+	creds := credentials.NewStaticCredentialsProvider(
+		extractedCreds.AccessKeyID,
+		extractedCreds.SecretAccessKey,
+		extractedCreds.SessionToken,
+	)
+
+	cfg, err := config.LoadDefaultConfig(context.TODO(),
+		config.WithCredentialsProvider(creds),
+		config.WithRegion(extractedCreds.Region),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create config from extracted credentials: %v", err)
+	}
+
+	// Determine identity name
+	var identityName string
+	if customName != "" {
+		// Use the --name flag value
+		identityName = customName
+	} else {
+		// Prompt user for a custom name
+		suggestedName := extractedCreds.GenerateIdentityName()
+		identityName = im.promptForIdentityName(suggestedName)
+	}
+
+	identity := &modules.Identity{
+		Name:         identityName,
+		Type:         "keys",
+		AccessKeyID:  extractedCreds.AccessKeyID,
+		SecretKey:    extractedCreds.SecretAccessKey,
+		SessionToken: extractedCreds.SessionToken,
+		Region:       extractedCreds.Region,
+	}
+	identity.SetConfig(cfg)
+
+	// Set expiration for session tokens
+	if extractedCreds.SessionToken != "" {
+		expiresAt := time.Now().Add(1 * time.Hour)
+		identity.ExpiresAt = &expiresAt
+	}
+
+	// Validate the credentials
+	if err := identity.Validate(); err != nil {
+		return fmt.Errorf("extracted credentials validation failed: %v", err)
+	}
+
+	// Add to identity manager
+	im.identities[identity.Name] = identity
+
+	// Switch to the new identity if no current identity
+	if im.current == nil {
+		im.current = identity
+	}
+
+	// Update completion with new identity
+	if im.updateCompletion != nil {
+		im.updateCompletion()
+	}
+
+	fmt.Printf("Successfully added identity '%s' from clipboard\n", identity.Name)
+	fmt.Printf("Source: %s\n", extractedCreds.Source)
+	fmt.Printf("Access Key: %s\n", extractedCreds.AccessKeyID)
+	fmt.Printf("Region: %s\n", extractedCreds.Region)
+	if extractedCreds.SessionToken != "" {
+		fmt.Printf("Session Token: Present (expires in ~1 hour)\n")
+	}
+
+	// Prompt to switch to the new identity
+	im.promptToSwitch(identity.Name)
+
+	return nil
+}
+
+func (im *IdentityManager) SwitchIdentity(name string) error {
+	identity, exists := im.identities[name]
+	if !exists {
+		return fmt.Errorf("identity '%s' not found", name)
+	}
+
+	if identity.IsExpired() {
+		return fmt.Errorf("identity '%s' has expired", name)
+	}
+
+	im.current = identity
+	fmt.Printf("Switched to identity: %s\n", name)
+
+	return nil
+}
+
+func (im *IdentityManager) RemoveIdentity(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("identity clear requires identity name or --expired flag")
+	}
+
+	// Check if --expired flag is provided
+	if args[0] == "--expired" {
+		return im.removeExpiredIdentities()
+	}
+
+	// Remove specific identity by name
+	identityName := args[0]
+
+	if _, exists := im.identities[identityName]; !exists {
+		return fmt.Errorf("identity '%s' not found", identityName)
+	}
+
+	// Don't allow removing current identity
+	if im.current != nil && im.current.Name == identityName {
+		return fmt.Errorf("cannot remove current identity '%s'. Switch to another identity first", identityName)
+	}
+
+	delete(im.identities, identityName)
+	fmt.Printf("Removed identity: %s\n", identityName)
+
+	// Update completion with removed identity
+	if im.updateCompletion != nil {
+		im.updateCompletion()
+	}
+
+	return nil
+}
+
+func (im *IdentityManager) removeExpiredIdentities() error {
+	var removed []string
+
+	for name, identity := range im.identities {
+		if identity.IsExpired() {
+			// Don't remove current identity even if expired
+			if im.current != nil && im.current.Name == name {
+				fmt.Printf("Skipping current identity '%s' (switch to another identity first)\n", name)
+				continue
+			}
+			delete(im.identities, name)
+			removed = append(removed, name)
+		}
+	}
+
+	if len(removed) == 0 {
+		fmt.Println("No expired identities to remove.")
+		return nil
+	}
+
+	fmt.Printf("Removed %d expired identities:\n", len(removed))
+	for _, name := range removed {
+		fmt.Printf("  - %s\n", name)
+	}
+
+	// Update completion with removed identities
+	if im.updateCompletion != nil {
+		im.updateCompletion()
+	}
+
+	return nil
+}
+
+func (im *IdentityManager) RefreshCurrentIdentity() error {
+	if im.current == nil {
+		return fmt.Errorf("no current identity to refresh")
+	}
+
+	if im.current.Type == "profile" {
+		fmt.Printf("Profile identities are automatically refreshed on each use.\n")
+		fmt.Printf("No manual refresh needed for profile '%s'.\n", im.current.Profile)
+		return nil
+	}
+
+	return im.current.RefreshConfig()
+}
+
+// SetIdentities sets all identities at once (used when loading from session)
+func (im *IdentityManager) SetIdentities(identities map[string]*modules.Identity) {
+	im.identities = identities
+}
+
+// SetCurrent sets the current identity (used when loading from session)
+func (im *IdentityManager) SetCurrent(identity *modules.Identity) {
+	im.current = identity
+}
+
+// promptToSwitch asks the user if they want to switch to the new identity
+func (im *IdentityManager) promptToSwitch(identityName string) {
+	// Only prompt if there's already a current identity (not auto-switching)
+	if im.current == nil || im.current.Name == identityName {
+		return
+	}
+
+	fmt.Printf("Switch to identity '%s'? [y/N]: ", identityName)
+	var response string
+	fmt.Scanln(&response)
+
+	if strings.ToLower(response) == "y" || strings.ToLower(response) == "yes" {
+		im.current = im.identities[identityName]
+		fmt.Printf("Switched to identity: %s\n", identityName)
+	}
+}
+
+// readOSClipboard attempts to read from the system clipboard
+// Returns the clipboard contents or an error if unable to read
+func readOSClipboard() (string, error) {
+	var cmd *exec.Cmd
+
+	switch runtime.GOOS {
+	case "darwin": // macOS
+		cmd = exec.Command("pbpaste")
+	case "linux":
+		// Try xclip first, then xsel, then wl-paste (Wayland)
+		if _, err := exec.LookPath("xclip"); err == nil {
+			cmd = exec.Command("xclip", "-selection", "clipboard", "-o")
+		} else if _, err := exec.LookPath("xsel"); err == nil {
+			cmd = exec.Command("xsel", "--clipboard", "--output")
+		} else if _, err := exec.LookPath("wl-paste"); err == nil {
+			cmd = exec.Command("wl-paste")
+		} else {
+			return "", fmt.Errorf("no clipboard utility found (install xclip, xsel, or wl-clipboard)")
+		}
+	case "windows":
+		cmd = exec.Command("powershell.exe", "-command", "Get-Clipboard")
+	default:
+		return "", fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
+	}
+
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to read clipboard: %v", err)
+	}
+
+	return string(output), nil
+}
