@@ -1,8 +1,6 @@
 module pathrunner
 
-go 1.24.0
-
-toolchain go1.24.5
+go 1.25.7
 
 require (
 	github.com/aquasecurity/table v1.11.0
