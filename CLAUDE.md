@@ -54,15 +54,25 @@ Pathrunner is a modular AWS post-exploitation framework with dual CLI/REPL inter
 - Supports complex flag parsing (e.g., `--profile`, `--keys`, `--from-output`, `--expired`)
 
 **pkg/modules/** - Module system interfaces and shared types:
-- `interface.go`: Core interfaces for Module, Identity, ResourceTracker, and shared data structures
+- `interface.go`: Core interfaces for Module, Identity, ResourceTracker, PayloadCompatible, and shared data structures
 - `registry.go`: Module registration and loading system
-- Modules must implement the Module interface with Execute() method that accepts ResourceTracker
+- Modules must implement the Module interface with Execute(), PayloadOptions(), and ListPayloads() methods
+- Modules can optionally implement `PayloadCompatible` to declare supported payload tags/service context
+
+**pkg/payloads/** - Centralized payload registry system (service-based, reusable across modules):
+- `interface.go`: Core `Payload` interface (GetName, GetTags, GetOptions, GenerateCode, ProcessResult, Validate)
+- `registry.go`: Thread-safe global registry with tag-based filtering (GetPayloadsByTags, GetPayloadsByContext, GetPayloadsByFilter)
+- `tags.go`: Standardized tag constants organized by category (service, language, technique, transport)
+- `ec2/`: EC2 bash payloads — `exfil_webhook.go`, `direct_elevation.go`, `reverse_shell.go`
+- `lambda/`: Lambda Python payloads — `exfil_output.go`, `exfil_https.go`, `backdoor_role.go`, `backdoor_user.go`
+- Payloads self-register via `init()` functions, same pattern as modules
+- Tag categories: service (`lambda`, `ec2`, `ecs`, ...), language (`python`, `bash`, ...), technique (`exfil`, `backdoor`, `reverse_shell`, `direct_action`), transport (`webhook`, `output`, `network`)
 
 **pkg/exploits/** - Exploitation modules:
-- `lambda_passrole/`: Lambda/PassRole privilege escalation module
-  - `module.go`: Main module implementation with four payload types
-  - `payloads/`: Individual payload implementations (exfil_output, exfil_https, backdoor_role, backdoor_user)
-  - Generates Python Lambda code dynamically based on payload type and options
+- `lambda_passrole/`: Lambda/PassRole privilege escalation module (refactored to use payload registry)
+  - `module.go`: Implements `PayloadCompatible` with tags `[lambda, python]`; queries registry for Lambda payloads
+- `ec2_passrole/`: EC2/PassRole privilege escalation via RunInstances with user-data scripts
+  - `module.go`: Implements `PayloadCompatible` with tags `[ec2, bash]`; auto-detects AMI and subnet, launches instances with payload as user-data
 - `sts_assume_role/`: STS AssumeRole module for role assumption and credential handling
 
 **pkg/utils/** - Utility functions:
@@ -113,10 +123,27 @@ Pathrunner is a modular AWS post-exploitation framework with dual CLI/REPL inter
 - `quit` → `exit`
 - Both forms work identically and have full tab completion
 
-**Module Registration**:
-- Modules self-register using `init()` functions with `modules.Register()`
+**Payload Registry System** (Reusable Service-Based Payloads):
+- Payloads are decoupled from modules and registered in a global registry
+- Modules query the registry by tags to discover compatible payloads at runtime
+- Each payload implements `GenerateCode(options)` to produce service-specific code (Python for Lambda, bash for EC2)
+- Each payload implements `ProcessResult(result)` to parse and format execution output
+- `TagFilter` supports advanced queries: `RequireAll`, `RequireAny`, `Exclude`
+- Modules implement `PayloadCompatible` interface to declare their service context and compatible tags
+- The `Module` interface includes `PayloadOptions(payloadName)` and `ListPayloads()` for dynamic UI
+
+**Module and Payload Registration**:
+- Both modules and payloads self-register using `init()` functions
+- Modules use `modules.Register()`, payloads use `payloads.Register()`
+- Import in `main.go` with blank imports for both:
+  ```go
+  _ "pathrunner/pkg/payloads/ec2"      // Register EC2 payloads
+  _ "pathrunner/pkg/payloads/lambda"    // Register Lambda payloads
+  _ "pathrunner/pkg/exploits/ec2_passrole"
+  _ "pathrunner/pkg/exploits/lambda_passrole"
+  _ "pathrunner/pkg/exploits/sts_assume_role"
+  ```
 - Dynamic loading via `modules.LoadModule()` with error handling
-- Import modules in main.go with blank imports: `_ "pathrunner/pkg/exploits/lambda_passrole"`
 
 **Module Output Format for Auto-Import**:
 Modules that output credentials should include structured data for automatic import:
@@ -141,7 +168,9 @@ Alternatively, credentials in any common format (AWS_* env vars, JSON, Python di
 
 **Credential Refresh**: For AWS SSO profiles, credentials are not stored statically. Instead, profile names are persisted and AWS configs are rebuilt on-demand using `identity.RefreshConfig()`.
 
-**Resource Tracking**: Modules must call `tracker.TrackResource()` for any AWS resources they create. The session manager implements ResourceTracker and can clean up resources by type (Lambda functions, IAM roles/users).
+**Resource Tracking**: Modules must call `tracker.TrackResource()` for any AWS resources they create. The session manager implements ResourceTracker and can clean up resources by type (Lambda functions, IAM roles/users, EC2 instances).
+
+**Interactive Resource Cleanup**: The `workspace cleanup` command uses `survey/v2` for interactive multi-select, allowing users to choose which tracked resources to delete rather than bulk-deleting everything. Cleanup is region-aware.
 
 **Timeouts**: AWS operations use 30-second timeouts to accommodate SSO credential resolution delays.
 
@@ -153,14 +182,15 @@ Alternatively, credentials in any common format (AWS_* env vars, JSON, Python di
 
 ```
 tests/
-├── unit/               # Unit tests (58 tests)
+├── unit/
 │   ├── config_test.go              # Configuration tests
 │   ├── context_test.go             # Contextual prompt tests
 │   ├── repl_test.go                # Basic REPL tests
 │   ├── identity_manager_test.go    # IdentityManager unit tests
 │   ├── session_manager_test.go     # SessionManager unit tests
-│   └── repl_commands_test.go       # REPL command handler tests
-└── integration/        # Integration tests (45 tests)
+│   ├── repl_commands_test.go       # REPL command handler tests
+│   └── payload_registry_test.go    # Payload registry and tag filtering tests
+└── integration/
     ├── setup_test.go               # Common test setup
     ├── identity_integration_test.go     # Identity command workflows
     ├── workspace_integration_test.go    # Workspace command workflows
@@ -356,11 +386,11 @@ Sessions (workspaces) are stored as JSON files in `~/.pathrunner/sessions/` with
 
 **AWS Config Persistence**: The `aws.Config` struct has `json:"-"` tag so it's not serialized. Must call `RefreshConfig()` when loading identities from JSON.
 
-**Module Execution Signature**: Modules must implement `Execute(identity, options, tracker)` with the ResourceTracker parameter for resource cleanup integration.
+**Module Execution Signature**: Modules must implement `Execute(identity, options, tracker)` with the ResourceTracker parameter for resource cleanup integration. Modules must also implement `PayloadOptions(payloadName)` and `ListPayloads()`.
 
-**Python Code Generation**: Payload files generate Python Lambda code as Go string literals. Use triple quotes `'''` for multiline JSON, not backticks.
+**Payload Code Generation**: Lambda payloads generate Python code, EC2 payloads generate bash scripts, both as Go string literals. Use triple quotes `'''` for multiline JSON in Python, not backticks.
 
-**Import Cycles**: Keep module interfaces in `pkg/modules/` separate from core logic to avoid import cycles between core and specific modules.
+**Import Cycles**: Keep module interfaces in `pkg/modules/` separate from core logic to avoid import cycles between core and specific modules. Payloads in `pkg/payloads/` depend on `pkg/modules/` for the `Option` type but never import core or specific exploits.
 
 **Workspace Isolation**: When adding features that store state, ensure they respect workspace boundaries. Use `loadSessionState()` and `saveCurrentState()` to persist state per workspace.
 
@@ -414,12 +444,23 @@ Common mistakes to avoid:
 ### Adding a New Module
 
 1. **Module Structure**: Create directory in `pkg/exploits/`
-2. **Implement Interface**: Implement `modules.Module` interface
-3. **Register Module**: Add `init()` function with `modules.Register()`
-4. **Import**: Add blank import in `cmd/pathrunner/main.go`
-5. **Payloads**: If applicable, implement payload variants
-6. **Tests**: Add unit and integration tests
-7. **Documentation**: Update README with module usage
+2. **Implement Interface**: Implement `modules.Module` interface (including `PayloadOptions()` and `ListPayloads()`)
+3. **Implement PayloadCompatible**: Declare compatible tags and service context
+4. **Register Module**: Add `init()` function with `modules.Register()`
+5. **Import**: Add blank import in `cmd/pathrunner/main.go`
+6. **Payload Integration**: Query `payloads.GetPayloadsByTags()` to discover compatible payloads; delegate code generation to `payload.GenerateCode()` and result parsing to `payload.ProcessResult()`
+7. **Tests**: Add unit and integration tests
+8. **Documentation**: Update README with module usage
+
+### Adding a New Payload
+
+1. **Choose Service Directory**: Create file in `pkg/payloads/ec2/`, `pkg/payloads/lambda/`, or a new service directory
+2. **Implement Payload Interface**: Must implement `GetName()`, `GetDescription()`, `GetTags()`, `GetOptions()`, `GenerateCode()`, `ProcessResult()`, `Validate()`
+3. **Assign Tags**: Use standard tag constants from `pkg/payloads/tags.go` (service, language, technique, transport)
+4. **Register Payload**: Add `init()` function calling `payloads.Register()`
+5. **Import**: If new service directory, add blank import in `cmd/pathrunner/main.go`
+6. **Tests**: Add tests for code generation, validation, and result processing
+7. **Naming Convention**: Use `technique/method` format (e.g., `exfil/webhook`, `backdoor/role`, `shell/reverse`, `elevation/direct`)
 
 ## Code Style
 
@@ -447,8 +488,28 @@ Common mistakes to avoid:
 
 ## Recent Updates
 
-**Workspace-Scoped Identities** (Major Feature):
-- Identities are now completely isolated per workspace
+**Centralized Payload Registry** (Major Architecture Change - In Progress):
+- Payloads decoupled from modules into `pkg/payloads/` with global registry
+- Tag-based discovery system replaces hardcoded payload references
+- `lambda_passrole` refactored to query registry instead of embedding payload code
+- Enables payload reuse across modules targeting the same AWS service
+- `Module` interface expanded with `PayloadOptions()` and `ListPayloads()` methods
+- New `PayloadCompatible` interface for modules to declare service context
+
+**EC2 PassRole Module** (New - In Progress):
+- `exploit/ec2_passrole` module for privilege escalation via RunInstances
+- Auto-detects Amazon Linux AMI and default VPC subnet
+- Injects payload as base64-encoded user-data script
+- Three EC2 payloads: `exfil/webhook`, `elevation/direct`, `shell/reverse`
+- Tracks launched instances in ResourceTracker for cleanup
+
+**Interactive Resource Cleanup** (In Progress):
+- `workspace cleanup` now uses `survey/v2` for interactive multi-select
+- Users choose which tracked resources to delete
+- Region-aware cleanup; supports EC2 instance termination
+
+**Workspace-Scoped Identities**:
+- Identities are completely isolated per workspace
 - `loadSessionState()` replaces (not merges) identities on workspace switch
 - `saveCurrentState()` persists all identities and current selection
 - Critical for preventing credential mix-ups across projects
@@ -469,6 +530,6 @@ Common mistakes to avoid:
 - Old terminology removed from codebase
 
 **Testing Infrastructure**:
-- Created comprehensive test suite (103 tests)
-- Established testing patterns and requirements
+- Comprehensive test suite with unit and integration tests
+- Payload registry tests added (`tests/unit/payload_registry_test.go`)
 - All new features must include unit and integration tests

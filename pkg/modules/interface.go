@@ -165,6 +165,18 @@ type Module interface {
 	Execute(identity *Identity, options map[string]string, tracker ResourceTracker) (string, error)
 }
 
+// PayloadCompatible is an optional interface that modules can implement
+// to declare their payload compatibility and enable automatic filtering
+type PayloadCompatible interface {
+	// GetCompatibleTags returns the payload tags this module supports
+	// e.g., ["lambda", "python"] for Lambda-based modules
+	GetCompatibleTags() []string
+
+	// GetPayloadContext returns the primary service context
+	// e.g., "lambda", "ec2", "apprunner"
+	GetPayloadContext() string
+}
+
 type PayloadInfo struct {
 	Name        string
 	Description string

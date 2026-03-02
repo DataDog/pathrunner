@@ -10,8 +10,10 @@ import (
 
 	"pathrunner/pkg/modules"
 
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/aquasecurity/table"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 )
@@ -185,12 +187,81 @@ func (r *REPL) sessionCleanup() error {
 		return NewIdentityRequiredError()
 	}
 
-	fmt.Printf("Cleaning up %d resources...\n", len(resources))
+	// Build options for multi-select
+	options := make([]string, 0, len(resources)+1)
+	resourceMap := make(map[string]CreatedResource)
+
+	// Add "All resources" option
+	allOption := fmt.Sprintf("All resources (%d)", len(resources))
+	options = append(options, allOption)
+
+	// Add individual resources
+	for _, resource := range resources {
+		regionInfo := ""
+		if resource.Region != "" {
+			regionInfo = fmt.Sprintf(" [%s]", resource.Region)
+		}
+		option := fmt.Sprintf("%s: %s%s", resource.Type, resource.Name, regionInfo)
+		options = append(options, option)
+		resourceMap[option] = resource
+	}
+
+	// Show multi-select prompt
+	var selected []string
+	prompt := &survey.MultiSelect{
+		Message: "Select resources to clean up (space to select, enter to confirm):",
+		Options: options,
+		Description: func(value string, index int) string {
+			if index == 0 {
+				return "Clean up all tracked resources"
+			}
+			return ""
+		},
+	}
+
+	err := survey.AskOne(prompt, &selected, survey.WithPageSize(10))
+	if err != nil {
+		return fmt.Errorf("selection cancelled")
+	}
+
+	if len(selected) == 0 {
+		fmt.Println("No resources selected for cleanup.")
+		return nil
+	}
+
+	// Determine which resources to clean up
+	var resourcesToCleanup []CreatedResource
+
+	// Check if "All resources" was selected
+	selectAll := false
+	for _, sel := range selected {
+		if sel == allOption {
+			selectAll = true
+			break
+		}
+	}
+
+	if selectAll {
+		resourcesToCleanup = resources
+	} else {
+		for _, sel := range selected {
+			if resource, exists := resourceMap[sel]; exists {
+				resourcesToCleanup = append(resourcesToCleanup, resource)
+			}
+		}
+	}
+
+	// Clean up selected resources
+	fmt.Printf("\nCleaning up %d resources...\n", len(resourcesToCleanup))
 	fmt.Println()
 
 	var cleaned, failed int
-	for _, resource := range resources {
-		fmt.Printf("Cleaning up %s: %s...", resource.Type, resource.Name)
+	for _, resource := range resourcesToCleanup {
+		regionInfo := ""
+		if resource.Region != "" {
+			regionInfo = fmt.Sprintf(" [%s]", resource.Region)
+		}
+		fmt.Printf("Cleaning up %s: %s%s...", resource.Type, resource.Name, regionInfo)
 
 		if err := r.cleanupResource(resource, identity); err != nil {
 			fmt.Printf(" FAILED (%v)\n", err)
@@ -342,6 +413,8 @@ func (r *REPL) cleanupResource(resource CreatedResource, identity *modules.Ident
 	switch resource.Type {
 	case "lambda:function":
 		return r.cleanupLambdaFunction(ctx, config, resource)
+	case "ec2:instance":
+		return r.cleanupEC2Instance(ctx, config, resource)
 	case "iam:role":
 		return r.cleanupIAMRole(ctx, config, resource)
 	case "iam:user":
@@ -353,9 +426,36 @@ func (r *REPL) cleanupResource(resource CreatedResource, identity *modules.Ident
 
 // cleanupLambdaFunction deletes a Lambda function
 func (r *REPL) cleanupLambdaFunction(ctx context.Context, config aws.Config, resource CreatedResource) error {
+	// Override region with the resource's region if it was tracked
+	if resource.Region != "" {
+		config.Region = resource.Region
+	}
+
 	client := lambda.NewFromConfig(config)
 	_, err := client.DeleteFunction(ctx, &lambda.DeleteFunctionInput{
 		FunctionName: aws.String(resource.Name),
+	})
+	return err
+}
+
+// cleanupEC2Instance terminates an EC2 instance
+func (r *REPL) cleanupEC2Instance(ctx context.Context, config aws.Config, resource CreatedResource) error {
+	// Override region with the resource's region if it was tracked
+	if resource.Region != "" {
+		config.Region = resource.Region
+	}
+
+	client := ec2.NewFromConfig(config)
+
+	// Get instance ID from metadata
+	instanceID, exists := resource.Metadata["instance_id"]
+	if !exists {
+		// Fallback to using resource name as instance ID
+		instanceID = resource.Name
+	}
+
+	_, err := client.TerminateInstances(ctx, &ec2.TerminateInstancesInput{
+		InstanceIds: []string{instanceID},
 	})
 	return err
 }
