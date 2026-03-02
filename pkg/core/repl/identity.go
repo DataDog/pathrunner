@@ -11,6 +11,9 @@ func (r *REPL) cmdIdentity(repl *REPL, args []string) error {
 
 	switch args[0] {
 	case "add":
+		if len(args) > 1 && args[1] == "help" {
+			return r.showIdentityAddHelp()
+		}
 		err := r.identityManager.AddIdentity(args[1:])
 		if err == nil {
 			// Update prompt in case identity was added and switched to
@@ -22,6 +25,9 @@ func (r *REPL) cmdIdentity(repl *REPL, args []string) error {
 	case "show":
 		return r.identityManager.ShowCurrent()
 	case "switch":
+		if len(args) > 1 && args[1] == "help" {
+			return r.showIdentitySwitchHelp()
+		}
 		if len(args) < 2 {
 			return NewInvalidArgumentsError("identity switch requires identity name")
 		}
@@ -33,6 +39,9 @@ func (r *REPL) cmdIdentity(repl *REPL, args []string) error {
 	case "refresh":
 		return r.identityManager.RefreshCurrentIdentity()
 	case "clear", "remove":
+		if len(args) > 1 && args[1] == "help" {
+			return r.showIdentityClearHelp()
+		}
 		return r.identityManager.RemoveIdentity(args[1:])
 	case "help":
 		return r.showIdentityHelp()

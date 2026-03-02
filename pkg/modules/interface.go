@@ -157,6 +157,7 @@ func (i *Identity) RefreshConfig() error {
 }
 
 type Module interface {
+	PathInfo() PathInfo
 	Name() string
 	Description() string
 	Options() []Option
@@ -189,6 +190,7 @@ type CreatedResource struct {
 	Region        string            `json:"region"`
 	Created       time.Time         `json:"created"`
 	CleanupMethod string            `json:"cleanup_method"`
+	ModuleID      string            `json:"module_id,omitempty"`
 	Metadata      map[string]string `json:"metadata,omitempty"`
 }
 

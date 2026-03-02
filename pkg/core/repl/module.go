@@ -66,8 +66,85 @@ func (r *REPL) cmdShow(repl *REPL, args []string) error {
 		return r.showPayloads()
 	case "options":
 		return r.showOptions()
+	case "info":
+		return r.showInfo()
 	default:
 		return NewInvalidArgumentsError(fmt.Sprintf("unknown show target: %s. Use 'show help' for available targets", args[0]))
+	}
+}
+
+// cmdSearch searches modules by keyword
+func (r *REPL) cmdSearch(repl *REPL, args []string) error {
+	if len(args) == 0 {
+		return NewInvalidArgumentsError("search command requires a query. Usage: search <keyword>")
+	}
+
+	if args[0] == "help" {
+		return r.showSearchHelp()
+	}
+
+	query := strings.Join(args, " ")
+	results := modules.SearchModules(query)
+
+	if len(results) == 0 {
+		fmt.Printf("No modules found matching '%s'\n", query)
+		return nil
+	}
+
+	t := table.New(os.Stdout)
+	t.SetHeaders("ID", "Name", "Category", "Services")
+	t.SetHeaderStyle(table.StyleBold)
+	t.SetRowLines(false)
+	t.SetLineStyle(table.StyleCyan)
+	t.SetDividers(table.UnicodeRoundedDividers)
+	t.SetAlignment(table.AlignLeft)
+
+	for _, info := range results {
+		t.AddRow(info.ID, info.Name, info.Category, strings.Join(info.Services, ", "))
+	}
+
+	fmt.Printf("Search results for '%s':\n", query)
+	fmt.Println()
+	t.Render()
+	fmt.Println()
+
+	return nil
+}
+
+// cmdModules handles the top-level modules command with subcommands
+func (r *REPL) cmdModules(repl *REPL, args []string) error {
+	if len(args) == 0 {
+		return r.showModules()
+	}
+
+	switch args[0] {
+	case "list":
+		return r.showModules()
+	case "search":
+		if len(args) < 2 {
+			return NewInvalidArgumentsError("modules search requires a query")
+		}
+		return r.cmdSearch(repl, args[1:])
+	case "help":
+		return r.showModulesHelp()
+	default:
+		return NewInvalidArgumentsError(fmt.Sprintf("unknown modules subcommand: %s", args[0]))
+	}
+}
+
+// cmdPayloads handles the top-level payloads command with subcommands
+func (r *REPL) cmdPayloads(repl *REPL, args []string) error {
+	if len(args) == 0 {
+		return r.showPayloads()
+	}
+
+	switch args[0] {
+	case "list":
+		return r.showPayloads()
+	case "help":
+		return r.showPayloadsHelp()
+	default:
+		return NewInvalidArgumentsError(fmt.Sprintf("unknown payloads subcommand: %s", args[0]))
 	}
 }
 
@@ -198,28 +275,151 @@ func (r *REPL) cmdExploit(repl *REPL, args []string) error {
 	return nil
 }
 
-// showModules displays available modules
-func (r *REPL) showModules() error {
-	moduleNames := modules.ListModules()
-	if len(moduleNames) == 0 {
-		fmt.Println("No modules available.")
+// showInfo displays detailed PathInfo for the current module as a single table
+func (r *REPL) showInfo() error {
+	if r.currentModule == nil {
+		return NewValidationError("no module selected. Use 'use <module>' to select one", nil)
+	}
+
+	info := r.currentModule.PathInfo()
+	if info.ID == "" {
+		fmt.Printf("Module %s has no path metadata.\n", r.currentModule.Name())
 		return nil
 	}
 
-	// Create table
 	t := table.New(os.Stdout)
-	t.SetHeaders("Module", "Description")
+	t.SetHeaders("Field", "Value")
 	t.SetHeaderStyle(table.StyleBold)
 	t.SetRowLines(false)
 	t.SetLineStyle(table.StyleCyan)
 	t.SetDividers(table.UnicodeRoundedDividers)
 	t.SetAlignment(table.AlignLeft)
 
-	for _, name := range moduleNames {
-		_, description, err := modules.GetModuleInfo(name)
-		if err == nil {
-			t.AddRow(name, description)
+	t.AddRow("Path ID", info.ID)
+	t.AddRow("Name", info.Name)
+	t.AddRow("Category", info.Category)
+	t.AddRow("Services", strings.Join(info.Services, ", "))
+	t.AddRow("Description", info.Description)
+
+	// Required Permissions
+	if len(info.Permissions.Required) > 0 {
+		var perms []string
+		for _, perm := range info.Permissions.Required {
+			entry := perm.Permission
+			if perm.Description != "" {
+				entry += " (" + perm.Description + ")"
+			}
+			perms = append(perms, entry)
 		}
+		t.AddRow("Required Permissions", strings.Join(perms, "\n"))
+	}
+
+	// Additional Permissions
+	if len(info.Permissions.Additional) > 0 {
+		var perms []string
+		for _, perm := range info.Permissions.Additional {
+			entry := perm.Permission
+			if perm.Description != "" {
+				entry += " (" + perm.Description + ")"
+			}
+			perms = append(perms, entry)
+		}
+		t.AddRow("Additional Permissions", strings.Join(perms, "\n"))
+	}
+
+	// Prerequisites
+	if len(info.Prerequisites.Admin) > 0 {
+		var items []string
+		for _, req := range info.Prerequisites.Admin {
+			items = append(items, req)
+		}
+		t.AddRow("Prerequisites (Admin)", strings.Join(items, "\n"))
+	}
+	if len(info.Prerequisites.Lateral) > 0 {
+		var items []string
+		for _, req := range info.Prerequisites.Lateral {
+			items = append(items, req)
+		}
+		t.AddRow("Prerequisites (Lateral)", strings.Join(items, "\n"))
+	}
+
+	// Related Paths
+	if len(info.RelatedPaths) > 0 {
+		t.AddRow("Related Paths", strings.Join(info.RelatedPaths, ", "))
+	}
+
+	// References
+	if len(info.References) > 0 {
+		var refs []string
+		for _, ref := range info.References {
+			refs = append(refs, ref.Title+": "+ref.URL)
+		}
+		t.AddRow("References", strings.Join(refs, "\n"))
+	}
+
+	// URL
+	t.AddRow("URL", info.PathfindingCloudURL())
+
+	// Aliases
+	if len(info.Aliases) > 0 {
+		t.AddRow("Aliases", strings.Join(info.Aliases, ", "))
+	}
+
+	if info.Author != "" {
+		t.AddRow("Author", info.Author)
+	}
+
+	fmt.Println()
+	t.Render()
+	fmt.Println()
+
+	return nil
+}
+
+// showModules displays available modules with enriched metadata
+func (r *REPL) showModules() error {
+	infos := modules.ListPathInfos()
+
+	// Fall back to basic listing if no PathInfo available
+	if len(infos) == 0 {
+		moduleNames := modules.ListModules()
+		if len(moduleNames) == 0 {
+			fmt.Println("No modules available.")
+			return nil
+		}
+
+		t := table.New(os.Stdout)
+		t.SetHeaders("Module", "Description")
+		t.SetHeaderStyle(table.StyleBold)
+		t.SetRowLines(false)
+		t.SetLineStyle(table.StyleCyan)
+		t.SetDividers(table.UnicodeRoundedDividers)
+		t.SetAlignment(table.AlignLeft)
+
+		for _, name := range moduleNames {
+			_, description, err := modules.GetModuleInfo(name)
+			if err == nil {
+				t.AddRow(name, description)
+			}
+		}
+
+		fmt.Println("Available Modules:")
+		fmt.Println()
+		t.Render()
+		fmt.Println()
+		return nil
+	}
+
+	t := table.New(os.Stdout)
+	t.SetHeaders("ID", "Name", "Category", "Description")
+	t.SetHeaderStyle(table.StyleBold)
+	t.SetRowLines(false)
+	t.SetLineStyle(table.StyleCyan)
+	t.SetDividers(table.UnicodeRoundedDividers)
+	t.SetAlignment(table.AlignLeft)
+
+	for _, info := range infos {
+		t.AddRow(info.ID, info.Name, info.Category, info.Description)
 	}
 
 	fmt.Println("Available Modules:")

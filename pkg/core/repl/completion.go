@@ -20,6 +20,9 @@ func (r *REPL) getCompleter() readline.AutoCompleter {
 			readline.PcItem("whoami"),
 			readline.PcItem("workspace"),
 			readline.PcItem("context"),
+			readline.PcItem("search"),
+			readline.PcItem("modules"),
+			readline.PcItem("payloads"),
 		),
 		readline.PcItem("exit"),
 		readline.PcItem("quit"),
@@ -33,11 +36,12 @@ func (r *REPL) getCompleter() readline.AutoCompleter {
 			readline.PcItem("modules"),
 			readline.PcItem("payloads"),
 			readline.PcItem("options"),
+			readline.PcItem("info"),
 			readline.PcItem("help"),
 		),
-		// Top-level aliases for show commands
-		readline.PcItem("modules"),
-		readline.PcItem("payloads"),
+		r.buildModulesCompleter(),
+		r.buildPayloadsCompleter(),
+		r.buildSearchCompleter(),
 		r.buildSetCompleter(),
 		r.buildUnsetCompleter(),
 		readline.PcItem("exploit",
@@ -55,9 +59,24 @@ func (r *REPL) getCompleter() readline.AutoCompleter {
 	)
 }
 
-// buildUseCompleter builds completion for the use command
+// buildUseCompleter builds completion for the use command (includes aliases)
 func (r *REPL) buildUseCompleter() readline.PrefixCompleterInterface {
 	moduleNames := modules.ListModules()
+
+	// Collect aliases too
+	seen := make(map[string]bool)
+	for _, name := range moduleNames {
+		seen[name] = true
+	}
+	for _, info := range modules.ListPathInfos() {
+		for _, alias := range info.Aliases {
+			if !seen[alias] {
+				moduleNames = append(moduleNames, alias)
+				seen[alias] = true
+			}
+		}
+	}
+
 	items := make([]readline.PrefixCompleterInterface, len(moduleNames)+1)
 	items[0] = readline.PcItem("help")
 	for i, name := range moduleNames {
@@ -167,7 +186,10 @@ func (r *REPL) buildWorkspaceCompleter() readline.PrefixCompleterInterface {
 		readline.PcItem("switch", workspaceItems...),
 		readline.PcItem("save"),
 		readline.PcItem("delete", workspaceItems...),
-		readline.PcItem("cleanup"),
+		readline.PcItem("cleanup",
+			readline.PcItem("--all"),
+			readline.PcItem("--module"),
+		),
 		readline.PcItem("history"),
 		readline.PcItem("help"),
 	)
@@ -294,6 +316,30 @@ func (r *REPL) buildIdsCompleter() readline.PrefixCompleterInterface {
 	)
 }
 
+// buildModulesCompleter builds completion for the top-level modules command
+func (r *REPL) buildModulesCompleter() readline.PrefixCompleterInterface {
+	return readline.PcItem("modules",
+		readline.PcItem("list"),
+		readline.PcItem("search"),
+		readline.PcItem("help"),
+	)
+}
+
+// buildPayloadsCompleter builds completion for the top-level payloads command
+func (r *REPL) buildPayloadsCompleter() readline.PrefixCompleterInterface {
+	return readline.PcItem("payloads",
+		readline.PcItem("list"),
+		readline.PcItem("help"),
+	)
+}
+
+// buildSearchCompleter builds completion for the search command
+func (r *REPL) buildSearchCompleter() readline.PrefixCompleterInterface {
+	return readline.PcItem("search",
+		readline.PcItem("help"),
+	)
+}
+
 // buildWorkspacesCompleter builds completion for workspaces command (alias for workspace)
 func (r *REPL) buildWorkspacesCompleter() readline.PrefixCompleterInterface {
 	var workspaceItems []readline.PrefixCompleterInterface
@@ -311,7 +357,10 @@ func (r *REPL) buildWorkspacesCompleter() readline.PrefixCompleterInterface {
 		readline.PcItem("switch", workspaceItems...),
 		readline.PcItem("save"),
 		readline.PcItem("delete", workspaceItems...),
-		readline.PcItem("cleanup"),
+		readline.PcItem("cleanup",
+			readline.PcItem("--all"),
+			readline.PcItem("--module"),
+		),
 		readline.PcItem("history"),
 		readline.PcItem("help"),
 	)

@@ -179,13 +179,26 @@ func (c *CLI) createWorkspaceCmd() *cobra.Command {
 	workspaceCmd.AddCommand(deleteCmd)
 
 	// workspace cleanup
-	workspaceCmd.AddCommand(&cobra.Command{
+	cleanupCmd := &cobra.Command{
 		Use:   "cleanup",
 		Short: "Clean up AWS resources in current workspace",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("workspace cleanup")
+			var replArgs []string
+			replArgs = append(replArgs, "workspace", "cleanup")
+
+			if all, _ := cmd.Flags().GetBool("all"); all {
+				replArgs = append(replArgs, "--all")
+			}
+			if module, _ := cmd.Flags().GetString("module"); module != "" {
+				replArgs = append(replArgs, "--module", module)
+			}
+
+			c.executeREPLCommand(strings.Join(replArgs, " "))
 		},
-	})
+	}
+	cleanupCmd.Flags().Bool("all", false, "Clean up all resources without interactive prompt")
+	cleanupCmd.Flags().String("module", "", "Only clean up resources created by a specific module ID")
+	workspaceCmd.AddCommand(cleanupCmd)
 
 	// workspace history
 	workspaceCmd.AddCommand(&cobra.Command{
@@ -233,6 +246,15 @@ func (c *CLI) createShowCmd() *cobra.Command {
 		},
 	})
 
+	// show info
+	showCmd.AddCommand(&cobra.Command{
+		Use:   "info",
+		Short: "Show detailed path metadata for current module",
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("show info")
+		},
+	})
+
 	// show payload options
 	payloadCmd := &cobra.Command{
 		Use:   "payload",
@@ -250,24 +272,65 @@ func (c *CLI) createShowCmd() *cobra.Command {
 	return showCmd
 }
 
-// Modules command (alias for show modules)
+// Modules command with subcommands
 func (c *CLI) createModulesCmd() *cobra.Command {
-	return &cobra.Command{
+	modulesCmd := &cobra.Command{
 		Use:   "modules",
-		Short: "List all available modules",
+		Short: "List and search modules",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("show modules")
+			c.executeREPLCommand("modules list")
 		},
 	}
+
+	modulesCmd.AddCommand(&cobra.Command{
+		Use:   "list",
+		Short: "List all available modules",
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("modules list")
+		},
+	})
+
+	modulesCmd.AddCommand(&cobra.Command{
+		Use:   "search <query>",
+		Short: "Search modules by keyword",
+		Args:  cobra.MinimumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("search " + strings.Join(args, " "))
+		},
+	})
+
+	return modulesCmd
 }
 
-// Payloads command (alias for show payloads)
+// Payloads command with subcommands
 func (c *CLI) createPayloadsCmd() *cobra.Command {
-	return &cobra.Command{
+	payloadsCmd := &cobra.Command{
 		Use:   "payloads",
-		Short: "List all available payloads (or current module payloads if module selected)",
+		Short: "List available payloads",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("show payloads")
+			c.executeREPLCommand("payloads list")
+		},
+	}
+
+	payloadsCmd.AddCommand(&cobra.Command{
+		Use:   "list",
+		Short: "List all available payloads",
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("payloads list")
+		},
+	})
+
+	return payloadsCmd
+}
+
+// Search command
+func (c *CLI) createSearchCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "search <query>",
+		Short: "Search modules by keyword",
+		Args:  cobra.MinimumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("search " + strings.Join(args, " "))
 		},
 	}
 }

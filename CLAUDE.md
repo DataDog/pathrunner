@@ -2,6 +2,51 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Related Projects
+
+Pathrunner is one of three projects that share a common identifier convention (`{service}-{number}`) for AWS privilege escalation paths. All three are in adjacent directories.
+
+### pathfinding.cloud (`/Users/seth.art/Documents/projects/pathfinding.cloud`)
+
+The **source of truth** for path definitions. A static website (vanilla JS, GitHub Pages) backed by 69 YAML files in `data/paths/{service}/{service}-{number}.yaml`. Each YAML defines a privilege escalation path with rich metadata: permissions, prerequisites, exploitation steps, attack visualizations, detection tool coverage, and learning environments. Schema version 1.6.0.
+
+- **69 paths** across 15 AWS services (iam: 21, ecs: 9, lambda: 6, glue: 6, ec2: 4, etc.)
+- **5 categories**: self-escalation, principal-access, new-passrole, existing-passrole, credential-access
+- Build pipeline: Python validates YAML and generates `docs/paths.json` for the website
+- Maintained by Seth Art (Datadog), Apache 2.0 license, public at `DataDog/pathfinding.cloud`
+
+### pathfinding-labs (`/Users/seth.art/Documents/projects/pathfinding-labs`)
+
+**Terraform lab environments** that deploy intentionally vulnerable AWS configurations for each path. 97 active scenarios in `modules/scenarios/`, each with a `scenario.yaml` referencing the pathfinding.cloud ID via the `pathfinding-cloud-id` field.
+
+- **97 active scenarios**: one-hop (70), self-escalation (10), cross-account (6), multi-hop (4), tool-testing (5), CSPM (2)
+- Go CLI (`plabs`) with Bubble Tea TUI for interactive scenario management
+- Each scenario contains: Terraform modules, `demo_attack.sh`, `cleanup_attack.sh`, `scenario.yaml`
+- Terraform variable naming: `enable_single_account_privesc_{category}_to_{target}_{path_id}_{technique}`
+- Multi-account support (prod, dev, ops) via provider aliases
+
+### How the Three Projects Connect
+
+```
+pathfinding.cloud          pathfinding-labs            pathrunner
+(YAML definitions)    →    (Terraform labs)       →    (attack execution)
+
+data/paths/lambda/         modules/scenarios/.../     pkg/exploits/lambda_passrole/
+  lambda-001.yaml            scenario.yaml              module.go
+  - id: lambda-001           - pathfinding-cloud-id:    - ID: "lambda-001"
+  - permissions               "lambda-001"              - Aliases: ["exploit/lambda_passrole"]
+  - prerequisites           - demo_attack.sh            - PathInfo.Permissions
+  - exploitationSteps       - main.tf                   - Execute()
+```
+
+**Shared identifier**: The `{service}-{number}` ID (e.g., `lambda-001`) is the key that links a path definition → a deployable lab → an automated exploit module.
+
+**Pathrunner's role**: Automates the exploitation step. Where pathfinding.cloud documents "run this AWS CLI command" and pathfinding-labs deploys the vulnerable environment, pathrunner executes the attack programmatically with payload selection, credential management, and resource tracking.
+
+**Coverage**: pathfinding.cloud defines 69 paths, pathfinding-labs has scenarios for most of them, and pathrunner currently implements 3 (lambda-001, ec2-001, sts-001) with the architecture to scale to all 69+.
+
+**PathInfo alignment**: Pathrunner's `PathInfo` struct mirrors the subset of pathfinding.cloud YAML fields useful at runtime (id, name, category, services, permissions, prerequisites, references). Fields only relevant on the website (attackVisualization, recommendation, discoveryAttribution, learningEnvironments) are excluded.
+
 ## Build and Development Commands
 
 ```bash
@@ -55,8 +100,11 @@ Pathrunner is a modular AWS post-exploitation framework with dual CLI/REPL inter
 
 **pkg/modules/** - Module system interfaces and shared types:
 - `interface.go`: Core interfaces for Module, Identity, ResourceTracker, PayloadCompatible, and shared data structures
-- `registry.go`: Module registration and loading system
-- Modules must implement the Module interface with Execute(), PayloadOptions(), and ListPayloads() methods
+- `pathinfo.go`: PathInfo metadata struct hierarchy (ID, permissions, prerequisites, MITRE, references)
+- `base.go`: BaseModule embeddable struct with default implementations for Module interface
+- `registry.go`: Module registration with alias support, PathInfo cache, search/filter functions
+- Modules must implement the Module interface with PathInfo(), Execute(), PayloadOptions(), and ListPayloads() methods
+- Modules embed `BaseModule` to inherit default implementations for Name(), Description(), PathInfo(), PayloadOptions(), ListPayloads()
 - Modules can optionally implement `PayloadCompatible` to declare supported payload tags/service context
 
 **pkg/payloads/** - Centralized payload registry system (service-based, reusable across modules):
@@ -68,12 +116,12 @@ Pathrunner is a modular AWS post-exploitation framework with dual CLI/REPL inter
 - Payloads self-register via `init()` functions, same pattern as modules
 - Tag categories: service (`lambda`, `ec2`, `ecs`, ...), language (`python`, `bash`, ...), technique (`exfil`, `backdoor`, `reverse_shell`, `direct_action`), transport (`webhook`, `output`, `network`)
 
-**pkg/exploits/** - Exploitation modules:
-- `lambda_passrole/`: Lambda/PassRole privilege escalation module (refactored to use payload registry)
+**pkg/exploits/** - Exploitation modules (each embeds `BaseModule` with `PathInfo`):
+- `lambda_passrole/`: `lambda-001` - Lambda/PassRole privilege escalation (aliases: `lambda-passrole`, `exploit/lambda_passrole`)
   - `module.go`: Implements `PayloadCompatible` with tags `[lambda, python]`; queries registry for Lambda payloads
-- `ec2_passrole/`: EC2/PassRole privilege escalation via RunInstances with user-data scripts
+- `ec2_passrole/`: `ec2-001` - EC2/PassRole privilege escalation via RunInstances (aliases: `ec2-passrole`, `exploit/ec2_passrole`)
   - `module.go`: Implements `PayloadCompatible` with tags `[ec2, bash]`; auto-detects AMI and subnet, launches instances with payload as user-data
-- `sts_assume_role/`: STS AssumeRole module for role assumption and credential handling
+- `sts_assume_role/`: `sts-001` - STS AssumeRole for role assumption (aliases: `sts-assume-role`, `exploit/sts_assume_role`)
 
 **pkg/utils/** - Utility functions:
 - `credentials.go`: Credential extraction from various formats (env vars, JSON, etc.)
@@ -134,7 +182,9 @@ Pathrunner is a modular AWS post-exploitation framework with dual CLI/REPL inter
 
 **Module and Payload Registration**:
 - Both modules and payloads self-register using `init()` functions
-- Modules use `modules.Register()`, payloads use `payloads.Register()`
+- Modules use `modules.Register(id, constructor)` with the pathfinding.cloud ID as primary key
+- Aliases from `PathInfo.Aliases` are auto-registered during `Register()` for backward compatibility
+- Payloads use `payloads.Register()`
 - Import in `main.go` with blank imports for both:
   ```go
   _ "pathrunner/pkg/payloads/ec2"      // Register EC2 payloads
@@ -143,7 +193,7 @@ Pathrunner is a modular AWS post-exploitation framework with dual CLI/REPL inter
   _ "pathrunner/pkg/exploits/lambda_passrole"
   _ "pathrunner/pkg/exploits/sts_assume_role"
   ```
-- Dynamic loading via `modules.LoadModule()` with error handling
+- Dynamic loading via `modules.LoadModule()` with error handling (resolves aliases automatically)
 
 **Module Output Format for Auto-Import**:
 Modules that output credentials should include structured data for automatic import:
@@ -163,6 +213,25 @@ outputBuilder.WriteString("--- END_PATHFINDER_IDENTITY_DATA ---\n")
 ```
 
 Alternatively, credentials in any common format (AWS_* env vars, JSON, Python dicts) will be auto-detected using the `utils.ExtractCredentialsFromText()` utility.
+
+**Path Metadata System (PathInfo)**:
+- Every module carries structured metadata via `PathInfo` struct, aligned with pathfinding.cloud schema
+- Modules embed `BaseModule` and populate `PathInfo` in their constructor
+- Module IDs follow the `{service}-{number}` convention (e.g., `lambda-001`, `ec2-001`, `sts-001`)
+- Old names (e.g., `exploit/lambda_passrole`) are kept as aliases for backward compatibility
+- `PathInfo` fields: ID, Name, Category, Services, Description, Permissions, Prerequisites, References, RelatedPaths, MITRE, Author, Aliases
+- The registry auto-caches PathInfo on registration and resolves aliases transparently
+- `modules.SearchModules(query)` searches across all PathInfo fields
+- `modules.ListModulesByCategory(cat)` and `modules.ListModulesByService(svc)` provide filtered views
+- `show info` displays full PathInfo for the currently selected module
+- `search <query>` finds modules by keyword across all metadata fields
+
+**New Commands**:
+- `show info` — Display detailed path metadata for current module
+- `search <query>` — Search modules by keyword (ID, name, category, service, permission)
+- `modules` / `modules list` — List all available modules (enriched with ID, Name, Category)
+- `modules search <query>` — Alias for `search <query>`
+- `payloads` / `payloads list` — List available payloads
 
 ### AWS Integration Specifics
 
@@ -189,12 +258,14 @@ tests/
 │   ├── identity_manager_test.go    # IdentityManager unit tests
 │   ├── session_manager_test.go     # SessionManager unit tests
 │   ├── repl_commands_test.go       # REPL command handler tests
-│   └── payload_registry_test.go    # Payload registry and tag filtering tests
+│   ├── payload_registry_test.go    # Payload registry and tag filtering tests
+│   └── pathinfo_test.go            # PathInfo structs, BaseModule, registry aliases, search/filter
 └── integration/
     ├── setup_test.go               # Common test setup
     ├── identity_integration_test.go     # Identity command workflows
     ├── workspace_integration_test.go    # Workspace command workflows
-    └── commands_integration_test.go     # General command workflows
+    ├── commands_integration_test.go     # General command workflows
+    └── pathinfo_integration_test.go     # show info, search, aliases, backward compat
 ```
 
 ### Testing Requirements for New Features
@@ -386,7 +457,7 @@ Sessions (workspaces) are stored as JSON files in `~/.pathrunner/sessions/` with
 
 **AWS Config Persistence**: The `aws.Config` struct has `json:"-"` tag so it's not serialized. Must call `RefreshConfig()` when loading identities from JSON.
 
-**Module Execution Signature**: Modules must implement `Execute(identity, options, tracker)` with the ResourceTracker parameter for resource cleanup integration. Modules must also implement `PayloadOptions(payloadName)` and `ListPayloads()`.
+**Module Execution Signature**: Modules embed `BaseModule` and must implement `Options()` and `Execute(identity, options, tracker)`. Override `PayloadOptions()` and `ListPayloads()` if the module supports payloads (defaults return empty slices).
 
 **Payload Code Generation**: Lambda payloads generate Python code, EC2 payloads generate bash scripts, both as Go string literals. Use triple quotes `'''` for multiline JSON in Python, not backticks.
 
@@ -414,11 +485,21 @@ Common mistakes to avoid:
 - ❌ Adding a flag to the implementation but forgetting tab completion
 - ❌ Documenting in help text but not implementing the actual handler
 - ❌ Forgetting to update both `identity` AND its aliases (`identities`, `id`, `ids`) completers
+- ❌ Adding a subcommand without a `help` handler (every subcommand must support `<cmd> <subcmd> help`)
+
+**Subcommand Help Requirement**: Every command and subcommand MUST support a trailing `help` argument that displays usage information. This means:
+- Top-level commands: `help <command>` and `<command> help` must both work
+- Subcommands: `<command> <subcommand> help` must work (e.g., `workspace cleanup help`, `identity add help`)
+- Each subcommand help handler is a `show*Help()` function in `pkg/core/repl/commands.go`
+- The parent command's help should include a hint: "Use '<command> <subcommand> help' for detailed help"
+- Help checks go at the top of the handler, before argument validation
 
 **Checklist for New Commands/Options**:
 - [ ] Handler implemented in `pkg/core/repl/*.go`
-- [ ] CLI wrapper added in `pkg/cli/commands.go`
-- [ ] Help text updated in `pkg/core/repl/commands.go`
+- [ ] Command registered in `pkg/core/repl/commands.go` `getCommands()` map
+- [ ] CLI wrapper added in `pkg/cli/commands.go` (and registered in `cli.go`)
+- [ ] Help text updated in `pkg/core/repl/commands.go` (add show*Help function, update showSpecificHelp)
+- [ ] Subcommand help handler added (every subcommand supports `<subcmd> help`)
 - [ ] Tab completion updated in `pkg/core/repl/completion.go`
 - [ ] If command has aliases, update all alias completers
 - [ ] Unit tests added
@@ -434,23 +515,26 @@ Common mistakes to avoid:
 3. **Command Registry**: Register command in `pkg/core/repl/commands.go`
 4. **CLI Wrapper**: Add Cobra command in `pkg/cli/commands.go`
 5. **Help Text**: Update `pkg/core/repl/commands.go` in appropriate `show*Help()` function
-6. **Tab Completion**: Update `pkg/core/repl/completion.go` in appropriate completer(s)
-7. **Aliases**: If command has aliases, update ALL alias completers
-8. **Unit Tests**: Create tests in `tests/unit/` for business logic
-9. **Integration Tests**: Create tests in `tests/integration/` for end-to-end workflow
-10. **Documentation**: Update help text and README if needed
-11. **Verification**: Manually test tab completion works for new command/options
+6. **Subcommand Help**: Add `help` argument check at top of handler + dedicated `show*Help()` function for each subcommand
+7. **Tab Completion**: Update `pkg/core/repl/completion.go` in appropriate completer(s)
+8. **Aliases**: If command has aliases, update ALL alias completers
+9. **Unit Tests**: Create tests in `tests/unit/` for business logic
+10. **Integration Tests**: Create tests in `tests/integration/` for end-to-end workflow
+11. **Documentation**: Update help text and README if needed
+12. **Verification**: Manually test tab completion works for new command/options
 
 ### Adding a New Module
 
-1. **Module Structure**: Create directory in `pkg/exploits/`
-2. **Implement Interface**: Implement `modules.Module` interface (including `PayloadOptions()` and `ListPayloads()`)
-3. **Implement PayloadCompatible**: Declare compatible tags and service context
-4. **Register Module**: Add `init()` function with `modules.Register()`
-5. **Import**: Add blank import in `cmd/pathrunner/main.go`
-6. **Payload Integration**: Query `payloads.GetPayloadsByTags()` to discover compatible payloads; delegate code generation to `payload.GenerateCode()` and result parsing to `payload.ProcessResult()`
-7. **Tests**: Add unit and integration tests
-8. **Documentation**: Update README with module usage
+1. **Choose ID**: Assign a `{service}-{number}` ID matching pathfinding.cloud (e.g., `lambda-002`)
+2. **Module Structure**: Create directory in `pkg/exploits/`
+3. **Embed BaseModule**: Populate `PathInfo` with ID, Name, Category, Services, Description, Permissions, Prerequisites, References, MITRE, and Aliases (include old-style name in Aliases for discoverability)
+4. **Implement Module**: Only `Options()` and `Execute()` are required; override `PayloadOptions()` and `ListPayloads()` if applicable
+5. **Implement PayloadCompatible** (optional): Declare compatible tags and service context
+6. **Register Module**: Add `init()` function with `modules.Register("service-NNN", constructor)`
+7. **Import**: Add blank import in `cmd/pathrunner/main.go`
+8. **Payload Integration**: Query `payloads.GetPayloadsByTags()` to discover compatible payloads; delegate code generation to `payload.GenerateCode()` and result parsing to `payload.ProcessResult()`
+9. **Tests**: Add unit and integration tests
+10. **Documentation**: Update README with module usage
 
 ### Adding a New Payload
 
@@ -472,9 +556,8 @@ Common mistakes to avoid:
 
 ## Current Test Statistics
 
-- **Total Tests**: 103 (58 unit + 45 integration)
-- **Test Files**: 10
-- **Lines of Test Code**: 2,510
+- **Total Tests**: 142 (74 unit + 68 integration)
+- **Test Files**: 14
 - **Pass Rate**: 100%
 - **Coverage**: Unit tests cover core business logic, integration tests cover all commands
 
@@ -482,13 +565,28 @@ Common mistakes to avoid:
 - ✅ IdentityManager: 14 unit tests
 - ✅ SessionManager: 14 unit tests
 - ✅ REPL Commands: 16 unit tests
+- ✅ PathInfo/Registry: 12 unit tests (fields, BaseModule, aliases, search, filter, cache)
+- ✅ Payload Registry: 14 unit tests
+- ✅ Cleanup/ModuleID: 4 unit tests (ModuleID persistence, filtering, struct fields)
 - ✅ Identity Commands: 7 integration tests
 - ✅ Workspace Commands: 10 integration tests
 - ✅ General Commands: 28 integration tests
+- ✅ PathInfo Integration: 15 integration tests (show info, search, aliases, backward compat)
+- ✅ Cleanup Integration: 8 integration tests (--all flag, --module filter, aliases, help)
 
 ## Recent Updates
 
-**Centralized Payload Registry** (Major Architecture Change - In Progress):
+**Structured Path Metadata System (PathInfo)** (Major Addition):
+- Every module now carries rich metadata via `PathInfo` struct aligned with pathfinding.cloud schema
+- Module IDs follow `{service}-{number}` convention (e.g., `lambda-001`, `ec2-001`, `sts-001`)
+- `BaseModule` embeddable struct reduces boilerplate — modules only implement `Options()` and `Execute()`
+- Registry supports alias resolution: old names (e.g., `exploit/lambda_passrole`) still work
+- PathInfo cache enables search/filter without instantiating modules
+- New commands: `show info`, `search <query>`, `modules list`, `modules search`, `payloads list`
+- `show modules` now displays enriched table with ID, Name, Category, Description
+- 27 new tests (12 unit + 15 integration) covering PathInfo, aliases, search, backward compat
+
+**Centralized Payload Registry** (Major Architecture Change):
 - Payloads decoupled from modules into `pkg/payloads/` with global registry
 - Tag-based discovery system replaces hardcoded payload references
 - `lambda_passrole` refactored to query registry instead of embedding payload code
@@ -503,10 +601,21 @@ Common mistakes to avoid:
 - Three EC2 payloads: `exfil/webhook`, `elevation/direct`, `shell/reverse`
 - Tracks launched instances in ResourceTracker for cleanup
 
-**Interactive Resource Cleanup** (In Progress):
-- `workspace cleanup` now uses `survey/v2` for interactive multi-select
-- Users choose which tracked resources to delete
-- Region-aware cleanup; supports EC2 instance termination
+**Enhanced Resource Cleanup** (Complete):
+- `workspace cleanup` uses `survey/v2` for interactive multi-select
+- `workspace cleanup --all` skips interactive prompt for scripted/automated use
+- `workspace cleanup --module <id>` filters to resources from a specific module
+- `ModuleID` field on `CreatedResource` tracks which module created each resource
+- ECS cleanup handlers: service, cluster, task-definition
+- IAM cleanup handlers: attached-policy, policy-version
+- Region-aware cleanup; supports Lambda, EC2, IAM, and ECS resource types
+
+**Claude Code Skills** (New):
+- `/create-module <id>` — Generate exploit module from pathfinding.cloud YAML + pathfinding-labs scripts
+- `/test-module <scenario-id>` — Test module against deployed pathfinding-labs scenario
+- `/cleanup-scenario <scenario-id>` — Clean up AWS resources after testing
+- `/list-gaps [service]` — Show which scenarios lack pathrunner modules
+- Skills include module/payload Go templates, reuse guides, and verification checklists
 
 **Workspace-Scoped Identities**:
 - Identities are completely isolated per workspace

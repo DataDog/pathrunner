@@ -72,6 +72,7 @@ func (c *CLI) CreateRootCommand() *cobra.Command {
 	rootCmd.AddCommand(c.createExploitCmd())
 	rootCmd.AddCommand(c.createContextCmd())
 	rootCmd.AddCommand(c.createWhoamiCmd())
+	rootCmd.AddCommand(c.createSearchCmd())
 	rootCmd.AddCommand(c.createAWSCmd())
 
 	return rootCmd
