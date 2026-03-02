@@ -1,0 +1,275 @@
+# Module Code Patterns by Category
+
+This document contains Go code templates extracted from existing pathrunner modules, organized by exploit category. Use these as the basis for new modules.
+
+## Category: new-passrole (lambda-001, ec2-001)
+
+Pattern: Create a new AWS resource with a privileged role attached, then execute code through that resource.
+
+### Template Structure
+
+```go
+package {service}_{technique}
+
+import (
+    "context"
+    "fmt"
+    "pathrunner/pkg/modules"
+    "pathrunner/pkg/payloads"
+    "time"
+
+    "github.com/aws/aws-sdk-go-v2/aws"
+    // Import service-specific SDK packages
+)
+
+type Module struct {
+    modules.BaseModule
+}
+
+func NewModule() *Module {
+    return &Module{
+        BaseModule: modules.BaseModule{
+            Info: modules.PathInfo{
+                ID:       "{service}-{number}",
+                Name:     "{permission-based name from YAML}",
+                Category: "new-passrole",
+                Services: []string{"{service1}", "{service2}"},
+                Description: "{description from YAML}",
+                Permissions: modules.PermissionSet{
+                    Required: []modules.Permission{
+                        {Permission: "iam:PassRole", Description: "Target role ARN"},
+                        // ... other required permissions
+                    },
+                    Additional: []modules.Permission{
+                        // ... optional permissions
+                    },
+                },
+                Prerequisites: modules.Prerequisites{
+                    Admin: []string{
+                        // What the admin needs to have set up
+                    },
+                    Lateral: []string{
+                        // What the attacker needs
+                    },
+                },
+                References: []modules.Reference{
+                    {Title: "Pathfinding Cloud - {service}-{number}", URL: "https://pathfinding.cloud/paths/{service}-{number}"},
+                },
+                MITRE: &modules.MITREMapping{
+                    Tactics:    []string{"TA0004 - Privilege Escalation"},
+                    Techniques: []string{"T1078.004 - Valid Accounts: Cloud Accounts"},
+                },
+                Author:  "Seth Art",
+                Aliases: []string{"{service}-{technique}", "exploit/{service}_{technique}"},
+            },
+        },
+    }
+}
+
+func init() {
+    modules.Register("{service}-{number}", func() modules.Module {
+        return NewModule()
+    })
+}
+
+func (m *Module) Options() []modules.Option {
+    return []modules.Option{
+        {Name: "ROLE_ARN", Description: "Target IAM role ARN", Required: true},
+        {Name: "PAYLOAD", Description: "Payload type", Required: true},
+        {Name: "REGION", Description: "AWS region", Required: false, Default: "us-east-1"},
+        // ... service-specific options
+    }
+}
+
+// Implement PayloadCompatible for payload-based modules
+func (m *Module) GetCompatibleTags() []string {
+    return []string{payloads.TagService{Service}, payloads.TagLanguage{Language}}
+}
+
+func (m *Module) GetPayloadContext() string {
+    return payloads.TagService{Service}
+}
+
+func (m *Module) PayloadOptions(payloadName string) []modules.Option {
+    payload, err := payloads.GetPayload(payloadName)
+    if err != nil {
+        return []modules.Option{}
+    }
+    return payload.GetOptions()
+}
+
+func (m *Module) ListPayloads() []modules.PayloadInfo {
+    servicePayloads := payloads.GetPayloadsByTags([]string{payloads.TagService{Service}})
+    var infos []modules.PayloadInfo
+    for _, p := range servicePayloads {
+        infos = append(infos, modules.PayloadInfo{Name: p.GetName(), Description: p.GetDescription()})
+    }
+    return infos
+}
+
+func (m *Module) Execute(identity *modules.Identity, options map[string]string, tracker modules.ResourceTracker) (string, error) {
+    // 1. Parse and validate options
+    roleArn := options["ROLE_ARN"]
+    payloadType := options["PAYLOAD"]
+
+    // 2. Get and validate payload
+    payload, err := payloads.GetPayload(payloadType)
+    if err != nil {
+        return "", fmt.Errorf("unknown payload type: %s", payloadType)
+    }
+    if err := payload.Validate(options); err != nil {
+        return "", fmt.Errorf("payload validation failed: %v", err)
+    }
+
+    // 3. Generate payload code
+    code, err := payload.GenerateCode(options)
+    if err != nil {
+        return "", fmt.Errorf("failed to generate payload code: %v", err)
+    }
+
+    // 4. Configure AWS client
+    config := identity.GetConfig()
+    if region := options["REGION"]; region != "" {
+        config.Region = region
+    }
+
+    ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+    defer cancel()
+
+    // 5. Create resource with privileged role
+    // ... AWS SDK calls to create the resource ...
+
+    // 6. Track resource for cleanup
+    if tracker != nil {
+        tracker.TrackResource(modules.CreatedResource{
+            Type:          "{service}:{resource-type}",
+            Name:          resourceName,
+            ARN:           resourceARN,
+            Region:        config.Region,
+            CleanupMethod: "{service}:{DeleteAction}",
+            ModuleID:      "{service}-{number}",
+            Metadata:      map[string]string{...},
+        })
+    }
+
+    // 7. Execute/invoke the resource
+    // ... invoke the function/instance/task ...
+
+    // 8. Process and return result
+    result, err := payload.ProcessResult(rawResult)
+    if err != nil {
+        return rawResult, fmt.Errorf("failed to process result: %v", err)
+    }
+    return result, nil
+}
+```
+
+## Category: principal-access (sts-001)
+
+Pattern: Use current credentials to assume a different role or access another principal's resources. No payload needed — the module produces credentials directly.
+
+### Key Differences from new-passrole
+- No payload system — module directly outputs credentials
+- Uses `PATHFINDER_IDENTITY_DATA` format for auto-import
+- Typically no resources to track/cleanup
+- Simpler Execute() — just an API call + credential formatting
+
+```go
+func (m *Module) Execute(identity *modules.Identity, options map[string]string, tracker modules.ResourceTracker) (string, error) {
+    // 1. Parse options (role ARN, session name, etc.)
+    // 2. Make STS/IAM API call
+    // 3. Format credentials in PATHFINDER_IDENTITY_DATA format
+
+    var outputBuilder strings.Builder
+    outputBuilder.WriteString("=== Results ===\n\n")
+    // ... human-readable output ...
+
+    // Structured credential output for auto-import
+    outputBuilder.WriteString("\n--- PATHFINDER_IDENTITY_DATA ---\n")
+    outputBuilder.WriteString(fmt.Sprintf("NAME=%s\n", identityName))
+    outputBuilder.WriteString(fmt.Sprintf("TYPE=assumed_role\n"))
+    outputBuilder.WriteString(fmt.Sprintf("ACCESS_KEY_ID=%s\n", accessKeyID))
+    outputBuilder.WriteString(fmt.Sprintf("SECRET_ACCESS_KEY=%s\n", secretKey))
+    outputBuilder.WriteString(fmt.Sprintf("SESSION_TOKEN=%s\n", sessionToken))
+    outputBuilder.WriteString(fmt.Sprintf("REGION=%s\n", region))
+    outputBuilder.WriteString(fmt.Sprintf("EXPIRES_AT=%s\n", expiresAt.Format(time.RFC3339)))
+    outputBuilder.WriteString(fmt.Sprintf("AUTO_SWITCH=%s\n", options["AUTO_SWITCH"]))
+    outputBuilder.WriteString("--- END_PATHFINDER_IDENTITY_DATA ---\n")
+
+    return outputBuilder.String(), nil
+}
+```
+
+## Category: self-escalation (iam-001 through iam-013)
+
+Pattern: Modify the caller's own IAM policy/permissions to grant additional access. No payloads needed — the module makes IAM API calls directly. Resources are typically policy modifications that need to be reverted.
+
+### Key Differences
+- No payload system
+- The "resource" tracked is a policy modification (attached policy, inline policy, policy version)
+- Cleanup means reverting the policy change
+- Must track enough metadata to undo the change
+
+```go
+func (m *Module) Execute(identity *modules.Identity, options map[string]string, tracker modules.ResourceTracker) (string, error) {
+    // 1. Get current caller identity to determine who we're escalating
+    // 2. Make the IAM modification (attach policy, put inline policy, create policy version, etc.)
+    // 3. Track the modification as a resource for cleanup
+
+    if tracker != nil {
+        tracker.TrackResource(modules.CreatedResource{
+            Type:          "iam:attached-policy",
+            Name:          policyArn,
+            Region:        "global",
+            CleanupMethod: "iam:DetachRolePolicy",
+            ModuleID:      "{service}-{number}",
+            Metadata: map[string]string{
+                "principal_type": "role",  // or "user"
+                "principal_name": roleName,
+                "policy_arn":     policyArn,
+            },
+        })
+    }
+
+    // 4. Verify escalation worked
+    // 5. Output success message
+    return "Privilege escalation successful. ..." , nil
+}
+```
+
+## Category: two-step / existing-passrole (iam-014 through iam-021)
+
+Pattern: Modify some resource (policy, role trust, etc.), then assume a role to gain the escalated permissions. Combines self-escalation + principal-access in two steps.
+
+### Key Differences
+- Two-phase execution: modify, then assume
+- Tracks modifications AND produces credentials
+- Needs cleanup for the modification step
+- Outputs PATHFINDER_IDENTITY_DATA for the assumed role
+
+```go
+func (m *Module) Execute(identity *modules.Identity, options map[string]string, tracker modules.ResourceTracker) (string, error) {
+    // Phase 1: Modify (e.g., update role trust policy, attach policy)
+    // ... IAM modification ...
+    // Track the modification
+
+    // Phase 2: Assume the now-accessible role
+    // ... sts:AssumeRole ...
+    // Output PATHFINDER_IDENTITY_DATA
+
+    return outputBuilder.String(), nil
+}
+```
+
+## Category: credential-access
+
+Pattern: Extract credentials from AWS services (Secrets Manager, SSM Parameter Store, EC2 metadata, etc.). No payloads needed. May not need resource tracking.
+
+```go
+func (m *Module) Execute(identity *modules.Identity, options map[string]string, tracker modules.ResourceTracker) (string, error) {
+    // 1. Call AWS API to retrieve secret/parameter/credential
+    // 2. Format and return the extracted data
+    // 3. If credentials found, output in PATHFINDER_IDENTITY_DATA format
+    return result, nil
+}
+```
