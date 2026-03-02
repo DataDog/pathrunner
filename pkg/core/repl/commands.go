@@ -80,6 +80,21 @@ func (r *REPL) getCommands() map[string]*Command {
 			Description: "Execute AWS CLI commands with current identity credentials",
 			Handler:     r.cmdAWS,
 		},
+		"search": {
+			Name:        "search",
+			Description: "Search modules by keyword",
+			Handler:     r.cmdSearch,
+		},
+		"modules": {
+			Name:        "modules",
+			Description: "List and search modules",
+			Handler:     r.cmdModules,
+		},
+		"payloads": {
+			Name:        "payloads",
+			Description: "List available payloads",
+			Handler:     r.cmdPayloads,
+		},
 	}
 }
 
@@ -144,6 +159,12 @@ func (r *REPL) showSpecificHelp(command string) error {
 		return r.showWorkspaceHelp()
 	case "context":
 		return r.showContextHelp()
+	case "search":
+		return r.showSearchHelp()
+	case "modules":
+		return r.showModulesHelp()
+	case "payloads":
+		return r.showPayloadsHelp()
 	default:
 		return NewCommandNotFoundError(command)
 	}
@@ -180,6 +201,65 @@ func (r *REPL) showIdentityHelp() error {
 	fmt.Println("Note: For credential extraction methods (--from-output, --from-file, --from-clipboard),")
 	fmt.Println("      you can optionally specify --name to set a custom identity name.")
 	fmt.Println("      If --name is not provided, you will be prompted to enter a custom name.")
+	fmt.Println()
+	fmt.Println("Use 'identity <subcommand> help' for detailed help on a specific subcommand.")
+	return nil
+}
+
+func (r *REPL) showIdentityAddHelp() error {
+	fmt.Println("Identity Add Command:")
+	fmt.Println("  identity add                                    - Add credentials from environment variables")
+	fmt.Println("  identity add --profile <name>                   - Add credentials from AWS profile (SSO supported)")
+	fmt.Println("  identity add --keys <key> <secret> [token]      - Add credentials manually")
+	fmt.Println("  identity add --from-output [--name <name>]      - Extract credentials from last command output")
+	fmt.Println("  identity add --from-file <path> [--name <name>] - Extract credentials from file")
+	fmt.Println("  identity add --from-clipboard [--name <name>]   - Extract credentials from clipboard")
+	fmt.Println()
+	fmt.Println("The --name flag sets a custom identity name for credential extraction methods.")
+	fmt.Println("If --name is not provided, you will be prompted to enter one.")
+	fmt.Println()
+	fmt.Println("Supported credential formats for extraction:")
+	fmt.Println("  - AWS environment variables (AWS_ACCESS_KEY_ID, etc.)")
+	fmt.Println("  - JSON objects with credential fields")
+	fmt.Println("  - Python dict format")
+	fmt.Println("  - Base64-encoded credentials")
+	fmt.Println()
+	fmt.Println("Examples:")
+	fmt.Println("  identity add --profile my-sso-profile")
+	fmt.Println("  identity add --keys AKIAIOSFODNN7EXAMPLE wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY")
+	fmt.Println("  identity add --keys AKIAEXAMPLE SECRET TOKEN123")
+	fmt.Println("  identity add --from-output --name exploited-role")
+	return nil
+}
+
+func (r *REPL) showIdentitySwitchHelp() error {
+	fmt.Println("Identity Switch Command:")
+	fmt.Println("  identity switch <name>    - Switch to a different identity")
+	fmt.Println()
+	fmt.Println("Switches the active AWS identity used for all operations,")
+	fmt.Println("including exploit execution and AWS CLI passthrough.")
+	fmt.Println()
+	fmt.Println("Use 'identity list' to see available identities.")
+	fmt.Println()
+	fmt.Println("Examples:")
+	fmt.Println("  identity switch initial-access")
+	fmt.Println("  identity switch exploited-role")
+	return nil
+}
+
+func (r *REPL) showIdentityClearHelp() error {
+	fmt.Println("Identity Clear/Remove Command:")
+	fmt.Println("  identity clear [name]      - Remove a specific identity by name")
+	fmt.Println("  identity clear --expired   - Remove all expired identities")
+	fmt.Println("  identity remove [name]     - Alias for clear")
+	fmt.Println("  identity remove --expired  - Alias for clear --expired")
+	fmt.Println()
+	fmt.Println("Cannot remove the currently active identity. Switch to a")
+	fmt.Println("different identity first if you need to remove the current one.")
+	fmt.Println()
+	fmt.Println("Examples:")
+	fmt.Println("  identity clear old-creds")
+	fmt.Println("  identity clear --expired")
 	return nil
 }
 
@@ -188,6 +268,39 @@ func (r *REPL) showShowHelp() error {
 	fmt.Println("  show modules    - List all available modules")
 	fmt.Println("  show payloads   - List available payloads for current module")
 	fmt.Println("  show options    - Show current module options")
+	fmt.Println("  show info       - Show detailed path metadata for current module")
+	return nil
+}
+
+func (r *REPL) showSearchHelp() error {
+	fmt.Println("Search Command:")
+	fmt.Println("  search <query>    - Search modules by keyword")
+	fmt.Println()
+	fmt.Println("Searches across module IDs, names, descriptions, categories,")
+	fmt.Println("services, aliases, and required permissions.")
+	fmt.Println()
+	fmt.Println("Examples:")
+	fmt.Println("  search passrole   - Find modules involving PassRole")
+	fmt.Println("  search ec2        - Find EC2-related modules")
+	fmt.Println("  search lambda     - Find Lambda-related modules")
+	fmt.Println("  search escalation - Find privilege escalation modules")
+	return nil
+}
+
+func (r *REPL) showModulesHelp() error {
+	fmt.Println("Modules Command:")
+	fmt.Println("  modules               - List all available modules")
+	fmt.Println("  modules list           - List all available modules")
+	fmt.Println("  modules search <query> - Search modules by keyword")
+	fmt.Println("  modules help           - Show this help message")
+	return nil
+}
+
+func (r *REPL) showPayloadsHelp() error {
+	fmt.Println("Payloads Command:")
+	fmt.Println("  payloads        - List payloads (current module or all)")
+	fmt.Println("  payloads list   - List payloads (current module or all)")
+	fmt.Println("  payloads help   - Show this help message")
 	return nil
 }
 
@@ -247,20 +360,96 @@ func (r *REPL) showWhoamiHelp() error {
 
 func (r *REPL) showWorkspaceHelp() error {
 	fmt.Println("Workspace Management Commands:")
-	fmt.Println("  workspace create <name>   - Create a new workspace")
-	fmt.Println("  workspace list           - List all workspaces")
-	fmt.Println("  workspace switch <name>  - Switch to a different workspace")
-	fmt.Println("  workspace save           - Save the current workspace")
-	fmt.Println("  workspace delete <name>  - Delete a workspace")
-	fmt.Println("  workspace cleanup        - Clean up AWS resources created in current workspace")
-	fmt.Println("  workspace history        - Show command history with timestamps")
-	fmt.Println("  workspace help           - Show this help message")
+	fmt.Println("  workspace create <name>    - Create a new workspace")
+	fmt.Println("  workspace list             - List all workspaces")
+	fmt.Println("  workspace switch <name>    - Switch to a different workspace")
+	fmt.Println("  workspace save             - Save the current workspace")
+	fmt.Println("  workspace delete <name>    - Delete a workspace")
+	fmt.Println("  workspace cleanup          - Clean up AWS resources (interactive)")
+	fmt.Println("  workspace cleanup --all    - Clean up all resources without prompt")
+	fmt.Println("  workspace cleanup --module <id> - Clean up resources from a specific module")
+	fmt.Println("  workspace history [limit]  - Show command history with timestamps")
+	fmt.Println("  workspace help             - Show this help message")
 	fmt.Println()
 	fmt.Println("Workspaces persist:")
 	fmt.Println("  - AWS identities and current selection")
 	fmt.Println("  - Command execution history with timestamps")
 	fmt.Println("  - Created AWS resources for cleanup")
 	fmt.Println("  - Module options and current module selection")
+	fmt.Println()
+	fmt.Println("Use 'workspace <subcommand> help' for detailed help on a specific subcommand.")
+	return nil
+}
+
+func (r *REPL) showWorkspaceCreateHelp() error {
+	fmt.Println("Workspace Create Command:")
+	fmt.Println("  workspace create <name>    - Create a new workspace and switch to it")
+	fmt.Println()
+	fmt.Println("Creates a new workspace with an isolated set of identities, options,")
+	fmt.Println("and resource tracking. Automatically switches to the new workspace.")
+	fmt.Println()
+	fmt.Println("Examples:")
+	fmt.Println("  workspace create my-project")
+	fmt.Println("  workspace create pentest-2024")
+	return nil
+}
+
+func (r *REPL) showWorkspaceSwitchHelp() error {
+	fmt.Println("Workspace Switch Command:")
+	fmt.Println("  workspace switch <name>    - Switch to a different workspace")
+	fmt.Println()
+	fmt.Println("Saves the current workspace state and loads the target workspace.")
+	fmt.Println("Identities, module selection, options, and resource tracking are")
+	fmt.Println("completely isolated between workspaces.")
+	fmt.Println()
+	fmt.Println("Examples:")
+	fmt.Println("  workspace switch default")
+	fmt.Println("  workspace switch my-project")
+	return nil
+}
+
+func (r *REPL) showWorkspaceDeleteHelp() error {
+	fmt.Println("Workspace Delete Command:")
+	fmt.Println("  workspace delete <name>    - Delete a workspace")
+	fmt.Println()
+	fmt.Println("Permanently deletes a workspace and its saved state.")
+	fmt.Println("Cannot delete the 'default' workspace or the currently active workspace.")
+	fmt.Println()
+	fmt.Println("Examples:")
+	fmt.Println("  workspace delete old-project")
+	return nil
+}
+
+func (r *REPL) showWorkspaceCleanupHelp() error {
+	fmt.Println("Workspace Cleanup Command:")
+	fmt.Println("  workspace cleanup                - Interactive cleanup (multi-select)")
+	fmt.Println("  workspace cleanup --all           - Clean up all tracked resources")
+	fmt.Println("  workspace cleanup --module <id>   - Clean up resources from a specific module")
+	fmt.Println("  workspace cleanup --all --module <id> - Non-interactive, filtered by module")
+	fmt.Println()
+	fmt.Println("Cleans up AWS resources created by exploit modules in the current workspace.")
+	fmt.Println("Without flags, shows an interactive multi-select prompt to choose resources.")
+	fmt.Println()
+	fmt.Println("Requires an active identity with permissions to delete the tracked resources.")
+	fmt.Println()
+	fmt.Println("Examples:")
+	fmt.Println("  workspace cleanup                     # Interactive selection")
+	fmt.Println("  workspace cleanup --all               # Clean everything")
+	fmt.Println("  workspace cleanup --module lambda-001  # Only Lambda module resources")
+	return nil
+}
+
+func (r *REPL) showWorkspaceHistoryHelp() error {
+	fmt.Println("Workspace History Command:")
+	fmt.Println("  workspace history          - Show last 20 commands")
+	fmt.Println("  workspace history <limit>  - Show last N commands")
+	fmt.Println()
+	fmt.Println("Displays the command execution history for the current workspace,")
+	fmt.Println("including timestamps and success/failure status.")
+	fmt.Println()
+	fmt.Println("Examples:")
+	fmt.Println("  workspace history          # Last 20 commands")
+	fmt.Println("  workspace history 50       # Last 50 commands")
 	return nil
 }
 

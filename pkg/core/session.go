@@ -34,12 +34,13 @@ type CommandLogEntry struct {
 }
 
 type CreatedResource struct {
-	Type          string    `json:"type"`
-	Name          string    `json:"name"`
-	ARN           string    `json:"arn,omitempty"`
-	Region        string    `json:"region"`
-	Created       time.Time `json:"created"`
-	CleanupMethod string    `json:"cleanup_method"`
+	Type          string            `json:"type"`
+	Name          string            `json:"name"`
+	ARN           string            `json:"arn,omitempty"`
+	Region        string            `json:"region"`
+	Created       time.Time         `json:"created"`
+	CleanupMethod string            `json:"cleanup_method"`
+	ModuleID      string            `json:"module_id,omitempty"`
 	Metadata      map[string]string `json:"metadata,omitempty"`
 }
 
@@ -292,6 +293,7 @@ func (sm *SessionManager) TrackResource(resource modules.CreatedResource) {
 		Region:        resource.Region,
 		Created:       resource.Created,
 		CleanupMethod: resource.CleanupMethod,
+		ModuleID:      resource.ModuleID,
 		Metadata:      resource.Metadata,
 	}
 

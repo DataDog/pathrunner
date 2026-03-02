@@ -49,6 +49,7 @@ func (sa *SessionAdapter) AddCreatedResource(resource repl.CreatedResource) {
 		Region:        resource.Region,
 		Created:       parseTime(resource.Created),
 		CleanupMethod: resource.CleanupMethod,
+		ModuleID:      resource.ModuleID,
 		Metadata:      resource.Metadata,
 	})
 }
@@ -64,6 +65,7 @@ func (sa *SessionAdapter) GetCreatedResources() []repl.CreatedResource {
 			Region:        r.Region,
 			Created:       r.Created.Format(time.RFC3339),
 			CleanupMethod: r.CleanupMethod,
+			ModuleID:      r.ModuleID,
 			Metadata:      r.Metadata,
 		}
 	}

@@ -89,6 +89,7 @@ type CreatedResource struct {
 	Region        string            `json:"region"`
 	Created       string            `json:"created"`
 	CleanupMethod string            `json:"cleanup_method"`
+	ModuleID      string            `json:"module_id,omitempty"`
 	Metadata      map[string]string `json:"metadata,omitempty"`
 }
 
@@ -106,8 +107,8 @@ func NewREPL(identityManager IdentityManager, sessionManager SessionManager) *RE
 	r.aliases["ids"] = "identity"
 	r.aliases["workspaces"] = "workspace"
 	r.aliases["quit"] = "exit"
-	r.aliases["modules"] = "show modules"
-	r.aliases["payloads"] = "show payloads"
+	// Note: "modules" and "payloads" are now top-level commands with subcommands,
+	// registered directly in getCommands(), so no aliases needed.
 
 	// Load state from current session
 	r.loadSessionState()
