@@ -7,10 +7,9 @@ import (
 	"os"
 	"os/exec"
 	"pathrunner/pkg/modules"
-	"sort"
+	"pathrunner/pkg/ui"
+	"pathrunner/pkg/version"
 	"strings"
-
-	"github.com/aquasecurity/table"
 )
 
 // GetCommands returns all available commands (public interface)
@@ -43,7 +42,7 @@ func (r *REPL) getCommands() map[string]*Command {
 		},
 		"show": {
 			Name:        "show",
-			Description: "Display information",
+			Description: "Alias for multiple display commands",
 			Handler:     r.cmdShow,
 		},
 		"set": {
@@ -68,7 +67,7 @@ func (r *REPL) getCommands() map[string]*Command {
 		},
 		"workspace": {
 			Name:        "workspace",
-			Description: "Manage workspaces",
+			Description: "Manage pathrunner workspaces",
 			Handler:     r.cmdWorkspace,
 		},
 		"context": {
@@ -101,6 +100,16 @@ func (r *REPL) getCommands() map[string]*Command {
 			Description: "Auto-discover values for module options",
 			Handler:     r.cmdDiscover,
 		},
+		"version": {
+			Name:        "version",
+			Description: "Show version information",
+			Handler:     r.cmdVersion,
+		},
+		"info": {
+			Name:        "info",
+			Description: "Show detailed module and path information",
+			Handler:     r.cmdInfo,
+		},
 	}
 }
 
@@ -110,36 +119,45 @@ func (r *REPL) cmdHelp(repl *REPL, args []string) error {
 		return r.showSpecificHelp(args[0])
 	}
 
-	// Show general help
-	fmt.Println("Pathrunner AWS Post-Exploitation Framework")
-	fmt.Println("=========================================")
-	fmt.Println()
-	fmt.Println("Available Commands:")
-
 	commands := r.getCommands()
 
-	// Sort commands for consistent display
-	var names []string
-	for name := range commands {
-		names = append(names, name)
-	}
-	sort.Strings(names)
+	fmt.Println()
 
-	for _, name := range names {
-		cmd := commands[name]
-		fmt.Printf("  %-12s %s\n", cmd.Name, cmd.Description)
+	coreOrder := []string{
+		"modules", "search", "use",
+		"identity", "aws", "whoami",
+		"workspace", "context", "version",
+		"help", "exit",
+	}
+	fmt.Println(ui.BoldCyan.Render("  Core Commands"))
+	fmt.Println()
+	for _, name := range coreOrder {
+		if cmd, ok := commands[name]; ok {
+			fmt.Printf("    %s  %s\n", ui.Primary.Render(fmt.Sprintf("%-12s", cmd.Name)), ui.Muted.Render(cmd.Description))
+		}
 	}
 
 	fmt.Println()
-	fmt.Println("Use 'help <command>' for detailed information about a specific command.")
-	fmt.Println()
 
-	if r.currentModule != nil {
-		fmt.Printf("Current Module: %s\n", r.currentModule.Name())
-		fmt.Printf("Description: %s\n", r.currentModule.Description())
+	moduleOrder := []string{
+		"info", "show", "set", "unset",
+		"payloads", "discover", "exploit",
+	}
+	if r.currentModule == nil {
+		fmt.Printf("  %s  %s\n", ui.BoldCyan.Render("Module Commands"), ui.Muted.Render("(select a module with 'use')"))
 	} else {
-		fmt.Println("No module selected. Use 'use <module>' to select one.")
+		fmt.Printf("  %s  %s\n", ui.BoldCyan.Render("Module Commands"), ui.Accent.Render(r.currentModule.Name()))
 	}
+	fmt.Println()
+	for _, name := range moduleOrder {
+		if cmd, ok := commands[name]; ok {
+			fmt.Printf("    %s  %s\n", ui.Primary.Render(fmt.Sprintf("%-12s", cmd.Name)), ui.Muted.Render(cmd.Description))
+		}
+	}
+
+	fmt.Println()
+	fmt.Printf("  %s\n", ui.Muted.Render("Use 'help <command>' for detailed information."))
+	fmt.Println()
 
 	return nil
 }
@@ -173,6 +191,10 @@ func (r *REPL) showSpecificHelp(command string) error {
 		return r.showPayloadsHelp()
 	case "discover":
 		return r.showDiscoverHelp()
+	case "version":
+		return r.showVersionHelp()
+	case "info":
+		return r.showInfoHelp()
 	default:
 		return NewCommandNotFoundError(command)
 	}
@@ -367,22 +389,16 @@ func (r *REPL) showUseHelp() error {
 		fmt.Println("Available modules:")
 		fmt.Println()
 
-		t := table.New(os.Stdout)
-		t.SetHeaders("ID", "Short Name")
-		t.SetHeaderStyle(table.StyleBold)
-		t.SetRowLines(false)
-		t.SetLineStyle(table.StyleCyan)
-		t.SetDividers(table.UnicodeRoundedDividers)
-		t.SetAlignment(table.AlignLeft)
-
+		rows := make([][]string, 0, len(infos))
 		for _, info := range infos {
 			shortName := ""
 			if len(info.Aliases) > 0 {
 				shortName = info.Aliases[0]
 			}
-			t.AddRow(info.ID, shortName)
+			rows = append(rows, []string{info.ID, shortName})
 		}
-		t.Render()
+
+		ui.Table([]string{"ID", "Short Name"}, rows)
 		fmt.Println()
 		fmt.Println("Use either the ID or short name with 'use'. For full details: 'show modules'")
 	} else {
@@ -564,119 +580,178 @@ func contains(slice []string, item string) bool {
 	return false
 }
 
+// cmdInfo shows detailed module and path information
+func (r *REPL) cmdInfo(repl *REPL, args []string) error {
+	if len(args) > 0 && args[0] == "help" {
+		return r.showInfoHelp()
+	}
+	return r.showInfo()
+}
+
+func (r *REPL) showInfoHelp() error {
+	fmt.Println("Info Command:")
+	fmt.Println("  info    - Show detailed path metadata for the current module")
+	fmt.Println()
+	fmt.Println("Displays path ID, name, category, services, permissions,")
+	fmt.Println("prerequisites, related paths, references, and aliases.")
+	fmt.Println()
+	fmt.Println("Requires a module to be selected with 'use <module>'.")
+	fmt.Println("Equivalent to 'show info'.")
+	return nil
+}
+
+// cmdVersion shows version information
+func (r *REPL) cmdVersion(repl *REPL, args []string) error {
+	if len(args) > 0 && args[0] == "help" {
+		return r.showVersionHelp()
+	}
+	fmt.Println(version.Info())
+	return nil
+}
+
+func (r *REPL) showVersionHelp() error {
+	fmt.Println("Version Command:")
+	fmt.Println("  version    - Show pathrunner version, build, and runtime information")
+	return nil
+}
+
+// buildContextData gathers current workspace/identity/module/payload/status.
+func (r *REPL) buildContextData() (workspace, identityStr, moduleStr, payloadStr, status string) {
+	session := r.sessionManager.GetCurrentSession()
+	workspace = session.GetName()
+
+	identity := r.identityManager.GetCurrent()
+	if identity != nil {
+		identityStr = identity.Name
+		if identity.IsExpired() {
+			identityStr += " " + ui.Error.Render("(expired)")
+		} else {
+			identityStr += " " + ui.Success.Render("✓")
+		}
+	}
+
+	if r.currentModule != nil {
+		moduleStr = r.currentModule.Name()
+	}
+
+	if payload, exists := r.options["PAYLOAD"]; exists && payload != "" {
+		payloadStr = payload
+	}
+
+	if identity == nil {
+		status = "❌ No identity configured"
+	} else if identity.IsExpired() {
+		status = "❌ Identity expired"
+	} else if r.currentModule == nil {
+		status = "⚠️  No module selected"
+	} else if err := r.validateOptionsForContext(); err != nil {
+		status = "⚠️  " + err.Error()
+	} else {
+		status = "✅ Ready for exploitation"
+	}
+
+	return
+}
+
+// PrintStartupBanner prints the integrated startup banner with context.
+func (r *REPL) PrintStartupBanner() {
+	ui.StartupBanner(r.buildContextData())
+}
+
+// PrintContextPanel prints the context summary box.
+func (r *REPL) PrintContextPanel() {
+	fmt.Println(ui.ContextPanel(r.buildContextData()))
+	fmt.Println()
+}
+
 // cmdContext shows current context information
 func (r *REPL) cmdContext(repl *REPL, args []string) error {
 	if len(args) > 0 && args[0] == "help" {
 		return r.showContextHelp()
 	}
 
-	fmt.Println("Current Context:")
-	fmt.Println("===============")
-	fmt.Println()
+	r.PrintContextPanel()
 
-	// Workspace information table
 	session := r.sessionManager.GetCurrentSession()
-	workspaceTable := table.New(os.Stdout)
-	workspaceTable.SetHeaders("Property", "Value")
-	workspaceTable.SetHeaderStyle(table.StyleBold)
-	workspaceTable.SetRowLines(false)
-	workspaceTable.SetLineStyle(table.StyleCyan)
-	workspaceTable.SetDividers(table.UnicodeRoundedDividers)
-	workspaceTable.SetAlignment(table.AlignLeft)
+	identity := r.identityManager.GetCurrent()
 
-	workspaceTable.AddRow("Name", session.GetName())
-	workspaceTable.AddRow("Created", session.GetCreated())
-	workspaceTable.AddRow("Last Accessed", session.GetLastAccessed())
-	workspaceTable.AddRow("Commands", fmt.Sprintf("%d", session.GetCommandCount()))
-	workspaceTable.AddRow("Resources", fmt.Sprintf("%d", session.GetResourceCount()))
-
-	fmt.Println("Workspace:")
-	workspaceTable.Render()
+	// Workspace details table
+	ui.Section("Workspace")
+	ui.KeyValueTable("", []ui.KV{
+		{Key: "Name", Value: session.GetName()},
+		{Key: "Created", Value: session.GetCreated()},
+		{Key: "Last Accessed", Value: session.GetLastAccessed()},
+		{Key: "Commands", Value: fmt.Sprintf("%d", session.GetCommandCount())},
+		{Key: "Resources", Value: fmt.Sprintf("%d", session.GetResourceCount())},
+	})
 	fmt.Println()
 
-	// Identity information table
-	identity := r.identityManager.GetCurrent()
-	identityTable := table.New(os.Stdout)
-	identityTable.SetHeaders("Property", "Value")
-	identityTable.SetHeaderStyle(table.StyleBold)
-	identityTable.SetRowLines(false)
-	identityTable.SetLineStyle(table.StyleCyan)
-	identityTable.SetDividers(table.UnicodeRoundedDividers)
-	identityTable.SetAlignment(table.AlignLeft)
-
+	// Identity details
 	if identity != nil {
-		identityTable.AddRow("Name", identity.Name)
-		identityTable.AddRow("Type", identity.Type)
-		identityTable.AddRow("Region", identity.Region)
+		ui.Section("Identity")
+
+		kvPairs := []ui.KV{
+			{Key: "Name", Value: identity.Name},
+			{Key: "Type", Value: identity.Type},
+			{Key: "Region", Value: identity.Region},
+		}
+
 		if identity.Profile != "" {
-			identityTable.AddRow("Profile", identity.Profile)
+			kvPairs = append(kvPairs, ui.KV{Key: "Profile", Value: identity.Profile})
 		}
 		if identity.CallerARN != "" {
-			identityTable.AddRow("ARN", identity.CallerARN)
+			kvPairs = append(kvPairs, ui.KV{Key: "ARN", Value: identity.CallerARN})
 		}
 		if identity.IsAdmin != nil {
 			if *identity.IsAdmin {
-				identityTable.AddRow("Admin", "Yes")
+				kvPairs = append(kvPairs, ui.KV{Key: "Admin", Value: "Yes"})
 			} else {
-				identityTable.AddRow("Admin", "No")
+				kvPairs = append(kvPairs, ui.KV{Key: "Admin", Value: "No"})
 			}
 		} else {
-			identityTable.AddRow("Admin", "- (not checked)")
-		}
-		if identity.ExpiresAt != nil {
-			status := "Valid"
-			if identity.IsExpired() {
-				status = "EXPIRED"
-			}
-			identityTable.AddRow("Expires", identity.ExpiresAt.Format("2006-01-02 15:04:05 MST"))
-			identityTable.AddRow("Status", status)
-		} else {
-			identityTable.AddRow("Status", "Valid (no expiration)")
+			kvPairs = append(kvPairs, ui.KV{Key: "Admin", Value: "- (not checked)"})
 		}
 
-		fmt.Println("Identity:")
-		identityTable.Render()
+		if identity.ExpiresAt != nil {
+			expiryStatus := "Valid"
+			if identity.IsExpired() {
+				expiryStatus = ui.Error.Render("EXPIRED")
+			}
+			kvPairs = append(kvPairs, ui.KV{Key: "Expires", Value: identity.ExpiresAt.Format("2006-01-02 15:04:05 MST")})
+			kvPairs = append(kvPairs, ui.KV{Key: "Status", Value: expiryStatus})
+		} else {
+			kvPairs = append(kvPairs, ui.KV{Key: "Status", Value: "Valid (no expiration)"})
+		}
+
+		ui.KeyValueTable("", kvPairs)
 	} else {
 		fmt.Println("Identity: None configured")
 		fmt.Println("  Use 'identity add' to configure AWS credentials")
 	}
 	fmt.Println()
 
-	// Module information table
+	// Module information
 	if r.currentModule != nil {
-		moduleTable := table.New(os.Stdout)
-		moduleTable.SetHeaders("Property", "Value")
-		moduleTable.SetHeaderStyle(table.StyleBold)
-		moduleTable.SetRowLines(false)
-		moduleTable.SetLineStyle(table.StyleCyan)
-		moduleTable.SetDividers(table.UnicodeRoundedDividers)
-		moduleTable.SetAlignment(table.AlignLeft)
+		ui.Section("Module")
 
-		moduleTable.AddRow("Name", r.currentModule.Name())
-		moduleTable.AddRow("Description", r.currentModule.Description())
-
-		// Show payload if selected
+		modulePayload := "None selected"
 		if payload, exists := r.options["PAYLOAD"]; exists && payload != "" {
-			moduleTable.AddRow("Payload", payload)
-		} else {
-			moduleTable.AddRow("Payload", "None selected")
+			modulePayload = payload
 		}
 
-		fmt.Println("Module:")
-		moduleTable.Render()
+		ui.KeyValueTable("", []ui.KV{
+			{Key: "Name", Value: r.currentModule.Name()},
+			{Key: "Description", Value: r.currentModule.Description()},
+			{Key: "Payload", Value: modulePayload},
+		})
 		fmt.Println()
 
-		// Show configured options in a table
+		// Options table
 		options := r.currentModule.Options()
 		if len(options) > 0 {
-			optionsTable := table.New(os.Stdout)
-			optionsTable.SetHeaders("Option", "Value", "Required")
-			optionsTable.SetHeaderStyle(table.StyleBold)
-			optionsTable.SetRowLines(false)
-			optionsTable.SetLineStyle(table.StyleCyan)
-			optionsTable.SetDividers(table.UnicodeRoundedDividers)
-			optionsTable.SetAlignment(table.AlignLeft)
+			ui.Section("Module Options")
 
+			rows := make([][]string, 0, len(options))
 			for _, option := range options {
 				value := r.options[option.Name]
 				if value == "" && option.Default != "" {
@@ -689,32 +764,26 @@ func (r *REPL) cmdContext(repl *REPL, args []string) error {
 				required := "No"
 				if option.Required {
 					if value == "<not set>" {
-						required = "\033[31mYes\033[0m" // Red text for missing required
+						required = ui.Error.Render("Yes")
 					} else {
 						required = "Yes"
 					}
 				}
 
-				optionsTable.AddRow(option.Name, value, required)
+				rows = append(rows, []string{option.Name, value, required})
 			}
 
-			fmt.Println("Module Options:")
-			optionsTable.Render()
+			ui.Table([]string{"Option", "Value", "Required"}, rows)
 			fmt.Println()
 		}
 
-		// Show payload-specific options if payload is selected
+		// Payload options
 		if payload, exists := r.options["PAYLOAD"]; exists && payload != "" {
 			payloadOptions := r.currentModule.PayloadOptions(payload)
 			if len(payloadOptions) > 0 {
-				payloadTable := table.New(os.Stdout)
-				payloadTable.SetHeaders("Payload Option", "Value", "Required")
-				payloadTable.SetHeaderStyle(table.StyleBold)
-				payloadTable.SetRowLines(false)
-				payloadTable.SetLineStyle(table.StyleCyan)
-				payloadTable.SetDividers(table.UnicodeRoundedDividers)
-				payloadTable.SetAlignment(table.AlignLeft)
+				ui.Section(fmt.Sprintf("Payload Options (%s)", payload))
 
+				rows := make([][]string, 0, len(payloadOptions))
 				for _, option := range payloadOptions {
 					value := r.options[option.Name]
 					if value == "" && option.Default != "" {
@@ -727,17 +796,16 @@ func (r *REPL) cmdContext(repl *REPL, args []string) error {
 					required := "No"
 					if option.Required {
 						if value == "<not set>" {
-							required = "\033[31mYes\033[0m" // Red text for missing required
+							required = ui.Error.Render("Yes")
 						} else {
 							required = "Yes"
 						}
 					}
 
-					payloadTable.AddRow(option.Name, value, required)
+					rows = append(rows, []string{option.Name, value, required})
 				}
 
-				fmt.Printf("Payload Options (%s):\n", payload)
-				payloadTable.Render()
+				ui.Table([]string{"Payload Option", "Value", "Required"}, rows)
 				fmt.Println()
 			}
 		}
@@ -745,23 +813,6 @@ func (r *REPL) cmdContext(repl *REPL, args []string) error {
 		fmt.Println("Module: None selected")
 		fmt.Println("  Use 'use <module>' to select a module")
 		fmt.Println()
-	}
-
-	// Show readiness status
-	fmt.Printf("Status: ")
-	if identity == nil {
-		fmt.Println("❌ No identity configured")
-	} else if identity.IsExpired() {
-		fmt.Println("❌ Identity expired")
-	} else if r.currentModule == nil {
-		fmt.Println("⚠️  No module selected")
-	} else {
-		// Check if required options are set
-		if err := r.validateOptionsForContext(); err != nil {
-			fmt.Printf("⚠️  %s\n", err.Error())
-		} else {
-			fmt.Println("✅ Ready for exploitation")
-		}
 	}
 
 	return nil
@@ -847,7 +898,6 @@ func (r *REPL) cmdAWS(repl *REPL, args []string) error {
 	}
 
 	// Get credentials from identity
-	// For profile-based identities, retrieve fresh credentials
 	var accessKey, secretKey, sessionToken, region string
 	if identity.Type == "profile" {
 		config := identity.GetConfig()
@@ -860,7 +910,6 @@ func (r *REPL) cmdAWS(repl *REPL, args []string) error {
 		sessionToken = creds.SessionToken
 		region = config.Region
 	} else {
-		// For non-profile identities, use stored credentials
 		accessKey = identity.AccessKeyID
 		secretKey = identity.SecretKey
 		sessionToken = identity.SessionToken
@@ -892,11 +941,7 @@ func (r *REPL) cmdAWS(repl *REPL, args []string) error {
 
 	// Execute the command
 	if err := cmd.Run(); err != nil {
-		// Check if it's an exit error
 		if _, ok := err.(*exec.ExitError); ok {
-			// AWS CLI returned non-zero exit code
-			// The error output has already been printed to stderr
-			// Return nil to keep REPL running (don't exit the whole program)
 			return nil
 		}
 		return fmt.Errorf("failed to execute AWS CLI: %v", err)

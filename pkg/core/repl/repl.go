@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 	"pathrunner/pkg/modules"
+	"pathrunner/pkg/ui"
 	"strings"
 
 	"github.com/chzyer/readline"
@@ -137,6 +138,9 @@ func (r *REPL) Start() error {
 		return rlErr
 	}
 	defer r.rl.Close()
+
+	ui.ClearScreen()
+	r.PrintStartupBanner()
 
 	for {
 		line, err := r.rl.Readline()
@@ -277,65 +281,22 @@ func (r *REPL) UpdatePrompt() {
 
 // BuildContextualPrompt builds a dynamic prompt showing current context (public for testing)
 func (r *REPL) BuildContextualPrompt() string {
-	const (
-		cyan       = "\033[36m"
-		brightCyan = "\033[96m"
-		reset      = "\033[0m"
-	)
-
-	var parts []string
-	var moduleIndex int = -1
-
-	// Always show workspace
 	session := r.sessionManager.GetCurrentSession()
-	sessionName := session.GetName()
-	parts = append(parts, sessionName)
+	workspace := session.GetName()
 
-	// Add identity if present
+	identityName := ""
+	expired := false
+	admin := false
 	if identity := r.identityManager.GetCurrent(); identity != nil {
-		identityPart := identity.Name
-		if identity.IsExpired() {
-			identityPart += "*" // Mark expired with asterisk
-		}
-		if identity.IsAdmin != nil && *identity.IsAdmin {
-			identityPart += "!" // Mark admin with exclamation
-		}
-		parts = append(parts, identityPart)
+		identityName = identity.Name
+		expired = identity.IsExpired()
+		admin = identity.IsAdmin != nil && *identity.IsAdmin
 	}
 
-	// Add module if selected
+	moduleName := ""
 	if r.currentModule != nil {
-		moduleName := r.currentModule.Name()
-		// Extract the last part after the last slash
-		moduleParts := strings.Split(moduleName, "/")
-		if len(moduleParts) > 0 {
-			moduleIndex = len(parts) // Track which part is the module
-			parts = append(parts, moduleParts[len(moduleParts)-1])
-		}
+		moduleName = r.currentModule.Name()
 	}
 
-	// Note: Payload is not shown in prompt to keep it shorter
-	// Users can see payload with 'context' or 'show options' commands
-
-	// Build single-line prompt with separator
-	// Using spaced brackets for clean, readable display
-	// Whole prompt is cyan, but module is bright cyan
-	var prompt string
-	if len(parts) > 0 {
-		var coloredParts []string
-		for i, part := range parts {
-			if i == moduleIndex {
-				// Module gets bright cyan
-				coloredParts = append(coloredParts, brightCyan+"["+part+"]"+cyan)
-			} else {
-				// Other parts get regular cyan
-				coloredParts = append(coloredParts, "["+part+"]")
-			}
-		}
-		prompt = cyan + strings.Join(coloredParts, " ") + " > " + reset
-	} else {
-		prompt = cyan + "> " + reset
-	}
-
-	return prompt
+	return ui.Prompt(workspace, identityName, moduleName, expired, admin)
 }

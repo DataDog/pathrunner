@@ -169,7 +169,7 @@ func TestHelp(t *testing.T) {
 	}
 
 	// Help for specific commands
-	commands := []string{"identity", "workspace", "use", "show", "set", "unset", "exploit", "whoami", "context"}
+	commands := []string{"identity", "workspace", "use", "show", "set", "unset", "exploit", "whoami", "context", "info"}
 
 	for _, cmd := range commands {
 		err := r.ExecuteCommand("help " + cmd)
@@ -383,6 +383,7 @@ func TestSubcommandHelp(t *testing.T) {
 		{"help payloads", "Payloads Command"},
 		{"help set", "Set Command"},
 		{"help unset", "Unset Command"},
+		{"help info", "Info Command"},
 	}
 
 	for _, tc := range helpCommands {
@@ -392,5 +393,35 @@ func TestSubcommandHelp(t *testing.T) {
 				t.Errorf("'%s' returned error: %v", tc.command, err)
 			}
 		})
+	}
+}
+
+// TestInfoCommand tests the top-level info command
+func TestInfoCommand(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	// info without module should error
+	err := r.ExecuteCommand("info")
+	if err == nil {
+		t.Error("Expected error from info without module selected")
+	}
+
+	// info help should work without module
+	err = r.ExecuteCommand("info help")
+	if err != nil {
+		t.Errorf("Expected no error from info help, got: %v", err)
+	}
+
+	// Select a module
+	err = r.ExecuteCommand("use lambda-001")
+	if err != nil {
+		t.Fatalf("Failed to use lambda-001: %v", err)
+	}
+
+	// info with module should succeed
+	err = r.ExecuteCommand("info")
+	if err != nil {
+		t.Errorf("Expected no error from info with module selected, got: %v", err)
 	}
 }

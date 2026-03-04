@@ -20,14 +20,16 @@ The `{service}-{number}` ID links path definition → deployable lab → automat
 ## Build and Development Commands
 
 ```bash
-go build -o pathrunner cmd/pathrunner/main.go   # Build
-go run cmd/pathrunner/main.go                    # Dev mode
-./pathrunner [command] [subcommand] [flags]      # CLI mode
-./pathrunner                                     # REPL mode
-go test ./tests/unit/                            # Unit tests
-go test ./tests/integration/                     # Integration tests
-go test ./tests/...                              # All tests
-go test -v ./tests/... -run TestName             # Specific test
+make build                                       # Build with version info
+make dev                                         # Dev mode with version info
+go build -o pathrunner cmd/pathrunner/main.go     # Build (no version injection)
+go run cmd/pathrunner/main.go                     # Dev mode (no version injection)
+./pathrunner [command] [subcommand] [flags]       # CLI mode
+./pathrunner                                      # REPL mode
+go test ./tests/unit/                             # Unit tests
+go test ./tests/integration/                      # Integration tests
+go test ./tests/...                               # All tests
+go test -v ./tests/... -run TestName              # Specific test
 ```
 
 ## Architecture Overview

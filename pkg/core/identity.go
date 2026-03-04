@@ -8,12 +8,12 @@ import (
 	"os/exec"
 	"pathrunner/pkg/discovery"
 	"pathrunner/pkg/modules"
+	"pathrunner/pkg/ui"
 	"pathrunner/pkg/utils"
 	"runtime"
 	"strings"
 	"time"
 
-	"github.com/aquasecurity/table"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
@@ -52,16 +52,7 @@ func (im *IdentityManager) ListIdentities() error {
 		return nil
 	}
 
-	// Create table
-	t := table.New(os.Stdout)
-	t.SetHeaders("Name", "Type", "Profile/Source", "Expires", "Admin", "Status", "Current")
-	t.SetHeaderStyle(table.StyleBold)
-	t.SetRowLines(false)
-	t.SetLineStyle(table.StyleCyan)
-	t.SetDividers(table.UnicodeRoundedDividers)
-	t.SetAlignment(table.AlignLeft)
-
-	// Add rows
+	rows := make([][]string, 0, len(im.identities))
 	for name, identity := range im.identities {
 		status := "✓ valid"
 		if identity.IsExpired() {
@@ -103,13 +94,12 @@ func (im *IdentityManager) ListIdentities() error {
 			}
 		}
 
-		t.AddRow(name, identity.Type, source, expires, admin, status, current)
+		rows = append(rows, []string{name, identity.Type, source, expires, admin, status, current})
 	}
 
-	// Print table
 	fmt.Println("Configured identities:")
 	fmt.Println()
-	t.Render()
+	ui.Table([]string{"Name", "Type", "Profile/Source", "Expires", "Admin", "Status", "Current"}, rows)
 	fmt.Println()
 
 	if im.current != nil {
@@ -151,55 +141,43 @@ func (im *IdentityManager) ShowCurrent() error {
 		}
 	}
 
-	// Create table
-	t := table.New(os.Stdout)
-	t.SetHeaders("Property", "Value")
-	t.SetHeaderStyle(table.StyleBold)
-	t.SetRowLines(false)
-	t.SetLineStyle(table.StyleCyan)
-	t.SetDividers(table.UnicodeRoundedDividers)
-	t.SetAlignment(table.AlignLeft)
-
-	// Add basic identity info
-	t.AddRow("Name", im.current.Name)
-	t.AddRow("Type", im.current.Type)
-	t.AddRow("Region", im.current.Region)
+	kvPairs := []ui.KV{
+		{Key: "Name", Value: im.current.Name},
+		{Key: "Type", Value: im.current.Type},
+		{Key: "Region", Value: im.current.Region},
+	}
 
 	if im.current.Profile != "" {
-		t.AddRow("Profile", im.current.Profile)
+		kvPairs = append(kvPairs, ui.KV{Key: "Profile", Value: im.current.Profile})
 	}
 
-	// Add AWS caller identity info
-	t.AddRow("Account", account)
-	t.AddRow("User/Role ARN", callerARN)
+	kvPairs = append(kvPairs, ui.KV{Key: "Account", Value: account})
+	kvPairs = append(kvPairs, ui.KV{Key: "User/Role ARN", Value: callerARN})
 
-	// Add admin status
 	if im.current.IsAdmin != nil {
 		if *im.current.IsAdmin {
-			t.AddRow("Admin", "Yes")
+			kvPairs = append(kvPairs, ui.KV{Key: "Admin", Value: "Yes"})
 		} else {
-			t.AddRow("Admin", "No")
+			kvPairs = append(kvPairs, ui.KV{Key: "Admin", Value: "No"})
 		}
 	} else {
-		t.AddRow("Admin", "- (not checked)")
+		kvPairs = append(kvPairs, ui.KV{Key: "Admin", Value: "- (not checked)"})
 	}
 
-	// Add expiration info
 	if im.current.ExpiresAt != nil {
-		t.AddRow("Expires", im.current.ExpiresAt.Format("2006-01-02 15:04:05 MST"))
+		kvPairs = append(kvPairs, ui.KV{Key: "Expires", Value: im.current.ExpiresAt.Format("2006-01-02 15:04:05 MST")})
 		if im.current.IsExpired() {
-			t.AddRow("Status", "EXPIRED")
+			kvPairs = append(kvPairs, ui.KV{Key: "Status", Value: "EXPIRED"})
 		} else {
-			t.AddRow("Status", "Valid")
+			kvPairs = append(kvPairs, ui.KV{Key: "Status", Value: "Valid"})
 		}
 	} else {
-		t.AddRow("Status", "Valid (no expiration)")
+		kvPairs = append(kvPairs, ui.KV{Key: "Status", Value: "Valid (no expiration)"})
 	}
 
-	// Print table
 	fmt.Printf("Current Identity: %s\n", im.current.Name)
 	fmt.Println()
-	t.Render()
+	ui.KeyValueTable("", kvPairs)
 	fmt.Println()
 
 	return nil

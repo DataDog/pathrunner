@@ -3,15 +3,12 @@ package repl
 import (
 	"context"
 	"fmt"
-	"os"
+	"pathrunner/pkg/modules"
+	"pathrunner/pkg/ui"
 	"strconv"
 	"strings"
 	"time"
 
-	"pathrunner/pkg/modules"
-
-	"github.com/AlecAivazis/survey/v2"
-	"github.com/aquasecurity/table"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
@@ -98,36 +95,28 @@ func (r *REPL) sessionList() error {
 		return nil
 	}
 
-	// Create table
-	t := table.New(os.Stdout)
-	t.SetHeaders("Name", "Created", "Last Accessed", "Commands", "Resources", "Current")
-	t.SetHeaderStyle(table.StyleBold)
-	t.SetRowLines(false)
-	t.SetLineStyle(table.StyleCyan)
-	t.SetDividers(table.UnicodeRoundedDividers)
-	t.SetAlignment(table.AlignLeft)
-
 	currentName := r.sessionManager.GetCurrentSession().GetName()
 
+	rows := make([][]string, 0, len(sessions))
 	for _, session := range sessions {
 		current := ""
 		if session.GetName() == currentName {
 			current = "●"
 		}
 
-		t.AddRow(
+		rows = append(rows, []string{
 			session.GetName(),
 			session.GetCreated(),
 			session.GetLastAccessed(),
 			strconv.Itoa(session.GetCommandCount()),
 			strconv.Itoa(session.GetResourceCount()),
 			current,
-		)
+		})
 	}
 
 	fmt.Println("Available workspaces:")
 	fmt.Println()
-	t.Render()
+	ui.Table([]string{"Name", "Created", "Last Accessed", "Commands", "Resources", "Current"}, rows)
 	fmt.Println()
 
 	return nil
@@ -249,14 +238,14 @@ func (r *REPL) sessionCleanup(args []string) error {
 	} else {
 		// Interactive: show multi-select prompt
 		options := make([]string, 0, len(resources)+1)
-		resourceMap := make(map[string]CreatedResource)
+		resourceMap := make(map[int]CreatedResource)
 
 		// Add "All resources" option
 		allOption := fmt.Sprintf("All resources (%d)", len(resources))
 		options = append(options, allOption)
 
 		// Add individual resources
-		for _, resource := range resources {
+		for i, resource := range resources {
 			regionInfo := ""
 			if resource.Region != "" {
 				regionInfo = fmt.Sprintf(" [%s]", resource.Region)
@@ -267,36 +256,24 @@ func (r *REPL) sessionCleanup(args []string) error {
 			}
 			option := fmt.Sprintf("%s: %s%s%s", resource.Type, resource.Name, regionInfo, moduleInfo)
 			options = append(options, option)
-			resourceMap[option] = resource
+			resourceMap[i+1] = resource // +1 because index 0 is "All resources"
 		}
 
 		// Show multi-select prompt
-		var selected []string
-		prompt := &survey.MultiSelect{
-			Message: "Select resources to clean up (space to select, enter to confirm):",
-			Options: options,
-			Description: func(value string, index int) string {
-				if index == 0 {
-					return "Clean up all tracked resources"
-				}
-				return ""
-			},
-		}
-
-		err := survey.AskOne(prompt, &selected, survey.WithPageSize(10))
+		selectedIndices, err := ui.MultiSelect("Select resources to clean up:", options)
 		if err != nil {
 			return fmt.Errorf("selection cancelled")
 		}
 
-		if len(selected) == 0 {
+		if len(selectedIndices) == 0 {
 			fmt.Println("No resources selected for cleanup.")
 			return nil
 		}
 
-		// Check if "All resources" was selected
+		// Check if "All resources" was selected (index 0)
 		selectAll := false
-		for _, sel := range selected {
-			if sel == allOption {
+		for _, idx := range selectedIndices {
+			if idx == 0 {
 				selectAll = true
 				break
 			}
@@ -305,8 +282,8 @@ func (r *REPL) sessionCleanup(args []string) error {
 		if selectAll {
 			resourcesToCleanup = resources
 		} else {
-			for _, sel := range selected {
-				if resource, exists := resourceMap[sel]; exists {
+			for _, idx := range selectedIndices {
+				if resource, exists := resourceMap[idx]; exists {
 					resourcesToCleanup = append(resourcesToCleanup, resource)
 				}
 			}
@@ -421,19 +398,11 @@ func (r *REPL) sessionReport(args []string) error {
 	}
 
 	// Header
-	fmt.Println("═══════════════════════════════════════════════════════════════")
-	fmt.Println("  PATHRUNNER CLEANUP REPORT")
-	fmt.Println("═══════════════════════════════════════════════════════════════")
-	fmt.Println()
-	fmt.Printf("  Workspace:  %s\n", workspaceName)
-	fmt.Printf("  Generated:  %s\n", time.Now().Format("2006-01-02 15:04:05 MST"))
-	fmt.Printf("  Resources:  %d total (%d created, %d modified)\n", len(resources), len(created), len(modified))
-	fmt.Println()
+	ui.ReportHeader(workspaceName, time.Now().Format("2006-01-02 15:04:05 MST"), len(resources), len(created), len(modified))
 
 	// Created resources
 	if len(created) > 0 {
-		fmt.Println("  CREATED RESOURCES (delete to clean up)")
-		fmt.Println("  ─────────────────────────────────────────────────────────")
+		ui.ReportSection("CREATED RESOURCES (delete to clean up)")
 		for _, res := range created {
 			fmt.Println()
 			fmt.Printf("    Type:     %s\n", res.Type)
@@ -457,8 +426,7 @@ func (r *REPL) sessionReport(args []string) error {
 
 	// Modified resources
 	if len(modified) > 0 {
-		fmt.Println("  MODIFIED RESOURCES (revert to clean up)")
-		fmt.Println("  ─────────────────────────────────────────────────────────")
+		ui.ReportSection("MODIFIED RESOURCES (revert to clean up)")
 		for _, res := range modified {
 			fmt.Println()
 			fmt.Printf("    Type:       %s\n", res.Type)
@@ -482,8 +450,7 @@ func (r *REPL) sessionReport(args []string) error {
 	}
 
 	// Manual cleanup instructions
-	fmt.Println("  MANUAL CLEANUP COMMANDS")
-	fmt.Println("  ─────────────────────────────────────────────────────────")
+	ui.ReportSection("MANUAL CLEANUP COMMANDS")
 	fmt.Println()
 	for _, res := range created {
 		printManualCleanupCommand(res)
@@ -492,12 +459,7 @@ func (r *REPL) sessionReport(args []string) error {
 		printManualCleanupCommand(res)
 	}
 
-	fmt.Println()
-	fmt.Println("  Or run in pathrunner with an admin identity:")
-	fmt.Println("    identity add --profile <admin-profile>")
-	fmt.Println("    workspace cleanup --all")
-	fmt.Println()
-	fmt.Println("═══════════════════════════════════════════════════════════════")
+	ui.ReportFooter()
 
 	return nil
 }
@@ -589,15 +551,7 @@ func (r *REPL) sessionHistory(args []string) error {
 		start = totalCommands - limit
 	}
 
-	// Create table
-	t := table.New(os.Stdout)
-	t.SetHeaders("Timestamp", "Command", "Status")
-	t.SetHeaderStyle(table.StyleBold)
-	t.SetRowLines(false)
-	t.SetLineStyle(table.StyleCyan)
-	t.SetDividers(table.UnicodeRoundedDividers)
-	t.SetAlignment(table.AlignLeft)
-
+	rows := make([][]string, 0, limit)
 	for i := start; i < totalCommands; i++ {
 		entry := commandLog[i]
 		status := "✓"
@@ -608,10 +562,10 @@ func (r *REPL) sessionHistory(args []string) error {
 			}
 		}
 
-		t.AddRow(entry.Timestamp, entry.Command, status)
+		rows = append(rows, []string{entry.Timestamp, entry.Command, status})
 	}
 
-	t.Render()
+	ui.Table([]string{"Timestamp", "Command", "Status"}, rows)
 	fmt.Println()
 	fmt.Printf("Total commands: %d\n", totalCommands)
 
@@ -718,7 +672,6 @@ func (r *REPL) cleanupResource(resource CreatedResource, identity *modules.Ident
 
 // cleanupLambdaFunction deletes a Lambda function
 func (r *REPL) cleanupLambdaFunction(ctx context.Context, config aws.Config, resource CreatedResource) error {
-	// Override region with the resource's region if it was tracked
 	if resource.Region != "" {
 		config.Region = resource.Region
 	}
@@ -772,17 +725,14 @@ func (r *REPL) cleanupLambdaPermission(ctx context.Context, config aws.Config, r
 
 // cleanupEC2Instance terminates an EC2 instance
 func (r *REPL) cleanupEC2Instance(ctx context.Context, config aws.Config, resource CreatedResource) error {
-	// Override region with the resource's region if it was tracked
 	if resource.Region != "" {
 		config.Region = resource.Region
 	}
 
 	client := ec2.NewFromConfig(config)
 
-	// Get instance ID from metadata
 	instanceID, exists := resource.Metadata["instance_id"]
 	if !exists {
-		// Fallback to using resource name as instance ID
 		instanceID = resource.Name
 	}
 

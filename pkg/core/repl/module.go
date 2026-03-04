@@ -2,13 +2,10 @@ package repl
 
 import (
 	"fmt"
-	"os"
 	"pathrunner/pkg/modules"
+	"pathrunner/pkg/ui"
 	"pathrunner/pkg/utils"
 	"strings"
-
-	survey "github.com/AlecAivazis/survey/v2"
-	"github.com/aquasecurity/table"
 )
 
 // cmdUse selects a module for use
@@ -111,21 +108,15 @@ func (r *REPL) cmdSearch(repl *REPL, args []string) error {
 		return nil
 	}
 
-	t := table.New(os.Stdout)
-	t.SetHeaders("ID", "Name", "Category", "Services")
-	t.SetHeaderStyle(table.StyleBold)
-	t.SetRowLines(false)
-	t.SetLineStyle(table.StyleCyan)
-	t.SetDividers(table.UnicodeRoundedDividers)
-	t.SetAlignment(table.AlignLeft)
-
-	for _, info := range results {
-		t.AddRow(info.ID, info.Name, info.Category, strings.Join(info.Services, ", "))
-	}
-
 	fmt.Printf("Search results for '%s':\n", query)
 	fmt.Println()
-	t.Render()
+
+	rows := make([][]string, 0, len(results))
+	for _, info := range results {
+		rows = append(rows, []string{info.ID, info.Name, info.Category, strings.Join(info.Services, ", ")})
+	}
+
+	ui.Table([]string{"ID", "Name", "Category", "Services"}, rows)
 	fmt.Println()
 
 	return nil
@@ -343,13 +334,8 @@ func (r *REPL) discoverAndSetOption(discoverable modules.Discoverable, optionNam
 		labels[i] = c.Label
 	}
 
-	var selectedIndex int
-	prompt := &survey.Select{
-		Message: fmt.Sprintf("Select value for %s:", optionName),
-		Options: labels,
-	}
-
-	if err := survey.AskOne(prompt, &selectedIndex); err != nil {
+	selectedIndex, err := ui.Select(fmt.Sprintf("Select value for %s:", optionName), labels)
+	if err != nil {
 		return fmt.Errorf("selection cancelled for %s", optionName)
 	}
 
@@ -361,9 +347,9 @@ func (r *REPL) discoverAndSetOption(discoverable modules.Discoverable, optionNam
 }
 
 // tryResolveMissingOptions walks through all missing required options interactively:
-// - Discoverable options: auto-enumerate via AWS API, present survey.Select
-// - PAYLOAD option: present survey.Select from module's ListPayloads()
-// - Other options: prompt with survey.Input for manual entry
+// - Discoverable options: auto-enumerate via AWS API, present selection
+// - PAYLOAD option: present selection from module's ListPayloads()
+// - Other options: prompt with input for manual entry
 // After PAYLOAD is resolved, also checks for payload-specific required options.
 // Returns true if all missing options were resolved.
 func (r *REPL) tryResolveMissingOptions(missing []string) bool {
@@ -435,13 +421,8 @@ func (r *REPL) promptPayloadSelection() error {
 		labels[i] = fmt.Sprintf("%s - %s", p.Name, p.Description)
 	}
 
-	var selectedIndex int
-	prompt := &survey.Select{
-		Message: "Select PAYLOAD:",
-		Options: labels,
-	}
-
-	if err := survey.AskOne(prompt, &selectedIndex); err != nil {
+	selectedIndex, err := ui.Select("Select PAYLOAD:", labels)
+	if err != nil {
 		return fmt.Errorf("selection cancelled for PAYLOAD")
 	}
 
@@ -483,12 +464,8 @@ func (r *REPL) promptManualOption(optionName string) error {
 		message = fmt.Sprintf("Enter value for %s (%s)", optionName, desc)
 	}
 
-	var value string
-	prompt := &survey.Input{
-		Message: message + ":",
-	}
-
-	if err := survey.AskOne(prompt, &value); err != nil {
+	value, err := ui.Input(message)
+	if err != nil {
 		return fmt.Errorf("input cancelled for %s", optionName)
 	}
 
@@ -554,7 +531,7 @@ func (r *REPL) cmdExploit(repl *REPL, args []string) error {
 	return nil
 }
 
-// showInfo displays detailed PathInfo for the current module as a single table
+// showInfo displays detailed PathInfo for the current module
 func (r *REPL) showInfo() error {
 	if r.currentModule == nil {
 		return NewValidationError("no module selected. Use 'use <module>' to select one", nil)
@@ -566,19 +543,13 @@ func (r *REPL) showInfo() error {
 		return nil
 	}
 
-	t := table.New(os.Stdout)
-	t.SetHeaders("Field", "Value")
-	t.SetHeaderStyle(table.StyleBold)
-	t.SetRowLines(false)
-	t.SetLineStyle(table.StyleCyan)
-	t.SetDividers(table.UnicodeRoundedDividers)
-	t.SetAlignment(table.AlignLeft)
-
-	t.AddRow("Path ID", info.ID)
-	t.AddRow("Name", info.Name)
-	t.AddRow("Category", info.Category)
-	t.AddRow("Services", strings.Join(info.Services, ", "))
-	t.AddRow("Description", info.Description)
+	kvPairs := []ui.KV{
+		{Key: "Path ID", Value: info.ID},
+		{Key: "Name", Value: info.Name},
+		{Key: "Category", Value: info.Category},
+		{Key: "Services", Value: strings.Join(info.Services, ", ")},
+		{Key: "Description", Value: info.Description},
+	}
 
 	// Required Permissions
 	if len(info.Permissions.Required) > 0 {
@@ -590,7 +561,7 @@ func (r *REPL) showInfo() error {
 			}
 			perms = append(perms, entry)
 		}
-		t.AddRow("Required Permissions", strings.Join(perms, "\n"))
+		kvPairs = append(kvPairs, ui.KV{Key: "Required Permissions", Value: strings.Join(perms, "\n")})
 	}
 
 	// Additional Permissions
@@ -603,28 +574,20 @@ func (r *REPL) showInfo() error {
 			}
 			perms = append(perms, entry)
 		}
-		t.AddRow("Additional Permissions", strings.Join(perms, "\n"))
+		kvPairs = append(kvPairs, ui.KV{Key: "Additional Permissions", Value: strings.Join(perms, "\n")})
 	}
 
 	// Prerequisites
 	if len(info.Prerequisites.Admin) > 0 {
-		var items []string
-		for _, req := range info.Prerequisites.Admin {
-			items = append(items, req)
-		}
-		t.AddRow("Prerequisites (Admin)", strings.Join(items, "\n"))
+		kvPairs = append(kvPairs, ui.KV{Key: "Prerequisites (Admin)", Value: strings.Join(info.Prerequisites.Admin, "\n")})
 	}
 	if len(info.Prerequisites.Lateral) > 0 {
-		var items []string
-		for _, req := range info.Prerequisites.Lateral {
-			items = append(items, req)
-		}
-		t.AddRow("Prerequisites (Lateral)", strings.Join(items, "\n"))
+		kvPairs = append(kvPairs, ui.KV{Key: "Prerequisites (Lateral)", Value: strings.Join(info.Prerequisites.Lateral, "\n")})
 	}
 
 	// Related Paths
 	if len(info.RelatedPaths) > 0 {
-		t.AddRow("Related Paths", strings.Join(info.RelatedPaths, ", "))
+		kvPairs = append(kvPairs, ui.KV{Key: "Related Paths", Value: strings.Join(info.RelatedPaths, ", ")})
 	}
 
 	// References
@@ -633,24 +596,72 @@ func (r *REPL) showInfo() error {
 		for _, ref := range info.References {
 			refs = append(refs, ref.Title+": "+ref.URL)
 		}
-		t.AddRow("References", strings.Join(refs, "\n"))
+		kvPairs = append(kvPairs, ui.KV{Key: "References", Value: strings.Join(refs, "\n")})
 	}
 
 	// URL
-	t.AddRow("URL", info.PathfindingCloudURL())
+	kvPairs = append(kvPairs, ui.KV{Key: "URL", Value: info.PathfindingCloudURL()})
 
 	// Aliases
 	if len(info.Aliases) > 0 {
-		t.AddRow("Aliases", strings.Join(info.Aliases, ", "))
+		kvPairs = append(kvPairs, ui.KV{Key: "Aliases", Value: strings.Join(info.Aliases, ", ")})
 	}
 
 	if info.Author != "" {
-		t.AddRow("Author", info.Author)
+		kvPairs = append(kvPairs, ui.KV{Key: "Author", Value: info.Author})
 	}
 
 	fmt.Println()
-	t.Render()
+	ui.KeyValueTable("", kvPairs)
 	fmt.Println()
+
+	options := r.currentModule.Options()
+	if len(options) > 0 {
+		var discoverableSet map[string]bool
+		if discoverable, ok := r.currentModule.(modules.Discoverable); ok {
+			discoverableSet = make(map[string]bool)
+			for _, opt := range discoverable.DiscoverableOptions() {
+				discoverableSet[opt] = true
+			}
+		}
+
+		rows := make([][]string, 0, len(options))
+		for _, option := range options {
+			value := r.options[option.Name]
+			if value == "" && option.Default != "" {
+				value = option.Default + " (default)"
+			}
+			missing := value == "" && option.Required
+			if value == "" {
+				if missing {
+					value = ui.Error.Render("<not set>")
+				} else {
+					value = ui.Muted.Render("<not set>")
+				}
+			}
+
+			required := ui.Muted.Render("No")
+			if option.Required {
+				if missing {
+					required = ui.Error.Render("Yes")
+				} else {
+					required = ui.Success.Render("Yes")
+				}
+			}
+
+			desc := option.Description
+			if discoverableSet != nil && discoverableSet[option.Name] {
+				desc += " " + ui.Accent.Render("[auto]")
+			}
+
+			rows = append(rows, []string{option.Name, value, required, desc})
+		}
+
+		fmt.Println(ui.BoldCyan.Render("Options"))
+		fmt.Println()
+		ui.Table([]string{"Option", "Value", "Required", "Description"}, rows)
+		fmt.Println()
+	}
 
 	return nil
 }
@@ -667,43 +678,29 @@ func (r *REPL) showModules() error {
 			return nil
 		}
 
-		t := table.New(os.Stdout)
-		t.SetHeaders("Module", "Description")
-		t.SetHeaderStyle(table.StyleBold)
-		t.SetRowLines(false)
-		t.SetLineStyle(table.StyleCyan)
-		t.SetDividers(table.UnicodeRoundedDividers)
-		t.SetAlignment(table.AlignLeft)
-
+		rows := make([][]string, 0, len(moduleNames))
 		for _, name := range moduleNames {
 			_, description, err := modules.GetModuleInfo(name)
 			if err == nil {
-				t.AddRow(name, description)
+				rows = append(rows, []string{name, description})
 			}
 		}
 
 		fmt.Println("Available Modules:")
 		fmt.Println()
-		t.Render()
+		ui.Table([]string{"Module", "Description"}, rows)
 		fmt.Println()
 		return nil
 	}
 
-	t := table.New(os.Stdout)
-	t.SetHeaders("ID", "Name", "Category", "Description")
-	t.SetHeaderStyle(table.StyleBold)
-	t.SetRowLines(false)
-	t.SetLineStyle(table.StyleCyan)
-	t.SetDividers(table.UnicodeRoundedDividers)
-	t.SetAlignment(table.AlignLeft)
-
+	rows := make([][]string, 0, len(infos))
 	for _, info := range infos {
-		t.AddRow(info.ID, info.Name, info.Category, info.Description)
+		rows = append(rows, []string{info.ID, info.Name, info.Category, info.Description})
 	}
 
 	fmt.Println("Available Modules:")
 	fmt.Println()
-	t.Render()
+	ui.Table([]string{"ID", "Name", "Category", "Description"}, rows)
 	fmt.Println()
 
 	return nil
@@ -724,22 +721,14 @@ func (r *REPL) showPayloads() error {
 
 	moduleName := r.currentModule.Name()
 
-	// Create table
-	t := table.New(os.Stdout)
-	t.SetHeaders("Module", "Payload", "Description")
-	t.SetHeaderStyle(table.StyleBold)
-	t.SetRowLines(false)
-	t.SetLineStyle(table.StyleCyan)
-	t.SetDividers(table.UnicodeRoundedDividers)
-	t.SetAlignment(table.AlignLeft)
-
+	rows := make([][]string, 0, len(payloads))
 	for _, payload := range payloads {
-		t.AddRow(moduleName, payload.Name, payload.Description)
+		rows = append(rows, []string{moduleName, payload.Name, payload.Description})
 	}
 
 	fmt.Printf("Available Payloads for %s:\n", moduleName)
 	fmt.Println()
-	t.Render()
+	ui.Table([]string{"Module", "Payload", "Description"}, rows)
 	fmt.Println()
 
 	return nil
@@ -753,16 +742,7 @@ func (r *REPL) showAllPayloads() error {
 		return nil
 	}
 
-	// Create table
-	t := table.New(os.Stdout)
-	t.SetHeaders("Module", "Payload", "Description")
-	t.SetHeaderStyle(table.StyleBold)
-	t.SetRowLines(false)
-	t.SetLineStyle(table.StyleCyan)
-	t.SetDividers(table.UnicodeRoundedDividers)
-	t.SetAlignment(table.AlignLeft)
-
-	totalPayloads := 0
+	var rows [][]string
 	for _, moduleName := range moduleNames {
 		module, err := modules.LoadModule(moduleName)
 		if err != nil || module == nil {
@@ -771,19 +751,18 @@ func (r *REPL) showAllPayloads() error {
 
 		payloads := module.ListPayloads()
 		for _, payload := range payloads {
-			t.AddRow(moduleName, payload.Name, payload.Description)
-			totalPayloads++
+			rows = append(rows, []string{moduleName, payload.Name, payload.Description})
 		}
 	}
 
-	if totalPayloads == 0 {
+	if len(rows) == 0 {
 		fmt.Println("No payloads available.")
 		return nil
 	}
 
 	fmt.Println("Available Payloads (all modules):")
 	fmt.Println()
-	t.Render()
+	ui.Table([]string{"Module", "Payload", "Description"}, rows)
 	fmt.Println()
 
 	return nil
@@ -810,41 +789,58 @@ func (r *REPL) showOptions() error {
 		}
 	}
 
-	// Create table
-	t := table.New(os.Stdout)
-	t.SetHeaders("Option", "Value", "Required", "Description")
-	t.SetHeaderStyle(table.StyleBold)
-	t.SetRowLines(false)
-	t.SetLineStyle(table.StyleCyan)
-	t.SetDividers(table.UnicodeRoundedDividers)
-	t.SetAlignment(table.AlignLeft)
-
+	rows := make([][]string, 0, len(options))
 	for _, option := range options {
 		value := r.options[option.Name]
 		if value == "" && option.Default != "" {
 			value = option.Default + " (default)"
 		}
+		missing := value == "" && option.Required
 		if value == "" {
-			value = "<not set>"
+			if missing {
+				value = ui.Error.Render("<not set>")
+			} else {
+				value = ui.Muted.Render("<not set>")
+			}
 		}
 
-		required := "No"
+		required := ui.Muted.Render("No")
 		if option.Required {
-			required = "Yes"
+			if missing {
+				required = ui.Error.Render("Yes")
+			} else {
+				required = ui.Success.Render("Yes")
+			}
 		}
 
 		desc := option.Description
 		if discoverableSet != nil && discoverableSet[option.Name] {
-			desc += " [auto]"
+			desc += " " + ui.Accent.Render("[auto]")
 		}
 
-		t.AddRow(option.Name, value, required, desc)
+		rows = append(rows, []string{option.Name, value, required, desc})
 	}
 
-	fmt.Printf("Options for %s:\n", r.currentModule.Name())
+	fmt.Printf("%s %s\n", ui.BoldCyan.Render("Options for"), ui.Accent.Render(r.currentModule.Name()))
 	fmt.Println()
-	t.Render()
+	ui.Table([]string{"Option", "Value", "Required", "Description"}, rows)
 	fmt.Println()
+
+	// Hint about discover command if there are missing required options
+	hasMissingRequired := false
+	for _, option := range options {
+		if option.Required && r.options[option.Name] == "" && option.Default == "" {
+			hasMissingRequired = true
+			break
+		}
+	}
+	if hasMissingRequired {
+		if _, ok := r.currentModule.(modules.Discoverable); ok {
+			fmt.Println(ui.Muted.Render("  Tip: run 'discover' to auto-populate options (requires appropriate IAM permissions)"))
+			fmt.Println(ui.Muted.Render("  Run 'exploit' to execute the attack (will run `discover` if all required values are not populated)"))
+			fmt.Println()
+		}
+	}
 
 	// Show payload options if payload is selected
 	if payload, exists := r.options["PAYLOAD"]; exists {
@@ -861,35 +857,36 @@ func (r *REPL) showPayloadOptions(payload string) error {
 		return nil
 	}
 
-	// Create table
-	t := table.New(os.Stdout)
-	t.SetHeaders("Payload Option", "Value", "Required", "Description")
-	t.SetHeaderStyle(table.StyleBold)
-	t.SetRowLines(false)
-	t.SetLineStyle(table.StyleCyan)
-	t.SetDividers(table.UnicodeRoundedDividers)
-	t.SetAlignment(table.AlignLeft)
-
+	rows := make([][]string, 0, len(payloadOptions))
 	for _, option := range payloadOptions {
 		value := r.options[option.Name]
 		if value == "" && option.Default != "" {
 			value = option.Default + " (default)"
 		}
+		missing := value == "" && option.Required
 		if value == "" {
-			value = "<not set>"
+			if missing {
+				value = ui.Error.Render("<not set>")
+			} else {
+				value = ui.Muted.Render("<not set>")
+			}
 		}
 
-		required := "No"
+		required := ui.Muted.Render("No")
 		if option.Required {
-			required = "Yes"
+			if missing {
+				required = ui.Error.Render("Yes")
+			} else {
+				required = ui.Success.Render("Yes")
+			}
 		}
 
-		t.AddRow(option.Name, value, required, option.Description)
+		rows = append(rows, []string{option.Name, value, required, option.Description})
 	}
 
-	fmt.Printf("Payload Options for %s:\n", payload)
+	fmt.Printf("%s %s\n", ui.BoldCyan.Render("Payload Options for"), ui.Accent.Render(payload))
 	fmt.Println()
-	t.Render()
+	ui.Table([]string{"Payload Option", "Value", "Required", "Description"}, rows)
 	fmt.Println()
 
 	return nil
@@ -1047,11 +1044,8 @@ func (r *REPL) handleStructuredIdentityData(result string) error {
 
 	// Check if we should auto-switch
 	if data["AUTO_SWITCH"] == "true" {
-		// The identity manager will have created the identity with a generated name
-		// We need to find it and switch to it
 		identities := r.identityManager.GetIdentities()
 
-		// Look for the most recently added identity with matching access key
 		for identName := range identities {
 			ident := identities[identName]
 			if ident.AccessKeyID == data["ACCESS_KEY_ID"] {

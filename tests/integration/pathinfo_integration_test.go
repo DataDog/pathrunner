@@ -401,6 +401,12 @@ func TestHelpIncludesNewCommands(t *testing.T) {
 	if err != nil {
 		t.Errorf("Expected no error from help payloads, got: %v", err)
 	}
+
+	// help info should work
+	err = r.ExecuteCommand("help info")
+	if err != nil {
+		t.Errorf("Expected no error from help info, got: %v", err)
+	}
 }
 
 func TestUseLambda002ByID(t *testing.T) {

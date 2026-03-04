@@ -447,3 +447,29 @@ func TestExecuteCommand(t *testing.T) {
 		t.Errorf("Expected no error for whitespace command, got: %v", err)
 	}
 }
+
+// Test info command
+func TestInfoCommand(t *testing.T) {
+	im := &MockIdentityManager{}
+	sm := &MockSessionManager{}
+	r := repl.NewREPL(im, sm)
+
+	commands := r.GetCommands()
+	infoCmd, exists := commands["info"]
+
+	if !exists {
+		t.Fatal("Expected info command to exist")
+	}
+
+	// info without module should error
+	err := infoCmd.Handler(r, []string{})
+	if err == nil {
+		t.Error("Expected error when calling info without module selected")
+	}
+
+	// info help should work
+	err = infoCmd.Handler(r, []string{"help"})
+	if err != nil {
+		t.Errorf("Expected no error from info help, got: %v", err)
+	}
+}
