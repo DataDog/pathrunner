@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"pathrunner/pkg/version"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -450,6 +451,17 @@ func (c *CLI) createWhoamiCmd() *cobra.Command {
 		},
 	}
 }
+// Info command
+func (c *CLI) createInfoCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "info",
+		Short: "Show detailed module and path information",
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("info")
+		},
+	}
+}
+
 // Discover command
 func (c *CLI) createDiscoverCmd() *cobra.Command {
 	return &cobra.Command{
@@ -512,6 +524,17 @@ func (c *CLI) createAWSCmd() *cobra.Command {
 				cmdStr += " " + strings.Join(args, " ")
 			}
 			c.executeREPLCommand(cmdStr)
+		},
+	}
+}
+
+// Version command
+func (c *CLI) createVersionCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Show pathrunner version information",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println(version.Info())
 		},
 	}
 }

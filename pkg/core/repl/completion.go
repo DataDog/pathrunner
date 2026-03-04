@@ -24,6 +24,8 @@ func (r *REPL) getCompleter() readline.AutoCompleter {
 			readline.PcItem("modules"),
 			readline.PcItem("payloads"),
 			readline.PcItem("discover"),
+			readline.PcItem("version"),
+			readline.PcItem("info"),
 		),
 		readline.PcItem("exit"),
 		readline.PcItem("quit"),
@@ -58,6 +60,10 @@ func (r *REPL) getCompleter() readline.AutoCompleter {
 			readline.PcItem("help"),
 		),
 		r.buildDiscoverCompleter(),
+		readline.PcItem("info",
+			readline.PcItem("help"),
+		),
+		readline.PcItem("version"),
 	)
 }
 
