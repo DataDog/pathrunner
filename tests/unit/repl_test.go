@@ -45,6 +45,10 @@ func (m *MockIdentityManager) RefreshCurrentIdentity() error {
 	return nil
 }
 
+func (m *MockIdentityManager) CheckAdmin(identityName string) error {
+	return nil
+}
+
 func (m *MockIdentityManager) SetIdentities(identities map[string]*modules.Identity) {
 }
 

@@ -30,12 +30,13 @@ existingPayloads := payloads.GetPayloadsByTags([]string{payloads.TagServiceLambd
 ### Current Payload Inventory
 
 #### Lambda (Python) — `pkg/payloads/lambda/`
-| Payload | Tags | Description |
-|---------|------|-------------|
-| `exfil/output` | lambda, python, exfil, output | Returns credentials via Lambda response |
-| `exfil/https` | lambda, python, exfil, webhook | Sends credentials to webhook URL |
-| `backdoor/role` | lambda, python, backdoor | Attaches AdministratorAccess to a role |
-| `backdoor/user` | lambda, python, backdoor | Creates IAM user with admin access |
+| Payload | Tags | Description | Optional Interfaces |
+|---------|------|-------------|---------------------|
+| `exfil/output` | lambda, python, exfil, output | Returns credentials via Lambda response | — |
+| `exfil/https` | lambda, python, exfil, webhook | Sends credentials to webhook URL | — |
+| `backdoor/role` | lambda, python, backdoor | Attaches AdministratorAccess to a role | SideEffectReporter |
+| `backdoor/user` | lambda, python, backdoor | Creates IAM user with admin access | — |
+| `backdoor/attach-policy` | lambda, python, backdoor, direct_action | Attaches AdministratorAccess to an existing IAM user | Verifiable, SideEffectReporter |
 
 #### EC2 (Bash) — `pkg/payloads/ec2/`
 | Payload | Tags | Description |
@@ -210,14 +211,104 @@ func (p *ExfilOutput) ProcessResult(result string) (string, error) {
 }
 ```
 
+## Optional Payload Interfaces
+
+Beyond the core `Payload` interface, payloads can implement two optional interfaces that enable advanced module behavior. These are defined in `pkg/payloads/interface.go`.
+
+### `Verifiable` — For Event-Triggered Modules
+
+When a payload runs inside an event-triggered function (ESM, CloudWatch Events, etc.), the module can't inspect the function's return value. The `Verifiable` interface lets the module verify the payload's effect by probing the environment.
+
+```go
+type Verifiable interface {
+    VerifySuccess(ctx context.Context, config aws.Config, options map[string]string) (bool, error)
+}
+```
+
+**When to implement**: If the payload modifies observable state (attaches a policy, creates a user, etc.) and the effect can be tested with an API call from the starting user's credentials.
+
+**Example** (`backdoor/attach-policy`): Calls `iam:ListUsers` with the starting user's creds. If the policy was attached, the call succeeds; otherwise it returns AccessDenied.
+
+```go
+func (p *BackdoorAttachPolicyPayload) VerifySuccess(ctx context.Context, config aws.Config, options map[string]string) (bool, error) {
+    iamClient := iam.NewFromConfig(config)
+    _, err := iamClient.ListUsers(ctx, &iam.ListUsersInput{MaxItems: aws.Int32(1)})
+    if err != nil {
+        return false, nil  // Not yet — AccessDenied
+    }
+    return true, nil  // Policy attached and propagated
+}
+```
+
+### `SideEffectReporter` — For Cleanup Tracking
+
+When a payload modifies existing resources (attaches a policy to a user, modifies a role trust policy, etc.), those modifications need to be tracked for cleanup. The `SideEffectReporter` interface lets the payload declare what it changed.
+
+```go
+type SideEffectReporter interface {
+    ReportSideEffects(options map[string]string) []modules.CreatedResource
+}
+```
+
+**When to implement**: If the payload attaches policies, modifies roles, creates users, or makes any other change to existing resources that should be reverted during cleanup.
+
+**Example** (`backdoor/attach-policy`): Reports the policy attachment as an `iam:attached-policy` resource.
+
+```go
+func (p *BackdoorAttachPolicyPayload) ReportSideEffects(options map[string]string) []modules.CreatedResource {
+    targetUser := options["TARGET_USER"]
+    policyArn := options["POLICY_ARN"]
+    if policyArn == "" {
+        policyArn = "arn:aws:iam::aws:policy/AdministratorAccess"
+    }
+    return []modules.CreatedResource{
+        {
+            Type:          "iam:attached-policy",
+            Name:          fmt.Sprintf("%s←%s", targetUser, "AdministratorAccess"),
+            ARN:           policyArn,
+            CleanupMethod: "iam:DetachUserPolicy",
+            Metadata: map[string]string{
+                "principal_type": "user",
+                "principal_name": targetUser,
+                "policy_arn":     policyArn,
+            },
+        },
+    }
+}
+```
+
+**Important**: The module (not the payload) is responsible for setting `ModuleID` and `Region` on each side effect before tracking it. See the module template for the pattern.
+
+### Lambda Environment Variables for Payload Parameters
+
+For Lambda payloads, pass runtime parameters via Lambda environment variables rather than string-concatenating them into the Python source code. This is cleaner and avoids injection issues.
+
+**In the payload's GenerateCode()**: Read from `os.environ`:
+```python
+target_user = os.environ.get('TARGET_USER', '')
+policy_arn = os.environ.get('POLICY_ARN', 'arn:aws:iam::aws:policy/AdministratorAccess')
+```
+
+**In the module's Execute()**: Set env vars on the Lambda function:
+```go
+envVars := map[string]string{}
+if targetUser := options["TARGET_USER"]; targetUser != "" {
+    envVars["TARGET_USER"] = targetUser
+}
+createInput.Environment = &types.Environment{Variables: envVars}
+```
+
 ## Service-Specific Notes
 
 ### Lambda Payloads
-- Always Python (runtime: python3.9+)
+- Always Python (runtime: python3.11+)
 - Code must define `lambda_handler(event, context)`
-- Return value becomes the invocation result
+- Return value becomes the invocation result (direct-invoke only; event-triggered modules cannot capture it)
 - Use `boto3` for AWS SDK calls inside Lambda
 - Zip deployment via `utils.CreateLambdaZip(code)`
+- Pass payload parameters via Lambda environment variables (not hardcoded in Python source)
+- For event-triggered modules: implement `Verifiable` so the module can confirm the payload executed
+- For payloads that modify resources: implement `SideEffectReporter` for cleanup tracking
 
 ### EC2 Payloads
 - Always bash scripts

@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"pathrunner/pkg/modules"
 	"sort"
 	"strings"
 
@@ -95,6 +96,11 @@ func (r *REPL) getCommands() map[string]*Command {
 			Description: "List available payloads",
 			Handler:     r.cmdPayloads,
 		},
+		"discover": {
+			Name:        "discover",
+			Description: "Auto-discover values for module options",
+			Handler:     r.cmdDiscover,
+		},
 	}
 }
 
@@ -165,6 +171,8 @@ func (r *REPL) showSpecificHelp(command string) error {
 		return r.showModulesHelp()
 	case "payloads":
 		return r.showPayloadsHelp()
+	case "discover":
+		return r.showDiscoverHelp()
 	default:
 		return NewCommandNotFoundError(command)
 	}
@@ -186,23 +194,46 @@ func (r *REPL) showIdentityHelp() error {
 	fmt.Println("Identity Management Commands:")
 	fmt.Println("  identity add                    - Add credentials from environment variables")
 	fmt.Println("  identity add --profile <name>   - Add credentials from AWS profile")
-	fmt.Println("  identity add --keys <key> <secret> [token] - Add credentials manually")
+	fmt.Println("  identity add --access <key> --secret <secret> [--token <token>] - Add credentials manually")
 	fmt.Println("  identity add --from-output [--name <name>]      - Extract credentials from last command output")
 	fmt.Println("  identity add --from-file <path> [--name <name>] - Extract credentials from file")
 	fmt.Println("  identity add --from-clipboard [--name <name>]   - Extract credentials from clipboard")
 	fmt.Println("  identity list                   - List all configured identities")
 	fmt.Println("  identity show                   - Show current identity details")
 	fmt.Println("  identity switch <name>          - Switch to a different identity")
+	fmt.Println("  identity check [name]           - Check if identity has admin privileges")
 	fmt.Println("  identity refresh                - Refresh current identity credentials")
 	fmt.Println("  identity clear [name]           - Remove identity by name")
 	fmt.Println("  identity clear --expired        - Remove all expired identities")
 	fmt.Println("  identity remove [name]          - Alias for clear")
 	fmt.Println()
-	fmt.Println("Note: For credential extraction methods (--from-output, --from-file, --from-clipboard),")
-	fmt.Println("      you can optionally specify --name to set a custom identity name.")
-	fmt.Println("      If --name is not provided, you will be prompted to enter a custom name.")
+	fmt.Println("Note: Use --name to set a custom identity name with any add method.")
+	fmt.Println("      If --name is not provided, a name will be auto-generated.")
+	fmt.Println("      Use --switch to auto-switch to the new identity without prompting.")
+	fmt.Println("      Use --check-admin to auto-check admin privileges after adding.")
 	fmt.Println()
 	fmt.Println("Use 'identity <subcommand> help' for detailed help on a specific subcommand.")
+	return nil
+}
+
+func (r *REPL) showIdentityCheckHelp() error {
+	fmt.Println("Identity Check Command:")
+	fmt.Println("  identity check          - Check if current identity has admin privileges")
+	fmt.Println("  identity check <name>   - Check if named identity has admin privileges")
+	fmt.Println()
+	fmt.Println("Uses the IAM Policy Simulator (iam:SimulatePrincipalPolicy) to test")
+	fmt.Println("whether the identity can perform admin-level actions. Tests 6 actions:")
+	fmt.Println("  iam:PutUserPolicy, iam:AttachUserPolicy, iam:PutRolePolicy,")
+	fmt.Println("  iam:AttachRolePolicy, secretsmanager:GetSecretValue, ssm:GetParameters")
+	fmt.Println()
+	fmt.Println("Results are cached on the identity and shown in 'identity list' and prompt.")
+	fmt.Println("Admin identities show '!' suffix in the REPL prompt.")
+	fmt.Println()
+	fmt.Println("Note: Requires iam:SimulatePrincipalPolicy permission on the identity.")
+	fmt.Println()
+	fmt.Println("Examples:")
+	fmt.Println("  identity check              # Check current identity")
+	fmt.Println("  identity check my-profile   # Check specific identity")
 	return nil
 }
 
@@ -210,13 +241,15 @@ func (r *REPL) showIdentityAddHelp() error {
 	fmt.Println("Identity Add Command:")
 	fmt.Println("  identity add                                    - Add credentials from environment variables")
 	fmt.Println("  identity add --profile <name>                   - Add credentials from AWS profile (SSO supported)")
-	fmt.Println("  identity add --keys <key> <secret> [token]      - Add credentials manually")
+	fmt.Println("  identity add --access <key> --secret <secret> [--token <token>] [--name <name>] - Add credentials manually")
 	fmt.Println("  identity add --from-output [--name <name>]      - Extract credentials from last command output")
 	fmt.Println("  identity add --from-file <path> [--name <name>] - Extract credentials from file")
 	fmt.Println("  identity add --from-clipboard [--name <name>]   - Extract credentials from clipboard")
 	fmt.Println()
-	fmt.Println("The --name flag sets a custom identity name for credential extraction methods.")
-	fmt.Println("If --name is not provided, you will be prompted to enter one.")
+	fmt.Println("The --name flag sets a custom identity name for any add method.")
+	fmt.Println("If --name is not provided, a name will be auto-generated.")
+	fmt.Println("The --switch flag auto-switches to the new identity without prompting.")
+	fmt.Println("The --check-admin flag auto-checks admin privileges after adding.")
 	fmt.Println()
 	fmt.Println("Supported credential formats for extraction:")
 	fmt.Println("  - AWS environment variables (AWS_ACCESS_KEY_ID, etc.)")
@@ -226,8 +259,8 @@ func (r *REPL) showIdentityAddHelp() error {
 	fmt.Println()
 	fmt.Println("Examples:")
 	fmt.Println("  identity add --profile my-sso-profile")
-	fmt.Println("  identity add --keys AKIAIOSFODNN7EXAMPLE wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY")
-	fmt.Println("  identity add --keys AKIAEXAMPLE SECRET TOKEN123")
+	fmt.Println("  identity add --access AKIAIOSFODNN7EXAMPLE --secret wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY")
+	fmt.Println("  identity add --access AKIAEXAMPLE --secret SECRET --token TOKEN123 --name my-target")
 	fmt.Println("  identity add --from-output --name exploited-role")
 	return nil
 }
@@ -304,11 +337,57 @@ func (r *REPL) showPayloadsHelp() error {
 	return nil
 }
 
+func (r *REPL) showDiscoverHelp() error {
+	fmt.Println("Discover Command:")
+	fmt.Println("  discover               - Auto-discover all missing discoverable options")
+	fmt.Println("  discover <OPTION>      - Auto-discover a specific option")
+	fmt.Println("  discover help          - Show this help message")
+	fmt.Println()
+	fmt.Println("Uses AWS API calls to enumerate valid values for module options.")
+	fmt.Println("Requires an active identity with appropriate 'additional' permissions")
+	fmt.Println("(e.g., iam:ListRoles for ROLE_ARN, iam:ListInstanceProfiles for INSTANCE_PROFILE).")
+	fmt.Println()
+	fmt.Println("Options that support auto-discovery are marked with [auto] in 'show options'.")
+	fmt.Println("When 'exploit' is run with missing discoverable options, discovery is")
+	fmt.Println("attempted automatically before failing.")
+	fmt.Println()
+	fmt.Println("Examples:")
+	fmt.Println("  discover               # Discover all missing options")
+	fmt.Println("  discover ROLE_ARN      # Discover only ROLE_ARN")
+	return nil
+}
+
 func (r *REPL) showUseHelp() error {
 	fmt.Println("Use Command:")
 	fmt.Println("  use <module>    - Select a module for use")
 	fmt.Println()
-	fmt.Println("Available modules can be listed with 'show modules'")
+
+	infos := modules.ListPathInfos()
+	if len(infos) > 0 {
+		fmt.Println("Available modules:")
+		fmt.Println()
+
+		t := table.New(os.Stdout)
+		t.SetHeaders("ID", "Short Name")
+		t.SetHeaderStyle(table.StyleBold)
+		t.SetRowLines(false)
+		t.SetLineStyle(table.StyleCyan)
+		t.SetDividers(table.UnicodeRoundedDividers)
+		t.SetAlignment(table.AlignLeft)
+
+		for _, info := range infos {
+			shortName := ""
+			if len(info.Aliases) > 0 {
+				shortName = info.Aliases[0]
+			}
+			t.AddRow(info.ID, shortName)
+		}
+		t.Render()
+		fmt.Println()
+		fmt.Println("Use either the ID or short name with 'use'. For full details: 'show modules'")
+	} else {
+		fmt.Println("Available modules can be listed with 'show modules'")
+	}
 	return nil
 }
 
@@ -368,6 +447,8 @@ func (r *REPL) showWorkspaceHelp() error {
 	fmt.Println("  workspace cleanup          - Clean up AWS resources (interactive)")
 	fmt.Println("  workspace cleanup --all    - Clean up all resources without prompt")
 	fmt.Println("  workspace cleanup --module <id> - Clean up resources from a specific module")
+	fmt.Println("  workspace report           - Generate cleanup report for handoff")
+	fmt.Println("  workspace report --module <id>  - Report for a specific module only")
 	fmt.Println("  workspace history [limit]  - Show command history with timestamps")
 	fmt.Println("  workspace help             - Show this help message")
 	fmt.Println()
@@ -436,6 +517,26 @@ func (r *REPL) showWorkspaceCleanupHelp() error {
 	fmt.Println("  workspace cleanup                     # Interactive selection")
 	fmt.Println("  workspace cleanup --all               # Clean everything")
 	fmt.Println("  workspace cleanup --module lambda-001  # Only Lambda module resources")
+	return nil
+}
+
+func (r *REPL) showWorkspaceReportHelp() error {
+	fmt.Println("Workspace Report Command:")
+	fmt.Println("  workspace report                - Generate full cleanup report")
+	fmt.Println("  workspace report --module <id>  - Report for a specific module only")
+	fmt.Println()
+	fmt.Println("Generates a cleanup report listing all resources created or modified")
+	fmt.Println("by pathrunner in the current workspace. The report includes:")
+	fmt.Println("  - Created resources (Lambda functions, EC2 instances, IAM entities)")
+	fmt.Println("  - Modified resources (policy attachments that need reversal)")
+	fmt.Println("  - Manual AWS CLI cleanup commands for each resource")
+	fmt.Println()
+	fmt.Println("Useful for handing off to a client, admin, or point of contact when")
+	fmt.Println("the penetration tester cannot or should not delete resources themselves.")
+	fmt.Println()
+	fmt.Println("Examples:")
+	fmt.Println("  workspace report                      # Full report")
+	fmt.Println("  workspace report --module lambda-002   # Only lambda-002 resources")
 	return nil
 }
 
@@ -509,6 +610,18 @@ func (r *REPL) cmdContext(repl *REPL, args []string) error {
 		identityTable.AddRow("Region", identity.Region)
 		if identity.Profile != "" {
 			identityTable.AddRow("Profile", identity.Profile)
+		}
+		if identity.CallerARN != "" {
+			identityTable.AddRow("ARN", identity.CallerARN)
+		}
+		if identity.IsAdmin != nil {
+			if *identity.IsAdmin {
+				identityTable.AddRow("Admin", "Yes")
+			} else {
+				identityTable.AddRow("Admin", "No")
+			}
+		} else {
+			identityTable.AddRow("Admin", "- (not checked)")
 		}
 		if identity.ExpiresAt != nil {
 			status := "Valid"
@@ -706,6 +819,7 @@ func (r *REPL) showContextHelp() error {
 	fmt.Println("The prompt also shows abbreviated context:")
 	fmt.Println("  pathrunner[workspace][identity][module][payload]>")
 	fmt.Println("  - '*' after identity name indicates expired credentials")
+	fmt.Println("  - '!' after identity name indicates confirmed admin")
 	fmt.Println("  - Components only show when configured")
 	return nil
 }

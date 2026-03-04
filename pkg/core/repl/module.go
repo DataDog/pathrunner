@@ -2,12 +2,12 @@ package repl
 
 import (
 	"fmt"
+	"os"
 	"pathrunner/pkg/modules"
 	"pathrunner/pkg/utils"
 	"strings"
 
-	"os"
-
+	survey "github.com/AlecAivazis/survey/v2"
 	"github.com/aquasecurity/table"
 )
 
@@ -22,6 +22,26 @@ func (r *REPL) cmdUse(repl *REPL, args []string) error {
 	}
 
 	moduleName := args[0]
+	// Support "id/short-name" format from tab completion (e.g. "lambda-001/lambda-passrole")
+	// Only strip suffix if the part before "/" looks like a pathfinding ID (e.g. "lambda-001")
+	// Don't strip "exploit/lambda_passrole" style aliases
+	if idx := strings.Index(moduleName, "/"); idx != -1 {
+		prefix := moduleName[:idx]
+		// Check if prefix matches {service}-{number} pattern
+		if dashIdx := strings.LastIndex(prefix, "-"); dashIdx != -1 {
+			suffix := prefix[dashIdx+1:]
+			isNumber := len(suffix) > 0
+			for _, c := range suffix {
+				if c < '0' || c > '9' {
+					isNumber = false
+					break
+				}
+			}
+			if isNumber {
+				moduleName = prefix
+			}
+		}
+	}
 	module, err := modules.LoadModule(moduleName)
 	if err != nil {
 		return NewModuleNotFoundError(moduleName)
@@ -195,8 +215,9 @@ func (r *REPL) cmdSet(repl *REPL, args []string) error {
 	r.options[option] = value
 	fmt.Printf("Set %s => %s\n", option, value)
 
-	// Auto-show payload options after setting PAYLOAD
+	// Auto-show payload options and rebuild completions after setting PAYLOAD
 	if strings.ToUpper(option) == "PAYLOAD" {
+		r.updateCompletion()
 		fmt.Println()
 		if r.currentModule != nil {
 			r.showPayloadOptions(value)
@@ -228,6 +249,256 @@ func (r *REPL) cmdUnset(repl *REPL, args []string) error {
 	delete(r.options, option)
 	fmt.Printf("Unset %s\n", option)
 
+	// Rebuild completions when PAYLOAD is unset to remove payload-specific options
+	if strings.ToUpper(option) == "PAYLOAD" {
+		r.updateCompletion()
+	}
+
+	return nil
+}
+
+// cmdDiscover proactively discovers values for discoverable options
+func (r *REPL) cmdDiscover(repl *REPL, args []string) error {
+	if len(args) > 0 && args[0] == "help" {
+		return r.showDiscoverHelp()
+	}
+
+	if r.currentModule == nil {
+		return NewValidationError("no module selected. Use 'use <module>' to select one", nil)
+	}
+
+	identity := r.identityManager.GetCurrent()
+	if identity == nil {
+		return NewIdentityRequiredError()
+	}
+
+	if identity.IsExpired() {
+		return NewAuthError("current identity has expired. Use 'identity refresh' or add new credentials", nil)
+	}
+
+	discoverable, ok := r.currentModule.(modules.Discoverable)
+	if !ok {
+		fmt.Printf("Module %s does not support auto-discovery.\n", r.currentModule.Name())
+		fmt.Println("Set options manually with 'set <option> <value>'")
+		return nil
+	}
+
+	discoverableOpts := discoverable.DiscoverableOptions()
+	if len(discoverableOpts) == 0 {
+		fmt.Println("No discoverable options for this module.")
+		return nil
+	}
+
+	// If specific option requested
+	if len(args) > 0 {
+		optionName := strings.ToUpper(args[0])
+		found := false
+		for _, opt := range discoverableOpts {
+			if opt == optionName {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return NewInvalidArgumentsError(fmt.Sprintf("option '%s' does not support auto-discovery. Discoverable options: %s", optionName, strings.Join(discoverableOpts, ", ")))
+		}
+
+		return r.discoverAndSetOption(discoverable, optionName, identity)
+	}
+
+	// Discover all missing discoverable options
+	for _, optName := range discoverableOpts {
+		if existing := r.options[optName]; existing != "" {
+			fmt.Printf("%s already set to '%s', skipping.\n", optName, existing)
+			continue
+		}
+
+		if err := r.discoverAndSetOption(discoverable, optName, identity); err != nil {
+			fmt.Printf("Warning: %v\n", err)
+		}
+	}
+
+	return nil
+}
+
+// discoverAndSetOption runs discovery for a single option and presents an interactive selection.
+func (r *REPL) discoverAndSetOption(discoverable modules.Discoverable, optionName string, identity *modules.Identity) error {
+	fmt.Printf("Discovering values for %s...\n", optionName)
+
+	choices, err := discoverable.Discover(optionName, identity, r.options)
+	if err != nil {
+		return fmt.Errorf("discovery failed for %s: %v", optionName, err)
+	}
+
+	if len(choices) == 0 {
+		fmt.Printf("No values found for %s. Set it manually: set %s <value>\n", optionName, optionName)
+		return nil
+	}
+
+	fmt.Printf("Found %d option(s) for %s:\n", len(choices), optionName)
+
+	// Build selection options
+	labels := make([]string, len(choices))
+	for i, c := range choices {
+		labels[i] = c.Label
+	}
+
+	var selectedIndex int
+	prompt := &survey.Select{
+		Message: fmt.Sprintf("Select value for %s:", optionName),
+		Options: labels,
+	}
+
+	if err := survey.AskOne(prompt, &selectedIndex); err != nil {
+		return fmt.Errorf("selection cancelled for %s", optionName)
+	}
+
+	selected := choices[selectedIndex]
+	r.options[optionName] = selected.Value
+	fmt.Printf("Set %s => %s\n", optionName, selected.Value)
+
+	return nil
+}
+
+// tryResolveMissingOptions walks through all missing required options interactively:
+// - Discoverable options: auto-enumerate via AWS API, present survey.Select
+// - PAYLOAD option: present survey.Select from module's ListPayloads()
+// - Other options: prompt with survey.Input for manual entry
+// After PAYLOAD is resolved, also checks for payload-specific required options.
+// Returns true if all missing options were resolved.
+func (r *REPL) tryResolveMissingOptions(missing []string) bool {
+	identity := r.identityManager.GetCurrent()
+	if identity == nil {
+		return false
+	}
+
+	// Build discoverable set
+	var discoverableSet map[string]bool
+	var discoverable modules.Discoverable
+	if d, ok := r.currentModule.(modules.Discoverable); ok {
+		discoverable = d
+		discoverableSet = make(map[string]bool)
+		for _, opt := range d.DiscoverableOptions() {
+			discoverableSet[opt] = true
+		}
+	}
+
+	fmt.Println("Resolving missing required options...")
+	fmt.Println()
+
+	for _, optName := range missing {
+		if r.options[optName] != "" {
+			continue // already resolved by a prior step
+		}
+
+		var err error
+		switch {
+		case optName == "PAYLOAD":
+			err = r.promptPayloadSelection()
+		case discoverableSet != nil && discoverableSet[optName]:
+			err = r.discoverAndSetOption(discoverable, optName, identity)
+		default:
+			err = r.promptManualOption(optName)
+		}
+
+		if err != nil {
+			fmt.Printf("  %v\n", err)
+			return false
+		}
+	}
+
+	// After PAYLOAD is set, check for payload-specific required options
+	if payload, exists := r.options["PAYLOAD"]; exists {
+		payloadOpts := r.currentModule.PayloadOptions(payload)
+		for _, opt := range payloadOpts {
+			if opt.Required && r.options[opt.Name] == "" && opt.Default == "" {
+				if err := r.promptManualOption(opt.Name); err != nil {
+					fmt.Printf("  %v\n", err)
+					return false
+				}
+			}
+		}
+	}
+
+	return true
+}
+
+// promptPayloadSelection presents an interactive selection of available payloads.
+func (r *REPL) promptPayloadSelection() error {
+	payloadList := r.currentModule.ListPayloads()
+	if len(payloadList) == 0 {
+		return fmt.Errorf("no payloads available for module %s", r.currentModule.Name())
+	}
+
+	labels := make([]string, len(payloadList))
+	for i, p := range payloadList {
+		labels[i] = fmt.Sprintf("%s - %s", p.Name, p.Description)
+	}
+
+	var selectedIndex int
+	prompt := &survey.Select{
+		Message: "Select PAYLOAD:",
+		Options: labels,
+	}
+
+	if err := survey.AskOne(prompt, &selectedIndex); err != nil {
+		return fmt.Errorf("selection cancelled for PAYLOAD")
+	}
+
+	selected := payloadList[selectedIndex]
+	r.options["PAYLOAD"] = selected.Name
+	fmt.Printf("Set PAYLOAD => %s\n", selected.Name)
+
+	// Show payload options after selection
+	fmt.Println()
+	r.showPayloadOptions(selected.Name)
+
+	return nil
+}
+
+// promptManualOption asks the user to type in a value for a required option.
+func (r *REPL) promptManualOption(optionName string) error {
+	// Find the option description for context
+	desc := ""
+	for _, opt := range r.currentModule.Options() {
+		if opt.Name == optionName {
+			desc = opt.Description
+			break
+		}
+	}
+	// Also check payload options
+	if desc == "" {
+		if payload, exists := r.options["PAYLOAD"]; exists {
+			for _, opt := range r.currentModule.PayloadOptions(payload) {
+				if opt.Name == optionName {
+					desc = opt.Description
+					break
+				}
+			}
+		}
+	}
+
+	message := fmt.Sprintf("Enter value for %s", optionName)
+	if desc != "" {
+		message = fmt.Sprintf("Enter value for %s (%s)", optionName, desc)
+	}
+
+	var value string
+	prompt := &survey.Input{
+		Message: message + ":",
+	}
+
+	if err := survey.AskOne(prompt, &value); err != nil {
+		return fmt.Errorf("input cancelled for %s", optionName)
+	}
+
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return fmt.Errorf("no value provided for %s", optionName)
+	}
+
+	r.options[optionName] = value
+	fmt.Printf("Set %s => %s\n", optionName, value)
 	return nil
 }
 
@@ -250,9 +521,17 @@ func (r *REPL) cmdExploit(repl *REPL, args []string) error {
 		return NewAuthError("current identity has expired. Use 'identity refresh' or add new credentials", nil)
 	}
 
-	// Validate required options
+	// Validate required options — if missing, walk the user through resolving them
 	if err := r.validateOptions(); err != nil {
-		return err
+		missing := r.getMissingOptions()
+		if len(missing) == 0 {
+			return err
+		}
+		r.tryResolveMissingOptions(missing)
+		// Always re-validate after the wizard, regardless of what it resolved
+		if err2 := r.validateOptions(); err2 != nil {
+			return err2
+		}
 	}
 
 	fmt.Printf("Executing module: %s\n", r.currentModule.Name())
@@ -522,6 +801,15 @@ func (r *REPL) showOptions() error {
 		return nil
 	}
 
+	// Check if module supports discovery
+	var discoverableSet map[string]bool
+	if discoverable, ok := r.currentModule.(modules.Discoverable); ok {
+		discoverableSet = make(map[string]bool)
+		for _, opt := range discoverable.DiscoverableOptions() {
+			discoverableSet[opt] = true
+		}
+	}
+
 	// Create table
 	t := table.New(os.Stdout)
 	t.SetHeaders("Option", "Value", "Required", "Description")
@@ -545,7 +833,12 @@ func (r *REPL) showOptions() error {
 			required = "Yes"
 		}
 
-		t.AddRow(option.Name, value, required, option.Description)
+		desc := option.Description
+		if discoverableSet != nil && discoverableSet[option.Name] {
+			desc += " [auto]"
+		}
+
+		t.AddRow(option.Name, value, required, desc)
 	}
 
 	fmt.Printf("Options for %s:\n", r.currentModule.Name())
@@ -600,6 +893,39 @@ func (r *REPL) showPayloadOptions(payload string) error {
 	fmt.Println()
 
 	return nil
+}
+
+// getMissingOptions returns the names of required options that are not set.
+func (r *REPL) getMissingOptions() []string {
+	if r.currentModule == nil {
+		return nil
+	}
+
+	options := r.currentModule.Options()
+	var missing []string
+	for _, option := range options {
+		if option.Required {
+			value := r.options[option.Name]
+			if value == "" && option.Default == "" {
+				missing = append(missing, option.Name)
+			}
+		}
+	}
+
+	// Check payload options if payload is selected
+	if payload, exists := r.options["PAYLOAD"]; exists {
+		payloadOptions := r.currentModule.PayloadOptions(payload)
+		for _, option := range payloadOptions {
+			if option.Required {
+				value := r.options[option.Name]
+				if value == "" && option.Default == "" {
+					missing = append(missing, option.Name)
+				}
+			}
+		}
+	}
+
+	return missing
 }
 
 // validateOptions validates all required options are set
@@ -686,13 +1012,18 @@ func (r *REPL) handleStructuredIdentityData(result string) error {
 
 	// Build the identity add command
 	cmdArgs := []string{
-		"--keys",
+		"--access",
 		data["ACCESS_KEY_ID"],
+		"--secret",
 		data["SECRET_ACCESS_KEY"],
 	}
 
 	if data["SESSION_TOKEN"] != "" {
-		cmdArgs = append(cmdArgs, data["SESSION_TOKEN"])
+		cmdArgs = append(cmdArgs, "--token", data["SESSION_TOKEN"])
+	}
+
+	if name != "" {
+		cmdArgs = append(cmdArgs, "--name", name)
 	}
 
 	fmt.Printf("\n✓ Detected credentials in exploit output\n")
@@ -712,6 +1043,7 @@ func (r *REPL) handleStructuredIdentityData(result string) error {
 	}
 
 	fmt.Printf("✓ Identity added successfully!\n")
+	r.UpdatePrompt()
 
 	// Check if we should auto-switch
 	if data["AUTO_SWITCH"] == "true" {
@@ -746,17 +1078,22 @@ func (r *REPL) tryAutoImportCredentials(result string) error {
 	}
 
 	// Build identity add command
+	identityName := creds.GenerateIdentityName()
+
 	cmdArgs := []string{
-		"--keys",
+		"--access",
 		creds.AccessKeyID,
+		"--secret",
 		creds.SecretAccessKey,
 	}
 
 	if creds.SessionToken != "" {
-		cmdArgs = append(cmdArgs, creds.SessionToken)
+		cmdArgs = append(cmdArgs, "--token", creds.SessionToken)
 	}
 
-	identityName := creds.GenerateIdentityName()
+	if identityName != "" {
+		cmdArgs = append(cmdArgs, "--name", identityName)
+	}
 
 	fmt.Printf("\n✓ Detected credentials in exploit output\n")
 	fmt.Printf("  Identity name: %s\n", identityName)
@@ -778,6 +1115,7 @@ func (r *REPL) tryAutoImportCredentials(result string) error {
 	}
 
 	fmt.Printf("✓ Identity added successfully!\n")
+	r.UpdatePrompt()
 
 	return nil
 }

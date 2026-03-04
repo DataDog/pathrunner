@@ -4,641 +4,162 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Related Projects
 
-Pathrunner is one of three projects that share a common identifier convention (`{service}-{number}`) for AWS privilege escalation paths. All three are in adjacent directories.
+Pathrunner is one of three projects sharing the `{service}-{number}` identifier convention for AWS privilege escalation paths:
 
-### pathfinding.cloud (`/Users/seth.art/Documents/projects/pathfinding.cloud`)
-
-The **source of truth** for path definitions. A static website (vanilla JS, GitHub Pages) backed by 69 YAML files in `data/paths/{service}/{service}-{number}.yaml`. Each YAML defines a privilege escalation path with rich metadata: permissions, prerequisites, exploitation steps, attack visualizations, detection tool coverage, and learning environments. Schema version 1.6.0.
-
-- **69 paths** across 15 AWS services (iam: 21, ecs: 9, lambda: 6, glue: 6, ec2: 4, etc.)
-- **5 categories**: self-escalation, principal-access, new-passrole, existing-passrole, credential-access
-- Build pipeline: Python validates YAML and generates `docs/paths.json` for the website
-- Maintained by Seth Art (Datadog), Apache 2.0 license, public at `DataDog/pathfinding.cloud`
-
-### pathfinding-labs (`/Users/seth.art/Documents/projects/pathfinding-labs`)
-
-**Terraform lab environments** that deploy intentionally vulnerable AWS configurations for each path. 97 active scenarios in `modules/scenarios/`, each with a `scenario.yaml` referencing the pathfinding.cloud ID via the `pathfinding-cloud-id` field.
-
-- **97 active scenarios**: one-hop (70), self-escalation (10), cross-account (6), multi-hop (4), tool-testing (5), CSPM (2)
-- Go CLI (`plabs`) with Bubble Tea TUI for interactive scenario management
-- Each scenario contains: Terraform modules, `demo_attack.sh`, `cleanup_attack.sh`, `scenario.yaml`
-- Terraform variable naming: `enable_single_account_privesc_{category}_to_{target}_{path_id}_{technique}`
-- Multi-account support (prod, dev, ops) via provider aliases
-
-### How the Three Projects Connect
+- **pathfinding.cloud** (`/Users/seth.art/Documents/projects/pathfinding.cloud`) — Source of truth. 69 YAML path definitions in `data/paths/{service}/{service}-{number}.yaml` with permissions, prerequisites, exploitation steps. Schema v1.6.0.
+- **pathfinding-labs** (`/Users/seth.art/Documents/projects/pathfinding-labs`) — Terraform lab environments. 97 scenarios in `modules/scenarios/`, each with `scenario.yaml`, `demo_attack.sh`, `cleanup_attack.sh`, and Terraform modules.
+- **pathrunner** (this repo) — Automates exploitation. Currently implements 4 paths (lambda-001, lambda-002, ec2-001, sts-001) with architecture to scale to all 69+.
 
 ```
-pathfinding.cloud          pathfinding-labs            pathrunner
-(YAML definitions)    →    (Terraform labs)       →    (attack execution)
-
-data/paths/lambda/         modules/scenarios/.../     pkg/exploits/lambda_passrole/
-  lambda-001.yaml            scenario.yaml              module.go
-  - id: lambda-001           - pathfinding-cloud-id:    - ID: "lambda-001"
-  - permissions               "lambda-001"              - Aliases: ["exploit/lambda_passrole"]
-  - prerequisites           - demo_attack.sh            - PathInfo.Permissions
-  - exploitationSteps       - main.tf                   - Execute()
+pathfinding.cloud (YAML) → pathfinding-labs (Terraform) → pathrunner (execution)
+  lambda-001.yaml           scenario.yaml / demo_attack.sh   pkg/exploits/lambda_passrole/
 ```
 
-**Shared identifier**: The `{service}-{number}` ID (e.g., `lambda-001`) is the key that links a path definition → a deployable lab → an automated exploit module.
-
-**Pathrunner's role**: Automates the exploitation step. Where pathfinding.cloud documents "run this AWS CLI command" and pathfinding-labs deploys the vulnerable environment, pathrunner executes the attack programmatically with payload selection, credential management, and resource tracking.
-
-**Coverage**: pathfinding.cloud defines 69 paths, pathfinding-labs has scenarios for most of them, and pathrunner currently implements 3 (lambda-001, ec2-001, sts-001) with the architecture to scale to all 69+.
-
-**PathInfo alignment**: Pathrunner's `PathInfo` struct mirrors the subset of pathfinding.cloud YAML fields useful at runtime (id, name, category, services, permissions, prerequisites, references). Fields only relevant on the website (attackVisualization, recommendation, discoveryAttribution, learningEnvironments) are excluded.
+The `{service}-{number}` ID links path definition → deployable lab → automated exploit module. Pathrunner's `PathInfo` struct mirrors the subset of pathfinding.cloud fields useful at runtime.
 
 ## Build and Development Commands
 
 ```bash
-# Build the main executable
-go build -o pathrunner cmd/pathrunner/main.go
-
-# Run in development mode
-go run cmd/pathrunner/main.go
-
-# Run as CLI command
-./pathrunner [command] [subcommand] [flags]
-
-# Run in REPL mode (interactive)
-./pathrunner
-
-# Add dependencies
-go get github.com/example/package
-go mod tidy
-
-# Run tests
-go test ./tests/unit/          # Unit tests only
-go test ./tests/integration/   # Integration tests only
-go test ./tests/...            # All tests
-go test -v ./tests/...         # Verbose output
-go test -cover ./pkg/...       # With coverage
+go build -o pathrunner cmd/pathrunner/main.go   # Build
+go run cmd/pathrunner/main.go                    # Dev mode
+./pathrunner [command] [subcommand] [flags]      # CLI mode
+./pathrunner                                     # REPL mode
+go test ./tests/unit/                            # Unit tests
+go test ./tests/integration/                     # Integration tests
+go test ./tests/...                              # All tests
+go test -v ./tests/... -run TestName             # Specific test
 ```
 
 ## Architecture Overview
 
-Pathrunner is a modular AWS post-exploitation framework with dual CLI/REPL interfaces that share the same underlying business logic.
+Modular AWS post-exploitation framework with dual CLI/REPL interfaces sharing the same business logic.
 
-### Core Components
+### Packages
 
-**pkg/core/** - Central framework components:
-- `repl/`: Interactive shell package with command parsing, tab completion, and command execution
-  - `repl.go`: Main REPL loop and command dispatcher
-  - `commands.go`: Command handlers for all REPL commands
-  - `completion.go`: Tab completion logic with dynamic updates
-  - `identity.go`: Identity management command handlers
-  - `session.go`: Workspace command handlers (renamed from session)
-  - `module.go`: Module-related command handlers
-- `identity.go`: Multi-identity AWS credential management with automatic refresh for profiles/SSO
-- `session.go`: Session persistence with command logging, resource tracking, and state management
-- `repl_adapters.go`: Adapter pattern to bridge concrete types with REPL interfaces
-- Each component provides both internal methods and public methods for integration
-
-**pkg/cli/** - Cobra CLI wrapper that maps 1:1 with REPL commands:
-- `cli.go`: Main CLI wrapper around REPL functionality using adapters
-- `commands.go`: All Cobra command definitions that execute REPL handlers
-- Supports complex flag parsing (e.g., `--profile`, `--keys`, `--from-output`, `--expired`)
-
-**pkg/modules/** - Module system interfaces and shared types:
-- `interface.go`: Core interfaces for Module, Identity, ResourceTracker, PayloadCompatible, and shared data structures
-- `pathinfo.go`: PathInfo metadata struct hierarchy (ID, permissions, prerequisites, MITRE, references)
-- `base.go`: BaseModule embeddable struct with default implementations for Module interface
-- `registry.go`: Module registration with alias support, PathInfo cache, search/filter functions
-- Modules must implement the Module interface with PathInfo(), Execute(), PayloadOptions(), and ListPayloads() methods
-- Modules embed `BaseModule` to inherit default implementations for Name(), Description(), PathInfo(), PayloadOptions(), ListPayloads()
-- Modules can optionally implement `PayloadCompatible` to declare supported payload tags/service context
-
-**pkg/payloads/** - Centralized payload registry system (service-based, reusable across modules):
-- `interface.go`: Core `Payload` interface (GetName, GetTags, GetOptions, GenerateCode, ProcessResult, Validate)
-- `registry.go`: Thread-safe global registry with tag-based filtering (GetPayloadsByTags, GetPayloadsByContext, GetPayloadsByFilter)
-- `tags.go`: Standardized tag constants organized by category (service, language, technique, transport)
-- `ec2/`: EC2 bash payloads — `exfil_webhook.go`, `direct_elevation.go`, `reverse_shell.go`
-- `lambda/`: Lambda Python payloads — `exfil_output.go`, `exfil_https.go`, `backdoor_role.go`, `backdoor_user.go`
-- Payloads self-register via `init()` functions, same pattern as modules
-- Tag categories: service (`lambda`, `ec2`, `ecs`, ...), language (`python`, `bash`, ...), technique (`exfil`, `backdoor`, `reverse_shell`, `direct_action`), transport (`webhook`, `output`, `network`)
-
-**pkg/exploits/** - Exploitation modules (each embeds `BaseModule` with `PathInfo`):
-- `lambda_passrole/`: `lambda-001` - Lambda/PassRole privilege escalation (aliases: `lambda-passrole`, `exploit/lambda_passrole`)
-  - `module.go`: Implements `PayloadCompatible` with tags `[lambda, python]`; queries registry for Lambda payloads
-- `ec2_passrole/`: `ec2-001` - EC2/PassRole privilege escalation via RunInstances (aliases: `ec2-passrole`, `exploit/ec2_passrole`)
-  - `module.go`: Implements `PayloadCompatible` with tags `[ec2, bash]`; auto-detects AMI and subnet, launches instances with payload as user-data
-- `sts_assume_role/`: `sts-001` - STS AssumeRole for role assumption (aliases: `sts-assume-role`, `exploit/sts_assume_role`)
-
-**pkg/utils/** - Utility functions:
-- `credentials.go`: Credential extraction from various formats (env vars, JSON, etc.)
-
-**pkg/config/** - Configuration management:
-- `config.go`: Application configuration with validation
+- **pkg/core/** — REPL shell (`repl/`), identity management (`identity.go`), session persistence (`session.go`), adapter pattern (`repl_adapters.go`). The REPL handles command parsing, tab completion, and dispatching.
+- **pkg/cli/** — Cobra CLI wrapper mapping 1:1 with REPL commands via adapters.
+- **pkg/modules/** — Module system: `Module` interface, `BaseModule` embeddable struct, `PathInfo` metadata, global registry with alias support and search/filter. Optional interfaces: `PayloadCompatible`, `Discoverable`.
+- **pkg/payloads/** — Centralized payload registry: `Payload` interface, tag-based filtering (`TagFilter`), service subdirectories (`ec2/`, `lambda/`). Optional interfaces: `Verifiable`, `SideEffectReporter`.
+- **pkg/exploits/** — Exploit modules, each embedding `BaseModule`. Current: `lambda_passrole/` (lambda-001), `lambda_passrole_esm/` (lambda-002), `ec2_passrole/` (ec2-001), `sts_assume_role/` (sts-001).
+- **pkg/discovery/** — Reusable AWS enumeration: IAM roles by trust policy, instance profiles, DynamoDB streams. Used by modules implementing `Discoverable`.
+- **pkg/utils/** — Credential extraction from env vars, JSON, Python dicts.
+- **pkg/config/** — Application configuration.
 
 ### Key Design Patterns
 
-**Dual Interface Architecture**:
-- REPL and CLI share the same command handlers via REPL's `ExecuteCommand()` method
-- No code duplication - same business logic handles both interfaces
-- State management works identically in both modes
-- CLI uses adapter pattern to bridge concrete types with REPL interfaces
+**Dual Interface**: REPL and CLI share command handlers via `ExecuteCommand()`. CLI uses adapter pattern to bridge concrete types with REPL interfaces.
 
-**Workspace-Scoped Identities** (Critical Feature):
-- Each workspace maintains its own completely isolated set of AWS identities
-- Switching workspaces automatically loads/saves identity state
-- `loadSessionState()` always replaces (not merges) identities when switching
-- Prevents accidentally using wrong credentials in wrong projects
+**Workspace-Scoped Identities**: Each workspace maintains isolated AWS identities. `loadSessionState()` replaces (not merges) identities on switch. Workspaces persist as JSON in `~/.pathrunner/sessions/`.
 
-**Identity Management**:
-- Supports AWS profiles, environment variables, static keys, and credential extraction
-- Auto-refreshes AWS configs from profiles to handle SSO token expiration
-- `RefreshConfig()` method rebuilds AWS SDK configs from stored profile names
-- Identity operations: add, list, show, switch, remove (specific or --expired), refresh
-- **Auto-Import**: Automatically detects and imports credentials from exploit output
-  - Handles structured data (between `--- PATHFINDER_IDENTITY_DATA ---` markers)
-  - Also attempts general credential extraction using `utils.ExtractCredentialsFromText()`
-  - Supports AWS_* env vars, JSON, Python dict formats, and base64-encoded creds
-  - Modules should include structured data for auto-switch support
-- **AWS CLI Passthrough**: `aws` command passes through to AWS CLI with current identity
-  - Automatically injects current identity credentials as environment variables
-  - Transparently switches credentials when you switch identities
-  - Works in both REPL and CLI modes
-  - Requires AWS CLI to be installed and in PATH
+**Identity Management**: Supports AWS profiles, env vars, static keys, credential extraction. Auto-refreshes SSO via `RefreshConfig()`. Auto-imports credentials from exploit output (structured `--- PATHFINDER_IDENTITY_DATA ---` markers or general extraction via `utils.ExtractCredentialsFromText()`). AWS CLI passthrough injects current identity as env vars.
 
-**Session System** (Workspaces):
-- JSON persistence in `~/.pathrunner/sessions/` with auto-save after each command
-- Tracks AWS identities (workspace-scoped), created resources, command history, and module state
-- `ResourceTracker` interface allows modules to register created AWS resources for cleanup
-- Workspace commands: create, list, switch, save, delete, cleanup, history
+**Payload Registry**: Payloads are decoupled from modules and self-register via `init()`. Modules query by tags at runtime (`GetPayloadsByTags()`). Each payload implements `GenerateCode(options)` (Python for Lambda, bash for EC2) and `ProcessResult(result)`. Modules declare compatibility via `PayloadCompatible` interface.
 
-**Command Aliases**:
-- `identities` → `identity` (for convenience)
-- `workspaces` → `workspace` (for convenience)
-- `quit` → `exit`
-- Both forms work identically and have full tab completion
+**Optional Payload Interfaces** (in `pkg/payloads/interface.go`):
+- `Verifiable`: For event-triggered modules — verify payload effect (e.g., check if policy attached). Used in trigger-and-verify retry loops.
+- `SideEffectReporter`: For payloads modifying existing resources — reports modifications for cleanup tracking. Modules call `ReportSideEffects()` after execution and set `ModuleID`/`Region` on returned resources.
 
-**Payload Registry System** (Reusable Service-Based Payloads):
-- Payloads are decoupled from modules and registered in a global registry
-- Modules query the registry by tags to discover compatible payloads at runtime
-- Each payload implements `GenerateCode(options)` to produce service-specific code (Python for Lambda, bash for EC2)
-- Each payload implements `ProcessResult(result)` to parse and format execution output
-- `TagFilter` supports advanced queries: `RequireAll`, `RequireAny`, `Exclude`
-- Modules implement `PayloadCompatible` interface to declare their service context and compatible tags
-- The `Module` interface includes `PayloadOptions(payloadName)` and `ListPayloads()` for dynamic UI
+**Optional Module Interfaces** (in `pkg/modules/interface.go`):
+- `Discoverable`: Auto-discover option values via AWS API. Methods: `DiscoverableOptions()`, `Discover()`. Uses `pkg/discovery/` utilities. Auto-triggered at exploit time if required options are missing.
 
-**Module and Payload Registration**:
-- Both modules and payloads self-register using `init()` functions
-- Modules use `modules.Register(id, constructor)` with the pathfinding.cloud ID as primary key
-- Aliases from `PathInfo.Aliases` are auto-registered during `Register()` for backward compatibility
-- Payloads use `payloads.Register()`
-- Import in `main.go` with blank imports for both:
-  ```go
-  _ "pathrunner/pkg/payloads/ec2"      // Register EC2 payloads
-  _ "pathrunner/pkg/payloads/lambda"    // Register Lambda payloads
-  _ "pathrunner/pkg/exploits/ec2_passrole"
-  _ "pathrunner/pkg/exploits/lambda_passrole"
-  _ "pathrunner/pkg/exploits/sts_assume_role"
-  ```
-- Dynamic loading via `modules.LoadModule()` with error handling (resolves aliases automatically)
+**Lambda Environment Variables**: Event-triggered payloads read parameters from `os.environ`; modules set them via `CreateFunctionInput.Environment` — never hardcode values in Python source.
 
-**Module Output Format for Auto-Import**:
-Modules that output credentials should include structured data for automatic import:
+**Module Output for Auto-Import**: Modules outputting credentials should include structured data between `--- PATHFINDER_IDENTITY_DATA ---` / `--- END_PATHFINDER_IDENTITY_DATA ---` markers with NAME, TYPE, ACCESS_KEY_ID, SECRET_ACCESS_KEY, SESSION_TOKEN, REGION, EXPIRES_AT, AUTO_SWITCH fields. See `/create-module` skill's module-patterns.md for the full template.
 
-```go
-// In module's Execute() method, append to output:
-outputBuilder.WriteString("\n--- PATHFINDER_IDENTITY_DATA ---\n")
-outputBuilder.WriteString(fmt.Sprintf("NAME=%s\n", identityName))
-outputBuilder.WriteString(fmt.Sprintf("TYPE=assumed_role\n"))
-outputBuilder.WriteString(fmt.Sprintf("ACCESS_KEY_ID=%s\n", accessKeyID))
-outputBuilder.WriteString(fmt.Sprintf("SECRET_ACCESS_KEY=%s\n", secretKey))
-outputBuilder.WriteString(fmt.Sprintf("SESSION_TOKEN=%s\n", sessionToken))
-outputBuilder.WriteString(fmt.Sprintf("REGION=%s\n", region))
-outputBuilder.WriteString(fmt.Sprintf("EXPIRES_AT=%s\n", expiresAt.Format(time.RFC3339)))
-outputBuilder.WriteString(fmt.Sprintf("AUTO_SWITCH=%s\n", "true")) // optional
-outputBuilder.WriteString("--- END_PATHFINDER_IDENTITY_DATA ---\n")
-```
+**Registration**: Both modules and payloads self-register via `init()`. Modules: `modules.Register(id, constructor)` with pathfinding.cloud ID as primary key; aliases auto-registered from `PathInfo.Aliases`. Payloads: `payloads.Register()`. All registered via blank imports in `cmd/pathrunner/main.go`.
 
-Alternatively, credentials in any common format (AWS_* env vars, JSON, Python dicts) will be auto-detected using the `utils.ExtractCredentialsFromText()` utility.
+**Command Aliases**: `identities` -> `identity`, `workspaces` -> `workspace`, `quit` -> `exit`. All have full tab completion.
 
-**Path Metadata System (PathInfo)**:
-- Every module carries structured metadata via `PathInfo` struct, aligned with pathfinding.cloud schema
-- Modules embed `BaseModule` and populate `PathInfo` in their constructor
-- Module IDs follow the `{service}-{number}` convention (e.g., `lambda-001`, `ec2-001`, `sts-001`)
-- Old names (e.g., `exploit/lambda_passrole`) are kept as aliases for backward compatibility
-- `PathInfo` fields: ID, Name, Category, Services, Description, Permissions, Prerequisites, References, RelatedPaths, MITRE, Author, Aliases
-- The registry auto-caches PathInfo on registration and resolves aliases transparently
-- `modules.SearchModules(query)` searches across all PathInfo fields
-- `modules.ListModulesByCategory(cat)` and `modules.ListModulesByService(svc)` provide filtered views
-- `show info` displays full PathInfo for the currently selected module
-- `search <query>` finds modules by keyword across all metadata fields
+### AWS Integration
 
-**New Commands**:
-- `show info` — Display detailed path metadata for current module
-- `search <query>` — Search modules by keyword (ID, name, category, service, permission)
-- `modules` / `modules list` — List all available modules (enriched with ID, Name, Category)
-- `modules search <query>` — Alias for `search <query>`
-- `payloads` / `payloads list` — List available payloads
+**Credential Refresh**: Profile names persisted, AWS configs rebuilt on-demand via `RefreshConfig()`.
 
-### AWS Integration Specifics
+**Resource Tracking**: Modules must call `tracker.TrackResource()` for created resources and check for `SideEffectReporter` on payloads to track modifications. Cleanup is region-aware, interactive via `survey/v2`, with permission error guidance.
 
-**Credential Refresh**: For AWS SSO profiles, credentials are not stored statically. Instead, profile names are persisted and AWS configs are rebuilt on-demand using `identity.RefreshConfig()`.
+**Cleanup Report**: `workspace report` generates handoff report with manual AWS CLI cleanup commands. Supports `--module <id>` filtering.
 
-**Resource Tracking**: Modules must call `tracker.TrackResource()` for any AWS resources they create. The session manager implements ResourceTracker and can clean up resources by type (Lambda functions, IAM roles/users, EC2 instances).
-
-**Interactive Resource Cleanup**: The `workspace cleanup` command uses `survey/v2` for interactive multi-select, allowing users to choose which tracked resources to delete rather than bulk-deleting everything. Cleanup is region-aware.
-
-**Timeouts**: AWS operations use 30-second timeouts to accommodate SSO credential resolution delays.
+**Timeouts**: 30-second timeouts for AWS operations (SSO credential resolution).
 
 ## Testing Strategy
 
-**IMPORTANT**: All new commands and features MUST have both unit and integration tests before being considered complete.
+**IMPORTANT**: All new commands and features MUST have both unit and integration tests.
 
 ### Test Structure
 
 ```
 tests/
-├── unit/
-│   ├── config_test.go              # Configuration tests
-│   ├── context_test.go             # Contextual prompt tests
-│   ├── repl_test.go                # Basic REPL tests
-│   ├── identity_manager_test.go    # IdentityManager unit tests
-│   ├── session_manager_test.go     # SessionManager unit tests
-│   ├── repl_commands_test.go       # REPL command handler tests
-│   ├── payload_registry_test.go    # Payload registry and tag filtering tests
-│   └── pathinfo_test.go            # PathInfo structs, BaseModule, registry aliases, search/filter
-└── integration/
-    ├── setup_test.go               # Common test setup
-    ├── identity_integration_test.go     # Identity command workflows
-    ├── workspace_integration_test.go    # Workspace command workflows
-    ├── commands_integration_test.go     # General command workflows
-    └── pathinfo_integration_test.go     # show info, search, aliases, backward compat
+├── unit/          # Business logic in isolation (config, identity, session, REPL commands, payloads, pathinfo, discovery)
+└── integration/   # End-to-end command workflows (identity, workspace, commands, pathinfo, cleanup, report, discovery)
 ```
 
-### Testing Requirements for New Features
+Common test setup uses `setupTest(t)` in `tests/integration/setup_test.go` which creates a temp HOME, initializes managers and adapters, and returns a cleanup function.
 
-When adding a new CLI/REPL command, you MUST create:
+### Requirements
 
-#### 1. Unit Tests
-Test the individual components in isolation using mocks:
-
-```go
-// Example: tests/unit/feature_test.go
-func TestFeatureManagerCreation(t *testing.T) {
-    // Test initialization
-}
-
-func TestFeatureOperation(t *testing.T) {
-    // Test core business logic
-}
-
-func TestFeatureValidation(t *testing.T) {
-    // Test input validation
-}
-
-func TestFeatureErrorHandling(t *testing.T) {
-    // Test error cases
-}
-```
-
-#### 2. Integration Tests
-Test the complete command workflow through the REPL:
-
-```go
-// Example: tests/integration/feature_integration_test.go
-func TestFeatureCommand(t *testing.T) {
-    r, _, _, cleanup := setupTest(t)
-    defer cleanup()
-
-    // Test successful execution
-    err := r.ExecuteCommand("feature do-something")
-    if err != nil {
-        t.Errorf("Expected no error, got: %v", err)
-    }
-}
-
-func TestFeatureCommandValidation(t *testing.T) {
-    r, _, _, cleanup := setupTest(t)
-    defer cleanup()
-
-    // Test validation (missing arguments, invalid values, etc.)
-    err := r.ExecuteCommand("feature")
-    if err == nil {
-        t.Error("Expected error for missing arguments")
-    }
-}
-
-func TestFeatureCommandErrorHandling(t *testing.T) {
-    // Test error scenarios (not found, permission denied, etc.)
-}
-
-func TestFeatureCommandAliases(t *testing.T) {
-    // If command has aliases, test them
-}
-```
-
-### Test Patterns and Best Practices
-
-**Setup with Temporary Environment**:
-```go
-func setupTest(t *testing.T) (*repl.REPL, *core.SessionManager, *core.IdentityManager, func()) {
-    tempDir := t.TempDir()
-    originalHome := os.Getenv("HOME")
-    os.Setenv("HOME", tempDir)
-
-    sessionManager := core.NewSessionManager()
-    identityManager := core.NewIdentityManager(nil, nil)
-
-    sessionAdapter := core.NewSessionAdapter(sessionManager)
-    identityAdapter := core.NewIdentityManagerAdapter(identityManager)
-
-    r := repl.NewREPL(identityAdapter, sessionAdapter)
-
-    cleanup := func() {
-        os.Setenv("HOME", originalHome)
-    }
-
-    return r, sessionManager, identityManager, cleanup
-}
-```
-
-**Test Command Validation**:
-```go
-testCases := []struct {
-    name        string
-    command     string
-    expectError bool
-    errorCheck  func(error) bool
-}{
-    {
-        name:        "missing argument",
-        command:     "mycommand",
-        expectError: true,
-        errorCheck: func(err error) bool {
-            return strings.Contains(err.Error(), "requires")
-        },
-    },
-    // ... more cases
-}
-
-for _, tc := range testCases {
-    t.Run(tc.name, func(t *testing.T) {
-        err := r.ExecuteCommand(tc.command)
-        // Assert expectations
-    })
-}
-```
-
-**Test Workspace Isolation** (for identity-related features):
-```go
-func TestFeatureWorkspaceIsolation(t *testing.T) {
-    r, sm, im, cleanup := setupTest(t)
-    defer cleanup()
-
-    // Setup in default workspace
-    // ... configure feature
-
-    // Create and switch to new workspace
-    r.ExecuteCommand("workspace create isolated")
-    r.ExecuteCommand("workspace switch isolated")
-
-    // Verify isolation - feature state should be clean
-    // ... assert clean state
-
-    // Switch back
-    r.ExecuteCommand("workspace switch default")
-
-    // Verify restoration - feature state should be restored
-    // ... assert restored state
-}
-```
-
-### Test Coverage Goals
-
-- **Unit Tests**: 70%+ coverage of business logic
-- **Integration Tests**: All CLI/REPL commands must have end-to-end tests
-- **Critical Features**: 100% coverage (identity management, workspace isolation, state persistence)
-
-### Running Tests
-
-```bash
-# Run all tests
-go test ./tests/...
-
-# Run only unit tests
-go test ./tests/unit/
-
-# Run only integration tests
-go test ./tests/integration/
-
-# Run with verbose output
-go test -v ./tests/...
-
-# Run specific test
-go test -v ./tests/integration/ -run TestWorkspaceIsolation
-
-# Run with coverage
-go test -cover ./pkg/...
-```
-
-### Mocking AWS SDK
-
-For features that interact with AWS, mock the AWS SDK:
-
-```go
-// TODO: Add AWS SDK mocking patterns when implementing
-// Use aws-sdk-go-v2/aws/smithy/testing or similar
-```
+- Unit tests: test initialization, core logic, validation, error handling
+- Integration tests: test successful execution, validation errors, error scenarios, aliases
+- State-related features: test workspace isolation (setup in workspace A, switch to B, verify clean, switch back, verify restored)
+- All CLI/REPL commands need end-to-end tests through `r.ExecuteCommand()`
 
 ## Session Data Storage
 
-Sessions (workspaces) are stored as JSON files in `~/.pathrunner/sessions/` with this structure:
-- **Identities map**: Full credential configs per workspace (except aws.Config is rebuilt on load)
-- **CurrentIdentity**: Name of active identity in this workspace
-- **Command log**: Timestamps, success/failure, and output
-- **Created resources**: Cleanup metadata for AWS resources
-- **Current module**: Selected module name
-- **Options**: Module option key-value pairs
+Workspaces persist as JSON in `~/.pathrunner/sessions/`: identities map (aws.Config rebuilt on load), current identity, command log, created resources, current module, options.
 
 ## Common Gotchas
 
-**AWS Config Persistence**: The `aws.Config` struct has `json:"-"` tag so it's not serialized. Must call `RefreshConfig()` when loading identities from JSON.
+**AWS Config Persistence**: `aws.Config` has `json:"-"` tag. Must call `RefreshConfig()` when loading from JSON.
 
-**Module Execution Signature**: Modules embed `BaseModule` and must implement `Options()` and `Execute(identity, options, tracker)`. Override `PayloadOptions()` and `ListPayloads()` if the module supports payloads (defaults return empty slices).
+**Module Execution Signature**: Modules embed `BaseModule`, implement `Options()` and `Execute(identity, options, tracker)`. Override `PayloadOptions()` and `ListPayloads()` if supporting payloads.
 
-**Payload Code Generation**: Lambda payloads generate Python code, EC2 payloads generate bash scripts, both as Go string literals. Use triple quotes `'''` for multiline JSON in Python, not backticks.
+**Payload Code Generation**: Lambda payloads generate Python, EC2 payloads generate bash. Use `'''` for multiline JSON in Python, not backticks. Pass runtime params via `os.environ.get()`, not string concatenation.
 
-**Import Cycles**: Keep module interfaces in `pkg/modules/` separate from core logic to avoid import cycles between core and specific modules. Payloads in `pkg/payloads/` depend on `pkg/modules/` for the `Option` type but never import core or specific exploits.
+**Import Cycles**: Module interfaces in `pkg/modules/` stay separate from core. Payloads depend on `pkg/modules/` for `Option` type but never import core or exploits.
 
-**Workspace Isolation**: When adding features that store state, ensure they respect workspace boundaries. Use `loadSessionState()` and `saveCurrentState()` to persist state per workspace.
+**Workspace Isolation**: Features storing state must respect workspace boundaries via `loadSessionState()` / `saveCurrentState()`.
 
-**Command Naming**: Use singular form for command names (e.g., `identity`, `workspace`), aliases handle plural forms automatically.
+**Command Naming**: Singular form (e.g., `identity`, `workspace`), aliases handle plurals.
 
-**Error Types**: Use the REPL's custom error types for consistent error messages:
-- `NewCommandNotFoundError()` - Command doesn't exist
-- `NewInvalidArgumentsError()` - Invalid/missing arguments
-- `NewIdentityRequiredError()` - Operation requires identity
-- `NewExecutionError()` - Wraps underlying error with context
+**Error Types**: `NewCommandNotFoundError()`, `NewInvalidArgumentsError()`, `NewIdentityRequiredError()`, `NewExecutionError()`.
 
-**Tab Completion Updates**: When adding new commands or options, update `pkg/core/repl/completion.go` to include them in tab completion. Call `updateCompletion()` when state changes.
+**Keeping CLI and REPL in Sync**: When adding any command/subcommand/option/flag, update THREE places:
+1. Handler in `pkg/core/repl/*.go`
+2. Help text in `pkg/core/repl/commands.go` (`show*Help()` functions)
+3. Tab completion in `pkg/core/repl/completion.go`
 
-**Keeping CLI and REPL in Sync**: This is CRITICAL! When adding any new command, subcommand, option, or flag, you MUST update THREE places:
-1. **Implementation**: Add to the actual command handler (e.g., `pkg/core/repl/identity.go`)
-2. **Help Text**: Add to `pkg/core/repl/commands.go` in the appropriate `show*Help()` function
-3. **Tab Completion**: Add to `pkg/core/repl/completion.go` in the appropriate completer function
+Common mistakes: forgetting REPL help text, forgetting tab completion, forgetting alias completers, missing `help` subcommand handler.
 
-Common mistakes to avoid:
-- ❌ Adding a command to CLI but forgetting REPL help text
-- ❌ Adding a flag to the implementation but forgetting tab completion
-- ❌ Documenting in help text but not implementing the actual handler
-- ❌ Forgetting to update both `identity` AND its aliases (`identities`, `id`, `ids`) completers
-- ❌ Adding a subcommand without a `help` handler (every subcommand must support `<cmd> <subcmd> help`)
-
-**Subcommand Help Requirement**: Every command and subcommand MUST support a trailing `help` argument that displays usage information. This means:
-- Top-level commands: `help <command>` and `<command> help` must both work
-- Subcommands: `<command> <subcommand> help` must work (e.g., `workspace cleanup help`, `identity add help`)
-- Each subcommand help handler is a `show*Help()` function in `pkg/core/repl/commands.go`
-- The parent command's help should include a hint: "Use '<command> <subcommand> help' for detailed help"
-- Help checks go at the top of the handler, before argument validation
+**Subcommand Help**: Every command/subcommand MUST support trailing `help`. Help checks go at top of handler, before validation.
 
 **Checklist for New Commands/Options**:
-- [ ] Handler implemented in `pkg/core/repl/*.go`
-- [ ] Command registered in `pkg/core/repl/commands.go` `getCommands()` map
-- [ ] CLI wrapper added in `pkg/cli/commands.go` (and registered in `cli.go`)
-- [ ] Help text updated in `pkg/core/repl/commands.go` (add show*Help function, update showSpecificHelp)
-- [ ] Subcommand help handler added (every subcommand supports `<subcmd> help`)
-- [ ] Tab completion updated in `pkg/core/repl/completion.go`
-- [ ] If command has aliases, update all alias completers
-- [ ] Unit tests added
-- [ ] Integration tests added
-- [ ] Manual testing with tab completion verified
+- [ ] Handler in `pkg/core/repl/*.go`
+- [ ] Registered in `pkg/core/repl/commands.go` `getCommands()` map
+- [ ] CLI wrapper in `pkg/cli/commands.go` (and `cli.go`)
+- [ ] Help text + subcommand help handler
+- [ ] Tab completion (including alias completers)
+- [ ] Unit tests + integration tests
+- [ ] Manual tab completion verification
 
 ## Development Workflow
 
 ### Adding a New Command
 
-1. **Design**: Determine if command is identity/workspace/module/general
-2. **REPL Handler**: Add command handler in appropriate file in `pkg/core/repl/`
-3. **Command Registry**: Register command in `pkg/core/repl/commands.go`
-4. **CLI Wrapper**: Add Cobra command in `pkg/cli/commands.go`
-5. **Help Text**: Update `pkg/core/repl/commands.go` in appropriate `show*Help()` function
-6. **Subcommand Help**: Add `help` argument check at top of handler + dedicated `show*Help()` function for each subcommand
-7. **Tab Completion**: Update `pkg/core/repl/completion.go` in appropriate completer(s)
-8. **Aliases**: If command has aliases, update ALL alias completers
-9. **Unit Tests**: Create tests in `tests/unit/` for business logic
-10. **Integration Tests**: Create tests in `tests/integration/` for end-to-end workflow
-11. **Documentation**: Update help text and README if needed
-12. **Verification**: Manually test tab completion works for new command/options
+1. Add handler in appropriate `pkg/core/repl/*.go` file
+2. Register in `pkg/core/repl/commands.go` `getCommands()` map
+3. Add Cobra command in `pkg/cli/commands.go`
+4. Update help text in `show*Help()` functions
+5. Add `help` argument check + dedicated `show*Help()` for each subcommand
+6. Update tab completion in `pkg/core/repl/completion.go` (and alias completers)
+7. Add unit tests in `tests/unit/` and integration tests in `tests/integration/`
+8. Manually verify tab completion
 
-### Adding a New Module
+### Adding a New Module or Payload
 
-1. **Choose ID**: Assign a `{service}-{number}` ID matching pathfinding.cloud (e.g., `lambda-002`)
-2. **Module Structure**: Create directory in `pkg/exploits/`
-3. **Embed BaseModule**: Populate `PathInfo` with ID, Name, Category, Services, Description, Permissions, Prerequisites, References, MITRE, and Aliases (include old-style name in Aliases for discoverability)
-4. **Implement Module**: Only `Options()` and `Execute()` are required; override `PayloadOptions()` and `ListPayloads()` if applicable
-5. **Implement PayloadCompatible** (optional): Declare compatible tags and service context
-6. **Register Module**: Add `init()` function with `modules.Register("service-NNN", constructor)`
-7. **Import**: Add blank import in `cmd/pathrunner/main.go`
-8. **Payload Integration**: Query `payloads.GetPayloadsByTags()` to discover compatible payloads; delegate code generation to `payload.GenerateCode()` and result parsing to `payload.ProcessResult()`
-9. **Tests**: Add unit and integration tests
-10. **Documentation**: Update README with module usage
-
-### Adding a New Payload
-
-1. **Choose Service Directory**: Create file in `pkg/payloads/ec2/`, `pkg/payloads/lambda/`, or a new service directory
-2. **Implement Payload Interface**: Must implement `GetName()`, `GetDescription()`, `GetTags()`, `GetOptions()`, `GenerateCode()`, `ProcessResult()`, `Validate()`
-3. **Assign Tags**: Use standard tag constants from `pkg/payloads/tags.go` (service, language, technique, transport)
-4. **Register Payload**: Add `init()` function calling `payloads.Register()`
-5. **Import**: If new service directory, add blank import in `cmd/pathrunner/main.go`
-6. **Tests**: Add tests for code generation, validation, and result processing
-7. **Naming Convention**: Use `technique/method` format (e.g., `exfil/webhook`, `backdoor/role`, `shell/reverse`, `elevation/direct`)
+Use the `/create-module` skill, which has complete step-by-step workflows, Go templates, and a verification checklist in its supporting files (module-patterns.md, payload-patterns.md, checklist.md).
 
 ## Code Style
 
-- **Error Messages**: Use lowercase, no trailing punctuation for errors returned to user
-- **User Messages**: Capitalize sentences, use proper punctuation for informational output
-- **Variable Naming**: Use descriptive names (e.g., `identityManager` not `im` in function params)
+- **Error Messages**: Lowercase, no trailing punctuation
+- **User Messages**: Capitalized sentences, proper punctuation
+- **Variable Naming**: Descriptive (e.g., `identityManager` not `im`)
 - **Comments**: Exported functions must have godoc comments
-- **Test Names**: Use `TestFeatureSpecificBehavior` format
-
-## Current Test Statistics
-
-- **Total Tests**: 142 (74 unit + 68 integration)
-- **Test Files**: 14
-- **Pass Rate**: 100%
-- **Coverage**: Unit tests cover core business logic, integration tests cover all commands
-
-**Test Coverage by Component**:
-- ✅ IdentityManager: 14 unit tests
-- ✅ SessionManager: 14 unit tests
-- ✅ REPL Commands: 16 unit tests
-- ✅ PathInfo/Registry: 12 unit tests (fields, BaseModule, aliases, search, filter, cache)
-- ✅ Payload Registry: 14 unit tests
-- ✅ Cleanup/ModuleID: 4 unit tests (ModuleID persistence, filtering, struct fields)
-- ✅ Identity Commands: 7 integration tests
-- ✅ Workspace Commands: 10 integration tests
-- ✅ General Commands: 28 integration tests
-- ✅ PathInfo Integration: 15 integration tests (show info, search, aliases, backward compat)
-- ✅ Cleanup Integration: 8 integration tests (--all flag, --module filter, aliases, help)
-
-## Recent Updates
-
-**Structured Path Metadata System (PathInfo)** (Major Addition):
-- Every module now carries rich metadata via `PathInfo` struct aligned with pathfinding.cloud schema
-- Module IDs follow `{service}-{number}` convention (e.g., `lambda-001`, `ec2-001`, `sts-001`)
-- `BaseModule` embeddable struct reduces boilerplate — modules only implement `Options()` and `Execute()`
-- Registry supports alias resolution: old names (e.g., `exploit/lambda_passrole`) still work
-- PathInfo cache enables search/filter without instantiating modules
-- New commands: `show info`, `search <query>`, `modules list`, `modules search`, `payloads list`
-- `show modules` now displays enriched table with ID, Name, Category, Description
-- 27 new tests (12 unit + 15 integration) covering PathInfo, aliases, search, backward compat
-
-**Centralized Payload Registry** (Major Architecture Change):
-- Payloads decoupled from modules into `pkg/payloads/` with global registry
-- Tag-based discovery system replaces hardcoded payload references
-- `lambda_passrole` refactored to query registry instead of embedding payload code
-- Enables payload reuse across modules targeting the same AWS service
-- `Module` interface expanded with `PayloadOptions()` and `ListPayloads()` methods
-- New `PayloadCompatible` interface for modules to declare service context
-
-**EC2 PassRole Module** (New - In Progress):
-- `exploit/ec2_passrole` module for privilege escalation via RunInstances
-- Auto-detects Amazon Linux AMI and default VPC subnet
-- Injects payload as base64-encoded user-data script
-- Three EC2 payloads: `exfil/webhook`, `elevation/direct`, `shell/reverse`
-- Tracks launched instances in ResourceTracker for cleanup
-
-**Enhanced Resource Cleanup** (Complete):
-- `workspace cleanup` uses `survey/v2` for interactive multi-select
-- `workspace cleanup --all` skips interactive prompt for scripted/automated use
-- `workspace cleanup --module <id>` filters to resources from a specific module
-- `ModuleID` field on `CreatedResource` tracks which module created each resource
-- ECS cleanup handlers: service, cluster, task-definition
-- IAM cleanup handlers: attached-policy, policy-version
-- Region-aware cleanup; supports Lambda, EC2, IAM, and ECS resource types
-
-**Claude Code Skills** (New):
-- `/create-module <id>` — Generate exploit module from pathfinding.cloud YAML + pathfinding-labs scripts
-- `/test-module <scenario-id>` — Test module against deployed pathfinding-labs scenario
-- `/cleanup-scenario <scenario-id>` — Clean up AWS resources after testing
-- `/list-gaps [service]` — Show which scenarios lack pathrunner modules
-- Skills include module/payload Go templates, reuse guides, and verification checklists
-
-**Workspace-Scoped Identities**:
-- Identities are completely isolated per workspace
-- `loadSessionState()` replaces (not merges) identities on workspace switch
-- `saveCurrentState()` persists all identities and current selection
-- Critical for preventing credential mix-ups across projects
-
-**Command Aliases**:
-- Added pluralized aliases: `identities`, `workspaces`
-- Added `quit` as alias for `exit`
-- Full tab completion support for all aliases
-
-**Identity Management**:
-- Added `identity clear <name>` to remove specific identity
-- Added `identity clear --expired` to bulk remove expired identities
-- Protection prevents removing current identity
-
-**Session to Workspace Rename**:
-- Renamed "session" command to "workspace" throughout
-- Updated all user-facing messages and documentation
-- Old terminology removed from codebase
-
-**Testing Infrastructure**:
-- Comprehensive test suite with unit and integration tests
-- Payload registry tests added (`tests/unit/payload_registry_test.go`)
-- All new features must include unit and integration tests
+- **Test Names**: `TestFeatureSpecificBehavior` format

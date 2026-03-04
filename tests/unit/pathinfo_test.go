@@ -6,7 +6,12 @@ import (
 
 	// Import modules to register them
 	_ "pathrunner/pkg/exploits/ec2_passrole"
+	_ "pathrunner/pkg/exploits/lambda_createfunction_addpermission"
 	_ "pathrunner/pkg/exploits/lambda_passrole"
+	_ "pathrunner/pkg/exploits/lambda_passrole_esm"
+	_ "pathrunner/pkg/exploits/lambda_updatecode"
+	_ "pathrunner/pkg/exploits/lambda_updatecode_addpermission"
+	_ "pathrunner/pkg/exploits/lambda_updatecode_invoke"
 	_ "pathrunner/pkg/exploits/sts_assume_role"
 )
 
@@ -347,4 +352,908 @@ func TestModulePathInfoMethod(t *testing.T) {
 	if info.Category != "new-passrole" {
 		t.Errorf("Expected Category %q, got %q", "new-passrole", info.Category)
 	}
+}
+
+func TestLambda002Module(t *testing.T) {
+	t.Run("LoadByPrimaryID", func(t *testing.T) {
+		mod, err := modules.LoadModule("lambda-002")
+		if err != nil {
+			t.Fatalf("Expected no error loading lambda-002, got: %v", err)
+		}
+		if mod == nil {
+			t.Fatal("Expected non-nil module")
+		}
+		if mod.Name() != "lambda-002" {
+			t.Errorf("Expected Name() = %q, got %q", "lambda-002", mod.Name())
+		}
+	})
+
+	t.Run("LoadByAlias_ShortForm", func(t *testing.T) {
+		mod, err := modules.LoadModule("lambda-passrole-esm")
+		if err != nil {
+			t.Fatalf("Expected no error loading lambda-passrole-esm, got: %v", err)
+		}
+		if mod.Name() != "lambda-002" {
+			t.Errorf("Expected Name() = %q, got %q", "lambda-002", mod.Name())
+		}
+	})
+
+	t.Run("LoadByAlias_OldFormat", func(t *testing.T) {
+		mod, err := modules.LoadModule("exploit/lambda_passrole_esm")
+		if err != nil {
+			t.Fatalf("Expected no error loading exploit/lambda_passrole_esm, got: %v", err)
+		}
+		if mod.Name() != "lambda-002" {
+			t.Errorf("Expected Name() = %q, got %q", "lambda-002", mod.Name())
+		}
+	})
+
+	t.Run("PathInfoFields", func(t *testing.T) {
+		info, found := modules.GetPathInfo("lambda-002")
+		if !found {
+			t.Fatal("Expected to find PathInfo for lambda-002")
+		}
+		if info.ID != "lambda-002" {
+			t.Errorf("Expected ID %q, got %q", "lambda-002", info.ID)
+		}
+		if info.Category != "new-passrole" {
+			t.Errorf("Expected Category %q, got %q", "new-passrole", info.Category)
+		}
+		if len(info.Services) != 2 {
+			t.Errorf("Expected 2 services, got %d", len(info.Services))
+		}
+		if len(info.Permissions.Required) != 3 {
+			t.Errorf("Expected 3 required permissions, got %d", len(info.Permissions.Required))
+		}
+		if info.MITRE == nil {
+			t.Error("Expected non-nil MITRE mapping")
+		}
+		if len(info.MITRE.Tactics) != 2 {
+			t.Errorf("Expected 2 MITRE tactics, got %d", len(info.MITRE.Tactics))
+		}
+		if len(info.Aliases) != 2 {
+			t.Errorf("Expected 2 aliases, got %d", len(info.Aliases))
+		}
+		if len(info.RelatedPaths) != 2 {
+			t.Errorf("Expected 2 related paths, got %d", len(info.RelatedPaths))
+		}
+	})
+
+	t.Run("SearchFindsLambda002", func(t *testing.T) {
+		results := modules.SearchModules("lambda-002")
+		found := false
+		for _, info := range results {
+			if info.ID == "lambda-002" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("Expected lambda-002 in search results")
+		}
+	})
+
+	t.Run("SearchByEventSourceMapping", func(t *testing.T) {
+		results := modules.SearchModules("CreateEventSourceMapping")
+		found := false
+		for _, info := range results {
+			if info.ID == "lambda-002" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("Expected lambda-002 in search results for 'CreateEventSourceMapping'")
+		}
+	})
+
+	t.Run("CategoryFilter", func(t *testing.T) {
+		results := modules.ListModulesByCategory("new-passrole")
+		found := false
+		for _, info := range results {
+			if info.ID == "lambda-002" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("Expected lambda-002 in new-passrole category")
+		}
+	})
+
+	t.Run("ServiceFilter", func(t *testing.T) {
+		results := modules.ListModulesByService("lambda")
+		found := false
+		for _, info := range results {
+			if info.ID == "lambda-002" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("Expected lambda-002 in lambda service results")
+		}
+	})
+}
+
+func TestLambda004Module(t *testing.T) {
+	t.Run("LoadByPrimaryID", func(t *testing.T) {
+		mod, err := modules.LoadModule("lambda-004")
+		if err != nil {
+			t.Fatalf("Expected no error loading lambda-004, got: %v", err)
+		}
+		if mod == nil {
+			t.Fatal("Expected non-nil module")
+		}
+		if mod.Name() != "lambda-004" {
+			t.Errorf("Expected Name() = %q, got %q", "lambda-004", mod.Name())
+		}
+	})
+
+	t.Run("LoadByAlias_ShortForm", func(t *testing.T) {
+		mod, err := modules.LoadModule("lambda-updatecode-invoke")
+		if err != nil {
+			t.Fatalf("Expected no error loading lambda-updatecode-invoke, got: %v", err)
+		}
+		if mod.Name() != "lambda-004" {
+			t.Errorf("Expected Name() = %q, got %q", "lambda-004", mod.Name())
+		}
+	})
+
+	t.Run("LoadByAlias_OldFormat", func(t *testing.T) {
+		mod, err := modules.LoadModule("exploit/lambda_updatecode_invoke")
+		if err != nil {
+			t.Fatalf("Expected no error loading exploit/lambda_updatecode_invoke, got: %v", err)
+		}
+		if mod.Name() != "lambda-004" {
+			t.Errorf("Expected Name() = %q, got %q", "lambda-004", mod.Name())
+		}
+	})
+
+	t.Run("PathInfoFields", func(t *testing.T) {
+		info, found := modules.GetPathInfo("lambda-004")
+		if !found {
+			t.Fatal("Expected to find PathInfo for lambda-004")
+		}
+		if info.ID != "lambda-004" {
+			t.Errorf("Expected ID %q, got %q", "lambda-004", info.ID)
+		}
+		if info.Category != "existing-passrole" {
+			t.Errorf("Expected Category %q, got %q", "existing-passrole", info.Category)
+		}
+		if len(info.Services) != 1 {
+			t.Errorf("Expected 1 service, got %d", len(info.Services))
+		}
+		if info.Services[0] != "lambda" {
+			t.Errorf("Expected service %q, got %q", "lambda", info.Services[0])
+		}
+		if len(info.Permissions.Required) != 2 {
+			t.Errorf("Expected 2 required permissions, got %d", len(info.Permissions.Required))
+		}
+		if len(info.Permissions.Additional) != 5 {
+			t.Errorf("Expected 5 additional permissions, got %d", len(info.Permissions.Additional))
+		}
+		if info.MITRE == nil {
+			t.Error("Expected non-nil MITRE mapping")
+		}
+		if len(info.MITRE.Tactics) != 2 {
+			t.Errorf("Expected 2 MITRE tactics, got %d", len(info.MITRE.Tactics))
+		}
+		if len(info.MITRE.Techniques) != 2 {
+			t.Errorf("Expected 2 MITRE techniques, got %d", len(info.MITRE.Techniques))
+		}
+		if len(info.Aliases) != 2 {
+			t.Errorf("Expected 2 aliases, got %d", len(info.Aliases))
+		}
+		if len(info.RelatedPaths) != 3 {
+			t.Errorf("Expected 3 related paths, got %d", len(info.RelatedPaths))
+		}
+		if info.Author != "Seth Art" {
+			t.Errorf("Expected Author %q, got %q", "Seth Art", info.Author)
+		}
+	})
+
+	t.Run("SearchFindsLambda004", func(t *testing.T) {
+		results := modules.SearchModules("lambda-004")
+		found := false
+		for _, info := range results {
+			if info.ID == "lambda-004" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("Expected lambda-004 in search results")
+		}
+	})
+
+	t.Run("SearchByUpdateFunctionCode", func(t *testing.T) {
+		results := modules.SearchModules("UpdateFunctionCode")
+		found := false
+		for _, info := range results {
+			if info.ID == "lambda-004" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("Expected lambda-004 in search results for 'UpdateFunctionCode'")
+		}
+	})
+
+	t.Run("SearchByInvokeFunction", func(t *testing.T) {
+		results := modules.SearchModules("InvokeFunction")
+		found := false
+		for _, info := range results {
+			if info.ID == "lambda-004" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("Expected lambda-004 in search results for 'InvokeFunction'")
+		}
+	})
+
+	t.Run("CategoryFilter", func(t *testing.T) {
+		results := modules.ListModulesByCategory("existing-passrole")
+		found := false
+		for _, info := range results {
+			if info.ID == "lambda-004" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("Expected lambda-004 in existing-passrole category")
+		}
+	})
+
+	t.Run("ServiceFilter", func(t *testing.T) {
+		results := modules.ListModulesByService("lambda")
+		found := false
+		for _, info := range results {
+			if info.ID == "lambda-004" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("Expected lambda-004 in lambda service results")
+		}
+	})
+
+	t.Run("DiscoverableInterface", func(t *testing.T) {
+		mod, err := modules.LoadModule("lambda-004")
+		if err != nil {
+			t.Fatalf("Failed to load lambda-004: %v", err)
+		}
+		discoverable, ok := mod.(modules.Discoverable)
+		if !ok {
+			t.Fatal("Expected lambda-004 to implement Discoverable")
+		}
+		opts := discoverable.DiscoverableOptions()
+		if len(opts) != 1 {
+			t.Errorf("Expected 1 discoverable option, got %d", len(opts))
+		}
+		if opts[0] != "FUNCTION_NAME" {
+			t.Errorf("Expected discoverable option %q, got %q", "FUNCTION_NAME", opts[0])
+		}
+	})
+
+	t.Run("PayloadCompatibleInterface", func(t *testing.T) {
+		mod, err := modules.LoadModule("lambda-004")
+		if err != nil {
+			t.Fatalf("Failed to load lambda-004: %v", err)
+		}
+		compatible, ok := mod.(modules.PayloadCompatible)
+		if !ok {
+			t.Fatal("Expected lambda-004 to implement PayloadCompatible")
+		}
+		tags := compatible.GetCompatibleTags()
+		if len(tags) != 2 {
+			t.Errorf("Expected 2 compatible tags, got %d", len(tags))
+		}
+		ctx := compatible.GetPayloadContext()
+		if ctx != "lambda" {
+			t.Errorf("Expected payload context %q, got %q", "lambda", ctx)
+		}
+	})
+
+	t.Run("ListPayloads", func(t *testing.T) {
+		mod, err := modules.LoadModule("lambda-004")
+		if err != nil {
+			t.Fatalf("Failed to load lambda-004: %v", err)
+		}
+		payloadList := mod.ListPayloads()
+		if len(payloadList) == 0 {
+			t.Error("Expected at least one payload for lambda-004")
+		}
+		// Should include exfil/output since this is a direct-invoke module
+		foundExfil := false
+		for _, p := range payloadList {
+			if p.Name == "exfil/output" {
+				foundExfil = true
+			}
+		}
+		if !foundExfil {
+			t.Error("Expected exfil/output payload for direct-invoke lambda-004")
+		}
+	})
+}
+
+func TestLambda003Module(t *testing.T) {
+	t.Run("LoadByPrimaryID", func(t *testing.T) {
+		mod, err := modules.LoadModule("lambda-003")
+		if err != nil {
+			t.Fatalf("Expected no error loading lambda-003, got: %v", err)
+		}
+		if mod == nil {
+			t.Fatal("Expected non-nil module")
+		}
+		if mod.Name() != "lambda-003" {
+			t.Errorf("Expected Name() = %q, got %q", "lambda-003", mod.Name())
+		}
+	})
+
+	t.Run("LoadByAlias_ShortForm", func(t *testing.T) {
+		mod, err := modules.LoadModule("lambda-updatecode")
+		if err != nil {
+			t.Fatalf("Expected no error loading lambda-updatecode, got: %v", err)
+		}
+		if mod.Name() != "lambda-003" {
+			t.Errorf("Expected Name() = %q, got %q", "lambda-003", mod.Name())
+		}
+	})
+
+	t.Run("LoadByAlias_OldFormat", func(t *testing.T) {
+		mod, err := modules.LoadModule("exploit/lambda_updatecode")
+		if err != nil {
+			t.Fatalf("Expected no error loading exploit/lambda_updatecode, got: %v", err)
+		}
+		if mod.Name() != "lambda-003" {
+			t.Errorf("Expected Name() = %q, got %q", "lambda-003", mod.Name())
+		}
+	})
+
+	t.Run("PathInfoFields", func(t *testing.T) {
+		info, found := modules.GetPathInfo("lambda-003")
+		if !found {
+			t.Fatal("Expected to find PathInfo for lambda-003")
+		}
+		if info.ID != "lambda-003" {
+			t.Errorf("Expected ID %q, got %q", "lambda-003", info.ID)
+		}
+		if info.Category != "existing-passrole" {
+			t.Errorf("Expected Category %q, got %q", "existing-passrole", info.Category)
+		}
+		if len(info.Services) != 1 {
+			t.Errorf("Expected 1 service, got %d", len(info.Services))
+		}
+		if info.Services[0] != "lambda" {
+			t.Errorf("Expected service %q, got %q", "lambda", info.Services[0])
+		}
+		if len(info.Permissions.Required) != 2 {
+			t.Errorf("Expected 2 required permissions, got %d", len(info.Permissions.Required))
+		}
+		if len(info.Permissions.Additional) != 5 {
+			t.Errorf("Expected 5 additional permissions, got %d", len(info.Permissions.Additional))
+		}
+		if info.MITRE == nil {
+			t.Error("Expected non-nil MITRE mapping")
+		}
+		if len(info.MITRE.Tactics) != 2 {
+			t.Errorf("Expected 2 MITRE tactics, got %d", len(info.MITRE.Tactics))
+		}
+		if len(info.MITRE.Techniques) != 2 {
+			t.Errorf("Expected 2 MITRE techniques, got %d", len(info.MITRE.Techniques))
+		}
+		if len(info.Aliases) != 2 {
+			t.Errorf("Expected 2 aliases, got %d", len(info.Aliases))
+		}
+		if len(info.RelatedPaths) != 3 {
+			t.Errorf("Expected 3 related paths, got %d", len(info.RelatedPaths))
+		}
+		if info.Author != "Seth Art" {
+			t.Errorf("Expected Author %q, got %q", "Seth Art", info.Author)
+		}
+	})
+
+	t.Run("SearchFindsLambda003", func(t *testing.T) {
+		results := modules.SearchModules("lambda-003")
+		found := false
+		for _, info := range results {
+			if info.ID == "lambda-003" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("Expected lambda-003 in search results")
+		}
+	})
+
+	t.Run("SearchByUpdateFunctionCode", func(t *testing.T) {
+		results := modules.SearchModules("UpdateFunctionCode")
+		found := false
+		for _, info := range results {
+			if info.ID == "lambda-003" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("Expected lambda-003 in search results for 'UpdateFunctionCode'")
+		}
+	})
+
+	t.Run("CategoryFilter", func(t *testing.T) {
+		results := modules.ListModulesByCategory("existing-passrole")
+		found := false
+		for _, info := range results {
+			if info.ID == "lambda-003" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("Expected lambda-003 in existing-passrole category")
+		}
+	})
+
+	t.Run("ServiceFilter", func(t *testing.T) {
+		results := modules.ListModulesByService("lambda")
+		found := false
+		for _, info := range results {
+			if info.ID == "lambda-003" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("Expected lambda-003 in lambda service results")
+		}
+	})
+
+	t.Run("DiscoverableInterface", func(t *testing.T) {
+		mod, err := modules.LoadModule("lambda-003")
+		if err != nil {
+			t.Fatalf("Failed to load lambda-003: %v", err)
+		}
+		discoverable, ok := mod.(modules.Discoverable)
+		if !ok {
+			t.Fatal("Expected lambda-003 to implement Discoverable")
+		}
+		opts := discoverable.DiscoverableOptions()
+		if len(opts) != 1 {
+			t.Errorf("Expected 1 discoverable option, got %d", len(opts))
+		}
+		if opts[0] != "FUNCTION_NAME" {
+			t.Errorf("Expected discoverable option %q, got %q", "FUNCTION_NAME", opts[0])
+		}
+	})
+
+	t.Run("PayloadCompatibleInterface", func(t *testing.T) {
+		mod, err := modules.LoadModule("lambda-003")
+		if err != nil {
+			t.Fatalf("Failed to load lambda-003: %v", err)
+		}
+		compatible, ok := mod.(modules.PayloadCompatible)
+		if !ok {
+			t.Fatal("Expected lambda-003 to implement PayloadCompatible")
+		}
+		tags := compatible.GetCompatibleTags()
+		if len(tags) != 2 {
+			t.Errorf("Expected 2 compatible tags, got %d", len(tags))
+		}
+		ctx := compatible.GetPayloadContext()
+		if ctx != "lambda" {
+			t.Errorf("Expected payload context %q, got %q", "lambda", ctx)
+		}
+	})
+
+	t.Run("ListPayloads", func(t *testing.T) {
+		mod, err := modules.LoadModule("lambda-003")
+		if err != nil {
+			t.Fatalf("Failed to load lambda-003: %v", err)
+		}
+		payloadList := mod.ListPayloads()
+		if len(payloadList) == 0 {
+			t.Error("Expected at least one payload for lambda-003")
+		}
+		// Should include exfil/output since this is a direct-invoke module
+		foundExfil := false
+		for _, p := range payloadList {
+			if p.Name == "exfil/output" {
+				foundExfil = true
+			}
+		}
+		if !foundExfil {
+			t.Error("Expected exfil/output payload for direct-invoke lambda-003")
+		}
+	})
+}
+
+func TestLambda005Module(t *testing.T) {
+	t.Run("LoadByPrimaryID", func(t *testing.T) {
+		mod, err := modules.LoadModule("lambda-005")
+		if err != nil {
+			t.Fatalf("Expected no error loading lambda-005, got: %v", err)
+		}
+		if mod == nil {
+			t.Fatal("Expected non-nil module")
+		}
+		if mod.Name() != "lambda-005" {
+			t.Errorf("Expected Name() = %q, got %q", "lambda-005", mod.Name())
+		}
+	})
+
+	t.Run("LoadByAlias_ShortForm", func(t *testing.T) {
+		mod, err := modules.LoadModule("lambda-updatecode-addpermission")
+		if err != nil {
+			t.Fatalf("Expected no error loading lambda-updatecode-addpermission, got: %v", err)
+		}
+		if mod.Name() != "lambda-005" {
+			t.Errorf("Expected Name() = %q, got %q", "lambda-005", mod.Name())
+		}
+	})
+
+	t.Run("LoadByAlias_OldFormat", func(t *testing.T) {
+		mod, err := modules.LoadModule("exploit/lambda_updatecode_addpermission")
+		if err != nil {
+			t.Fatalf("Expected no error loading exploit/lambda_updatecode_addpermission, got: %v", err)
+		}
+		if mod.Name() != "lambda-005" {
+			t.Errorf("Expected Name() = %q, got %q", "lambda-005", mod.Name())
+		}
+	})
+
+	t.Run("PathInfoFields", func(t *testing.T) {
+		info, found := modules.GetPathInfo("lambda-005")
+		if !found {
+			t.Fatal("Expected to find PathInfo for lambda-005")
+		}
+		if info.ID != "lambda-005" {
+			t.Errorf("Expected ID %q, got %q", "lambda-005", info.ID)
+		}
+		if info.Category != "existing-passrole" {
+			t.Errorf("Expected Category %q, got %q", "existing-passrole", info.Category)
+		}
+		if len(info.Services) != 1 {
+			t.Errorf("Expected 1 service, got %d", len(info.Services))
+		}
+		if info.Services[0] != "lambda" {
+			t.Errorf("Expected service %q, got %q", "lambda", info.Services[0])
+		}
+		if len(info.Permissions.Required) != 2 {
+			t.Errorf("Expected 2 required permissions, got %d", len(info.Permissions.Required))
+		}
+		if len(info.Permissions.Additional) != 6 {
+			t.Errorf("Expected 6 additional permissions, got %d", len(info.Permissions.Additional))
+		}
+		if info.MITRE == nil {
+			t.Error("Expected non-nil MITRE mapping")
+		}
+		if len(info.MITRE.Tactics) != 2 {
+			t.Errorf("Expected 2 MITRE tactics, got %d", len(info.MITRE.Tactics))
+		}
+		if len(info.MITRE.Techniques) != 2 {
+			t.Errorf("Expected 2 MITRE techniques, got %d", len(info.MITRE.Techniques))
+		}
+		if len(info.Aliases) != 2 {
+			t.Errorf("Expected 2 aliases, got %d", len(info.Aliases))
+		}
+		if len(info.RelatedPaths) != 4 {
+			t.Errorf("Expected 4 related paths, got %d", len(info.RelatedPaths))
+		}
+		if info.Author != "Seth Art" {
+			t.Errorf("Expected Author %q, got %q", "Seth Art", info.Author)
+		}
+	})
+
+	t.Run("SearchFindsLambda005", func(t *testing.T) {
+		results := modules.SearchModules("lambda-005")
+		found := false
+		for _, info := range results {
+			if info.ID == "lambda-005" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("Expected lambda-005 in search results")
+		}
+	})
+
+	t.Run("SearchByAddPermission", func(t *testing.T) {
+		results := modules.SearchModules("AddPermission")
+		found := false
+		for _, info := range results {
+			if info.ID == "lambda-005" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("Expected lambda-005 in search results for 'AddPermission'")
+		}
+	})
+
+	t.Run("CategoryFilter", func(t *testing.T) {
+		results := modules.ListModulesByCategory("existing-passrole")
+		found := false
+		for _, info := range results {
+			if info.ID == "lambda-005" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("Expected lambda-005 in existing-passrole category")
+		}
+	})
+
+	t.Run("ServiceFilter", func(t *testing.T) {
+		results := modules.ListModulesByService("lambda")
+		found := false
+		for _, info := range results {
+			if info.ID == "lambda-005" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("Expected lambda-005 in lambda service results")
+		}
+	})
+
+	t.Run("DiscoverableInterface", func(t *testing.T) {
+		mod, err := modules.LoadModule("lambda-005")
+		if err != nil {
+			t.Fatalf("Failed to load lambda-005: %v", err)
+		}
+		discoverable, ok := mod.(modules.Discoverable)
+		if !ok {
+			t.Fatal("Expected lambda-005 to implement Discoverable")
+		}
+		opts := discoverable.DiscoverableOptions()
+		if len(opts) != 1 {
+			t.Errorf("Expected 1 discoverable option, got %d", len(opts))
+		}
+		if opts[0] != "FUNCTION_NAME" {
+			t.Errorf("Expected discoverable option %q, got %q", "FUNCTION_NAME", opts[0])
+		}
+	})
+
+	t.Run("PayloadCompatibleInterface", func(t *testing.T) {
+		mod, err := modules.LoadModule("lambda-005")
+		if err != nil {
+			t.Fatalf("Failed to load lambda-005: %v", err)
+		}
+		compatible, ok := mod.(modules.PayloadCompatible)
+		if !ok {
+			t.Fatal("Expected lambda-005 to implement PayloadCompatible")
+		}
+		tags := compatible.GetCompatibleTags()
+		if len(tags) != 2 {
+			t.Errorf("Expected 2 compatible tags, got %d", len(tags))
+		}
+		ctx := compatible.GetPayloadContext()
+		if ctx != "lambda" {
+			t.Errorf("Expected payload context %q, got %q", "lambda", ctx)
+		}
+	})
+
+	t.Run("ListPayloads", func(t *testing.T) {
+		mod, err := modules.LoadModule("lambda-005")
+		if err != nil {
+			t.Fatalf("Failed to load lambda-005: %v", err)
+		}
+		payloadList := mod.ListPayloads()
+		if len(payloadList) == 0 {
+			t.Error("Expected at least one payload for lambda-005")
+		}
+		foundExfil := false
+		for _, p := range payloadList {
+			if p.Name == "exfil/output" {
+				foundExfil = true
+			}
+		}
+		if !foundExfil {
+			t.Error("Expected exfil/output payload for direct-invoke lambda-005")
+		}
+	})
+}
+
+func TestLambda006Module(t *testing.T) {
+	t.Run("LoadByPrimaryID", func(t *testing.T) {
+		mod, err := modules.LoadModule("lambda-006")
+		if err != nil {
+			t.Fatalf("Expected no error loading lambda-006, got: %v", err)
+		}
+		if mod == nil {
+			t.Fatal("Expected non-nil module")
+		}
+		if mod.Name() != "lambda-006" {
+			t.Errorf("Expected Name() = %q, got %q", "lambda-006", mod.Name())
+		}
+	})
+
+	t.Run("LoadByAlias_ShortForm", func(t *testing.T) {
+		mod, err := modules.LoadModule("lambda-createfunction-addpermission")
+		if err != nil {
+			t.Fatalf("Expected no error loading lambda-createfunction-addpermission, got: %v", err)
+		}
+		if mod.Name() != "lambda-006" {
+			t.Errorf("Expected Name() = %q, got %q", "lambda-006", mod.Name())
+		}
+	})
+
+	t.Run("LoadByAlias_OldFormat", func(t *testing.T) {
+		mod, err := modules.LoadModule("exploit/lambda_createfunction_addpermission")
+		if err != nil {
+			t.Fatalf("Expected no error loading exploit/lambda_createfunction_addpermission, got: %v", err)
+		}
+		if mod.Name() != "lambda-006" {
+			t.Errorf("Expected Name() = %q, got %q", "lambda-006", mod.Name())
+		}
+	})
+
+	t.Run("PathInfoFields", func(t *testing.T) {
+		info, found := modules.GetPathInfo("lambda-006")
+		if !found {
+			t.Fatal("Expected to find PathInfo for lambda-006")
+		}
+		if info.ID != "lambda-006" {
+			t.Errorf("Expected ID %q, got %q", "lambda-006", info.ID)
+		}
+		if info.Category != "new-passrole" {
+			t.Errorf("Expected Category %q, got %q", "new-passrole", info.Category)
+		}
+		if len(info.Services) != 2 {
+			t.Errorf("Expected 2 services, got %d", len(info.Services))
+		}
+		if len(info.Permissions.Required) != 3 {
+			t.Errorf("Expected 3 required permissions, got %d", len(info.Permissions.Required))
+		}
+		if len(info.Permissions.Additional) != 6 {
+			t.Errorf("Expected 6 additional permissions, got %d", len(info.Permissions.Additional))
+		}
+		if info.MITRE == nil {
+			t.Error("Expected non-nil MITRE mapping")
+		}
+		if len(info.MITRE.Tactics) != 2 {
+			t.Errorf("Expected 2 MITRE tactics, got %d", len(info.MITRE.Tactics))
+		}
+		if len(info.MITRE.Techniques) != 2 {
+			t.Errorf("Expected 2 MITRE techniques, got %d", len(info.MITRE.Techniques))
+		}
+		if len(info.Aliases) != 2 {
+			t.Errorf("Expected 2 aliases, got %d", len(info.Aliases))
+		}
+		if len(info.RelatedPaths) != 2 {
+			t.Errorf("Expected 2 related paths, got %d", len(info.RelatedPaths))
+		}
+		if info.Author != "Seth Art" {
+			t.Errorf("Expected Author %q, got %q", "Seth Art", info.Author)
+		}
+	})
+
+	t.Run("SearchFindsLambda006", func(t *testing.T) {
+		results := modules.SearchModules("lambda-006")
+		found := false
+		for _, info := range results {
+			if info.ID == "lambda-006" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("Expected lambda-006 in search results")
+		}
+	})
+
+	t.Run("SearchByAddPermission", func(t *testing.T) {
+		results := modules.SearchModules("AddPermission")
+		found := false
+		for _, info := range results {
+			if info.ID == "lambda-006" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("Expected lambda-006 in search results for 'AddPermission'")
+		}
+	})
+
+	t.Run("SearchByPassRole", func(t *testing.T) {
+		results := modules.SearchModules("PassRole")
+		found := false
+		for _, info := range results {
+			if info.ID == "lambda-006" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("Expected lambda-006 in search results for 'PassRole'")
+		}
+	})
+
+	t.Run("CategoryFilter", func(t *testing.T) {
+		results := modules.ListModulesByCategory("new-passrole")
+		found := false
+		for _, info := range results {
+			if info.ID == "lambda-006" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("Expected lambda-006 in new-passrole category")
+		}
+	})
+
+	t.Run("ServiceFilter_IAM", func(t *testing.T) {
+		results := modules.ListModulesByService("iam")
+		found := false
+		for _, info := range results {
+			if info.ID == "lambda-006" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("Expected lambda-006 in iam service results")
+		}
+	})
+
+	t.Run("ServiceFilter_Lambda", func(t *testing.T) {
+		results := modules.ListModulesByService("lambda")
+		found := false
+		for _, info := range results {
+			if info.ID == "lambda-006" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("Expected lambda-006 in lambda service results")
+		}
+	})
+
+	t.Run("DiscoverableInterface", func(t *testing.T) {
+		mod, err := modules.LoadModule("lambda-006")
+		if err != nil {
+			t.Fatalf("Failed to load lambda-006: %v", err)
+		}
+		discoverable, ok := mod.(modules.Discoverable)
+		if !ok {
+			t.Fatal("Expected lambda-006 to implement Discoverable")
+		}
+		opts := discoverable.DiscoverableOptions()
+		if len(opts) != 1 {
+			t.Errorf("Expected 1 discoverable option, got %d", len(opts))
+		}
+		if opts[0] != "ROLE_ARN" {
+			t.Errorf("Expected discoverable option %q, got %q", "ROLE_ARN", opts[0])
+		}
+	})
+
+	t.Run("PayloadCompatibleInterface", func(t *testing.T) {
+		mod, err := modules.LoadModule("lambda-006")
+		if err != nil {
+			t.Fatalf("Failed to load lambda-006: %v", err)
+		}
+		compatible, ok := mod.(modules.PayloadCompatible)
+		if !ok {
+			t.Fatal("Expected lambda-006 to implement PayloadCompatible")
+		}
+		tags := compatible.GetCompatibleTags()
+		if len(tags) != 2 {
+			t.Errorf("Expected 2 compatible tags, got %d", len(tags))
+		}
+		ctx := compatible.GetPayloadContext()
+		if ctx != "lambda" {
+			t.Errorf("Expected payload context %q, got %q", "lambda", ctx)
+		}
+	})
+
+	t.Run("ListPayloads", func(t *testing.T) {
+		mod, err := modules.LoadModule("lambda-006")
+		if err != nil {
+			t.Fatalf("Failed to load lambda-006: %v", err)
+		}
+		payloadList := mod.ListPayloads()
+		if len(payloadList) == 0 {
+			t.Error("Expected at least one payload for lambda-006")
+		}
+		foundExfil := false
+		for _, p := range payloadList {
+			if p.Name == "exfil/output" {
+				foundExfil = true
+			}
+		}
+		if !foundExfil {
+			t.Error("Expected exfil/output payload for direct-invoke lambda-006")
+		}
+	})
 }

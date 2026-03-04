@@ -44,15 +44,18 @@ func (c *CLI) createIdentityCmd() *cobra.Command {
 
 			if profile, _ := cmd.Flags().GetString("profile"); profile != "" {
 				replArgs = append(replArgs, "--profile", profile)
-			} else if keys, _ := cmd.Flags().GetString("keys"); keys != "" {
-				secretKey, _ := cmd.Flags().GetString("secret-key")
+			} else if accessKey, _ := cmd.Flags().GetString("access"); accessKey != "" {
+				secretKey, _ := cmd.Flags().GetString("secret")
 				if secretKey == "" {
-					fmt.Println("Error: --secret-key is required when using --keys")
+					fmt.Println("Error: --secret is required when using --access")
 					return
 				}
-				replArgs = append(replArgs, "--keys", keys, secretKey)
-				if sessionToken, _ := cmd.Flags().GetString("session-token"); sessionToken != "" {
-					replArgs = append(replArgs, sessionToken)
+				replArgs = append(replArgs, "--access", accessKey, "--secret", secretKey)
+				if token, _ := cmd.Flags().GetString("token"); token != "" {
+					replArgs = append(replArgs, "--token", token)
+				}
+				if name, _ := cmd.Flags().GetString("name"); name != "" {
+					replArgs = append(replArgs, "--name", name)
 				}
 			} else if fromOutput, _ := cmd.Flags().GetBool("from-output"); fromOutput {
 				replArgs = append(replArgs, "--from-output")
@@ -60,6 +63,14 @@ func (c *CLI) createIdentityCmd() *cobra.Command {
 				replArgs = append(replArgs, "--from-file", fromFile)
 			} else if fromClipboard, _ := cmd.Flags().GetBool("from-clipboard"); fromClipboard {
 				replArgs = append(replArgs, "--from-clipboard")
+			}
+
+			if autoSwitch, _ := cmd.Flags().GetBool("switch"); autoSwitch {
+				replArgs = append(replArgs, "--switch")
+			}
+
+			if checkAdmin, _ := cmd.Flags().GetBool("check-admin"); checkAdmin {
+				replArgs = append(replArgs, "--check-admin")
 			}
 
 			if len(replArgs) == 0 {
@@ -70,12 +81,15 @@ func (c *CLI) createIdentityCmd() *cobra.Command {
 		},
 	}
 	addCmd.Flags().String("profile", "", "AWS profile name")
-	addCmd.Flags().String("keys", "", "Access key ID (requires --secret-key)")
-	addCmd.Flags().String("secret-key", "", "Secret access key")
-	addCmd.Flags().String("session-token", "", "Session token (optional)")
+	addCmd.Flags().String("access", "", "Access key ID (requires --secret)")
+	addCmd.Flags().String("secret", "", "Secret access key")
+	addCmd.Flags().String("token", "", "Session token (optional)")
+	addCmd.Flags().String("name", "", "Custom name for the identity")
 	addCmd.Flags().Bool("from-output", false, "Extract credentials from last exploit output")
 	addCmd.Flags().String("from-file", "", "Read credentials from file")
 	addCmd.Flags().Bool("from-clipboard", false, "Read credentials from clipboard or stdin")
+	addCmd.Flags().Bool("switch", false, "Auto-switch to the new identity without prompting")
+	addCmd.Flags().Bool("check-admin", false, "Auto-check admin privileges after adding")
 	identityCmd.AddCommand(addCmd)
 
 	// identity switch
@@ -88,6 +102,21 @@ func (c *CLI) createIdentityCmd() *cobra.Command {
 		},
 	}
 	identityCmd.AddCommand(switchCmd)
+
+	// identity check
+	checkCmd := &cobra.Command{
+		Use:   "check [name]",
+		Short: "Check if identity has admin privileges",
+		Long:  "Uses IAM Policy Simulator to test whether an identity has admin-level access",
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) > 0 {
+				c.executeREPLCommand("identity check " + args[0])
+			} else {
+				c.executeREPLCommand("identity check")
+			}
+		},
+	}
+	identityCmd.AddCommand(checkCmd)
 
 	// identity clear/remove
 	clearCmd := &cobra.Command{
@@ -199,6 +228,24 @@ func (c *CLI) createWorkspaceCmd() *cobra.Command {
 	cleanupCmd.Flags().Bool("all", false, "Clean up all resources without interactive prompt")
 	cleanupCmd.Flags().String("module", "", "Only clean up resources created by a specific module ID")
 	workspaceCmd.AddCommand(cleanupCmd)
+
+	// workspace report
+	reportCmd := &cobra.Command{
+		Use:   "report",
+		Short: "Generate cleanup report for handoff to client/admin",
+		Run: func(cmd *cobra.Command, args []string) {
+			var replArgs []string
+			replArgs = append(replArgs, "workspace", "report")
+
+			if module, _ := cmd.Flags().GetString("module"); module != "" {
+				replArgs = append(replArgs, "--module", module)
+			}
+
+			c.executeREPLCommand(strings.Join(replArgs, " "))
+		},
+	}
+	reportCmd.Flags().String("module", "", "Only report resources from a specific module ID")
+	workspaceCmd.AddCommand(reportCmd)
 
 	// workspace history
 	workspaceCmd.AddCommand(&cobra.Command{
@@ -403,6 +450,22 @@ func (c *CLI) createWhoamiCmd() *cobra.Command {
 		},
 	}
 }
+// Discover command
+func (c *CLI) createDiscoverCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "discover [OPTION]",
+		Short: "Auto-discover values for module options using AWS API calls",
+		Long:  "Uses the current identity's permissions to enumerate valid values for discoverable module options",
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) > 0 {
+				c.executeREPLCommand("discover " + strings.Join(args, " "))
+			} else {
+				c.executeREPLCommand("discover")
+			}
+		},
+	}
+}
+
 // Identities command (alias for identity)
 func (c *CLI) createIdentitiesCmd() *cobra.Command {
 	cmd := c.createIdentityCmd()

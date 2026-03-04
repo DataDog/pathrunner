@@ -10,7 +10,12 @@ import (
 
 	// Import modules to register them
 	_ "pathrunner/pkg/exploits/ec2_passrole"
+	_ "pathrunner/pkg/exploits/lambda_createfunction_addpermission"
 	_ "pathrunner/pkg/exploits/lambda_passrole"
+	_ "pathrunner/pkg/exploits/lambda_passrole_esm"
+	_ "pathrunner/pkg/exploits/lambda_updatecode"
+	_ "pathrunner/pkg/exploits/lambda_updatecode_addpermission"
+	_ "pathrunner/pkg/exploits/lambda_updatecode_invoke"
 	_ "pathrunner/pkg/exploits/sts_assume_role"
 )
 

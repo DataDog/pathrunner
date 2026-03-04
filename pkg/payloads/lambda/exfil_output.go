@@ -53,7 +53,7 @@ func (p *ExfilOutputPayload) GetOptions() []modules.Option {
 }
 
 func (p *ExfilOutputPayload) GenerateCode(options map[string]string) (string, error) {
-	includeEnv := options["INCLUDE_ENV"] == "true"
+	includeEnv := options["INCLUDE_ENV"] != "false" // default true
 	includeTags := options["INCLUDE_TAGS"] == "true"
 
 	envCode := ""

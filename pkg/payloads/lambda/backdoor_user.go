@@ -65,8 +65,8 @@ func (p *BackdoorUserPayload) GetOptions() []modules.Option {
 
 func (p *BackdoorUserPayload) GenerateCode(options map[string]string) (string, error) {
 	userName := options["USER_NAME"]
-	consoleAccess := options["CONSOLE_ACCESS"] == "true"
-	accessKey := options["ACCESS_KEY"] == "true"
+	consoleAccess := options["CONSOLE_ACCESS"] != "false" // default true
+	accessKey := options["ACCESS_KEY"] != "false"         // default true
 	userPath := options["USER_PATH"]
 	if userPath == "" {
 		userPath = "/"

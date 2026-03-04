@@ -2,7 +2,6 @@
 name: list-gaps
 description: List pathfinding-labs scenarios that don't have pathrunner modules yet
 context: fork
-agent: Explore
 argument-hint: "[service] (optional filter, e.g., lambda, ecs, iam)"
 allowed-tools: Bash, Read, Glob, Grep
 ---

@@ -23,6 +23,7 @@ func (r *REPL) getCompleter() readline.AutoCompleter {
 			readline.PcItem("search"),
 			readline.PcItem("modules"),
 			readline.PcItem("payloads"),
+			readline.PcItem("discover"),
 		),
 		readline.PcItem("exit"),
 		readline.PcItem("quit"),
@@ -56,32 +57,26 @@ func (r *REPL) getCompleter() readline.AutoCompleter {
 		readline.PcItem("context",
 			readline.PcItem("help"),
 		),
+		r.buildDiscoverCompleter(),
 	)
 }
 
-// buildUseCompleter builds completion for the use command (includes aliases)
+// buildUseCompleter builds completion for the use command
+// Shows modules as "id/short-name" (e.g. "lambda-001/lambda-passrole")
 func (r *REPL) buildUseCompleter() readline.PrefixCompleterInterface {
-	moduleNames := modules.ListModules()
+	infos := modules.ListPathInfos()
 
-	// Collect aliases too
-	seen := make(map[string]bool)
-	for _, name := range moduleNames {
-		seen[name] = true
-	}
-	for _, info := range modules.ListPathInfos() {
-		for _, alias := range info.Aliases {
-			if !seen[alias] {
-				moduleNames = append(moduleNames, alias)
-				seen[alias] = true
-			}
+	items := make([]readline.PrefixCompleterInterface, 0, len(infos)+1)
+	items = append(items, readline.PcItem("help"))
+
+	for _, info := range infos {
+		label := info.ID
+		if len(info.Aliases) > 0 {
+			label = info.ID + "/" + info.Aliases[0]
 		}
+		items = append(items, readline.PcItem(label))
 	}
 
-	items := make([]readline.PrefixCompleterInterface, len(moduleNames)+1)
-	items[0] = readline.PcItem("help")
-	for i, name := range moduleNames {
-		items[i+1] = readline.PcItem(name)
-	}
 	return readline.PcItem("use", items...)
 }
 
@@ -99,20 +94,36 @@ func (r *REPL) buildIdentityCompleter() readline.PrefixCompleterInterface {
 	return readline.PcItem("identity",
 		readline.PcItem("add",
 			readline.PcItem("--profile"),
-			readline.PcItem("--keys"),
+			readline.PcItem("--access",
+				readline.PcItem("--secret",
+					readline.PcItem("--token"),
+					readline.PcItem("--name"),
+					readline.PcItem("--switch"),
+					readline.PcItem("--check-admin"),
+				),
+			),
 			readline.PcItem("--from-output",
 				readline.PcItem("--name"),
+				readline.PcItem("--switch"),
+				readline.PcItem("--check-admin"),
 			),
 			readline.PcItem("--from-file",
 				readline.PcItem("--name"),
+				readline.PcItem("--switch"),
+				readline.PcItem("--check-admin"),
 			),
 			readline.PcItem("--from-clipboard",
 				readline.PcItem("--name"),
+				readline.PcItem("--switch"),
+				readline.PcItem("--check-admin"),
 			),
+			readline.PcItem("--switch"),
+			readline.PcItem("--check-admin"),
 		),
 		readline.PcItem("list"),
 		readline.PcItem("show"),
 		readline.PcItem("switch", identityItems...),
+		readline.PcItem("check", identityItems...),
 		readline.PcItem("refresh"),
 		readline.PcItem("clear",
 			readline.PcItem("--expired"),
@@ -148,6 +159,14 @@ func (r *REPL) buildSetCompleter() readline.PrefixCompleterInterface {
 		}
 	}
 
+	// Add payload-specific options when a payload is selected
+	if selectedPayload, ok := r.options["PAYLOAD"]; ok && selectedPayload != "" {
+		payloadOpts := r.currentModule.PayloadOptions(selectedPayload)
+		for _, opt := range payloadOpts {
+			items = append(items, readline.PcItem(opt.Name))
+		}
+	}
+
 	return readline.PcItem("set", items...)
 }
 
@@ -158,10 +177,18 @@ func (r *REPL) buildUnsetCompleter() readline.PrefixCompleterInterface {
 	}
 
 	options := r.currentModule.Options()
-	items := make([]readline.PrefixCompleterInterface, len(options)+1)
-	items[0] = readline.PcItem("help")
-	for i, option := range options {
-		items[i+1] = readline.PcItem(option.Name)
+	items := make([]readline.PrefixCompleterInterface, 0, len(options)+1)
+	items = append(items, readline.PcItem("help"))
+	for _, option := range options {
+		items = append(items, readline.PcItem(option.Name))
+	}
+
+	// Add payload-specific options when a payload is selected
+	if selectedPayload, ok := r.options["PAYLOAD"]; ok && selectedPayload != "" {
+		payloadOpts := r.currentModule.PayloadOptions(selectedPayload)
+		for _, opt := range payloadOpts {
+			items = append(items, readline.PcItem(opt.Name))
+		}
 	}
 
 	return readline.PcItem("unset", items...)
@@ -188,6 +215,9 @@ func (r *REPL) buildWorkspaceCompleter() readline.PrefixCompleterInterface {
 		readline.PcItem("delete", workspaceItems...),
 		readline.PcItem("cleanup",
 			readline.PcItem("--all"),
+			readline.PcItem("--module"),
+		),
+		readline.PcItem("report",
 			readline.PcItem("--module"),
 		),
 		readline.PcItem("history"),
@@ -217,20 +247,36 @@ func (r *REPL) buildIdentitiesCompleter() readline.PrefixCompleterInterface {
 	return readline.PcItem("identities",
 		readline.PcItem("add",
 			readline.PcItem("--profile"),
-			readline.PcItem("--keys"),
+			readline.PcItem("--access",
+				readline.PcItem("--secret",
+					readline.PcItem("--token"),
+					readline.PcItem("--name"),
+					readline.PcItem("--switch"),
+					readline.PcItem("--check-admin"),
+				),
+			),
 			readline.PcItem("--from-output",
 				readline.PcItem("--name"),
+				readline.PcItem("--switch"),
+				readline.PcItem("--check-admin"),
 			),
 			readline.PcItem("--from-file",
 				readline.PcItem("--name"),
+				readline.PcItem("--switch"),
+				readline.PcItem("--check-admin"),
 			),
 			readline.PcItem("--from-clipboard",
 				readline.PcItem("--name"),
+				readline.PcItem("--switch"),
+				readline.PcItem("--check-admin"),
 			),
+			readline.PcItem("--switch"),
+			readline.PcItem("--check-admin"),
 		),
 		readline.PcItem("list"),
 		readline.PcItem("show"),
 		readline.PcItem("switch", identityItems...),
+		readline.PcItem("check", identityItems...),
 		readline.PcItem("refresh"),
 		readline.PcItem("clear",
 			readline.PcItem("--expired"),
@@ -254,20 +300,36 @@ func (r *REPL) buildIdCompleter() readline.PrefixCompleterInterface {
 	return readline.PcItem("id",
 		readline.PcItem("add",
 			readline.PcItem("--profile"),
-			readline.PcItem("--keys"),
+			readline.PcItem("--access",
+				readline.PcItem("--secret",
+					readline.PcItem("--token"),
+					readline.PcItem("--name"),
+					readline.PcItem("--switch"),
+					readline.PcItem("--check-admin"),
+				),
+			),
 			readline.PcItem("--from-output",
 				readline.PcItem("--name"),
+				readline.PcItem("--switch"),
+				readline.PcItem("--check-admin"),
 			),
 			readline.PcItem("--from-file",
 				readline.PcItem("--name"),
+				readline.PcItem("--switch"),
+				readline.PcItem("--check-admin"),
 			),
 			readline.PcItem("--from-clipboard",
 				readline.PcItem("--name"),
+				readline.PcItem("--switch"),
+				readline.PcItem("--check-admin"),
 			),
+			readline.PcItem("--switch"),
+			readline.PcItem("--check-admin"),
 		),
 		readline.PcItem("list"),
 		readline.PcItem("show"),
 		readline.PcItem("switch", identityItems...),
+		readline.PcItem("check", identityItems...),
 		readline.PcItem("refresh"),
 		readline.PcItem("clear",
 			readline.PcItem("--expired"),
@@ -291,20 +353,36 @@ func (r *REPL) buildIdsCompleter() readline.PrefixCompleterInterface {
 	return readline.PcItem("ids",
 		readline.PcItem("add",
 			readline.PcItem("--profile"),
-			readline.PcItem("--keys"),
+			readline.PcItem("--access",
+				readline.PcItem("--secret",
+					readline.PcItem("--token"),
+					readline.PcItem("--name"),
+					readline.PcItem("--switch"),
+					readline.PcItem("--check-admin"),
+				),
+			),
 			readline.PcItem("--from-output",
 				readline.PcItem("--name"),
+				readline.PcItem("--switch"),
+				readline.PcItem("--check-admin"),
 			),
 			readline.PcItem("--from-file",
 				readline.PcItem("--name"),
+				readline.PcItem("--switch"),
+				readline.PcItem("--check-admin"),
 			),
 			readline.PcItem("--from-clipboard",
 				readline.PcItem("--name"),
+				readline.PcItem("--switch"),
+				readline.PcItem("--check-admin"),
 			),
+			readline.PcItem("--switch"),
+			readline.PcItem("--check-admin"),
 		),
 		readline.PcItem("list"),
 		readline.PcItem("show"),
 		readline.PcItem("switch", identityItems...),
+		readline.PcItem("check", identityItems...),
 		readline.PcItem("refresh"),
 		readline.PcItem("clear",
 			readline.PcItem("--expired"),
@@ -340,6 +418,22 @@ func (r *REPL) buildSearchCompleter() readline.PrefixCompleterInterface {
 	)
 }
 
+// buildDiscoverCompleter builds completion for the discover command
+func (r *REPL) buildDiscoverCompleter() readline.PrefixCompleterInterface {
+	items := []readline.PrefixCompleterInterface{readline.PcItem("help")}
+
+	// If module implements Discoverable, include option names
+	if r.currentModule != nil {
+		if discoverable, ok := r.currentModule.(modules.Discoverable); ok {
+			for _, opt := range discoverable.DiscoverableOptions() {
+				items = append(items, readline.PcItem(opt))
+			}
+		}
+	}
+
+	return readline.PcItem("discover", items...)
+}
+
 // buildWorkspacesCompleter builds completion for workspaces command (alias for workspace)
 func (r *REPL) buildWorkspacesCompleter() readline.PrefixCompleterInterface {
 	var workspaceItems []readline.PrefixCompleterInterface
@@ -359,6 +453,9 @@ func (r *REPL) buildWorkspacesCompleter() readline.PrefixCompleterInterface {
 		readline.PcItem("delete", workspaceItems...),
 		readline.PcItem("cleanup",
 			readline.PcItem("--all"),
+			readline.PcItem("--module"),
+		),
+		readline.PcItem("report",
 			readline.PcItem("--module"),
 		),
 		readline.PcItem("history"),

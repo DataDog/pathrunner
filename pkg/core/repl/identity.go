@@ -36,6 +36,19 @@ func (r *REPL) cmdIdentity(repl *REPL, args []string) error {
 			r.UpdatePrompt()
 		}
 		return err
+	case "check":
+		if len(args) > 1 && args[1] == "help" {
+			return r.showIdentityCheckHelp()
+		}
+		name := ""
+		if len(args) > 1 {
+			name = args[1]
+		}
+		err := r.identityManager.CheckAdmin(name)
+		if err == nil {
+			r.UpdatePrompt()
+		}
+		return err
 	case "refresh":
 		return r.identityManager.RefreshCurrentIdentity()
 	case "clear", "remove":
