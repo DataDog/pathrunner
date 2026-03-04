@@ -81,6 +81,47 @@ func TestIdentityAliases(t *testing.T) {
 	}
 }
 
+// TestIdentityCheckWithoutIdentity tests identity check with no identity
+func TestIdentityCheckWithoutIdentity(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("identity check")
+	if err == nil {
+		t.Error("Expected error when checking admin with no identity")
+	}
+
+	if !strings.Contains(err.Error(), "no current identity") {
+		t.Errorf("Expected 'no current identity' error, got: %v", err)
+	}
+}
+
+// TestIdentityCheckNonExistent tests identity check with non-existent identity
+func TestIdentityCheckNonExistent(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("identity check nonexistent")
+	if err == nil {
+		t.Error("Expected error when checking non-existent identity")
+	}
+
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("Expected 'not found' error, got: %v", err)
+	}
+}
+
+// TestIdentityCheckHelp tests identity check help
+func TestIdentityCheckHelp(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("identity check help")
+	if err != nil {
+		t.Errorf("Expected no error for identity check help, got: %v", err)
+	}
+}
+
 // TestIdentityCommandValidation tests argument validation
 func TestIdentityCommandValidation(t *testing.T) {
 	r, _, _, cleanup := setupTest(t)

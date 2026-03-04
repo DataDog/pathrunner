@@ -141,6 +141,39 @@ func (p *DirectElevationPayload) ProcessResult(result string) (string, error) {
 	return output.String(), nil
 }
 
+// ReportSideEffects returns the policy attachment as a tracked modification.
+func (p *DirectElevationPayload) ReportSideEffects(options map[string]string) []modules.CreatedResource {
+	principalType := options["TARGET_PRINCIPAL_TYPE"]
+	if principalType == "" {
+		principalType = "user"
+	}
+
+	principalName := options["TARGET_PRINCIPAL_NAME"]
+	policyArn := options["POLICY_ARN"]
+	if policyArn == "" {
+		policyArn = "arn:aws:iam::aws:policy/AdministratorAccess"
+	}
+
+	cleanupMethod := "iam:DetachUserPolicy"
+	if principalType == "role" {
+		cleanupMethod = "iam:DetachRolePolicy"
+	}
+
+	return []modules.CreatedResource{
+		{
+			Type:          "iam:attached-policy",
+			Name:          fmt.Sprintf("%s←%s", principalName, "AdministratorAccess"),
+			ARN:           policyArn,
+			CleanupMethod: cleanupMethod,
+			Metadata: map[string]string{
+				"principal_type": principalType,
+				"principal_name": principalName,
+				"policy_arn":     policyArn,
+			},
+		},
+	}
+}
+
 func (p *DirectElevationPayload) Validate(options map[string]string) error {
 	if options["TARGET_PRINCIPAL_NAME"] == "" {
 		return fmt.Errorf("TARGET_PRINCIPAL_NAME is required for elevation/direct payload")

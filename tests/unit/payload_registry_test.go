@@ -1,8 +1,11 @@
 package unit
 
 import (
+	"pathrunner/pkg/modules"
 	"pathrunner/pkg/payloads"
+	_ "pathrunner/pkg/payloads/ec2"    // Import to register EC2 payloads
 	_ "pathrunner/pkg/payloads/lambda" // Import to register payloads
+	"strings"
 	"testing"
 )
 
@@ -237,23 +240,265 @@ func TestPayloadValidation(t *testing.T) {
 		}
 	})
 
-	t.Run("BackdoorRole_RequiresAccount", func(t *testing.T) {
+	t.Run("BackdoorRole_RequiresTrustedPrincipal", func(t *testing.T) {
 		payload, err := payloads.GetPayload("backdoor/role")
 		if err != nil {
 			t.Fatalf("Failed to get payload: %v", err)
 		}
 
-		// Should fail without BACKDOOR_ACCOUNT
+		// Should fail without TRUSTED_PRINCIPAL
 		err = payload.Validate(map[string]string{})
 		if err == nil {
-			t.Error("Expected validation error for missing BACKDOOR_ACCOUNT")
+			t.Error("Expected validation error for missing TRUSTED_PRINCIPAL")
 		}
 
-		// Should pass with BACKDOOR_ACCOUNT
-		err = payload.Validate(map[string]string{"BACKDOOR_ACCOUNT": "123456789012"})
+		// Should pass with TRUSTED_PRINCIPAL
+		err = payload.Validate(map[string]string{"TRUSTED_PRINCIPAL": "arn:aws:iam::123456789012:user/attacker"})
 		if err != nil {
 			t.Errorf("Expected no validation error, got: %v", err)
 		}
+	})
+}
+
+func TestSideEffectReporter(t *testing.T) {
+	t.Run("BackdoorAttachPolicy_ImplementsSideEffectReporter", func(t *testing.T) {
+		payload, err := payloads.GetPayload("backdoor/attach-policy")
+		if err != nil {
+			t.Fatalf("Failed to get payload: %v", err)
+		}
+
+		reporter, ok := payload.(payloads.SideEffectReporter)
+		if !ok {
+			t.Fatal("backdoor/attach-policy should implement SideEffectReporter")
+		}
+
+		effects := reporter.ReportSideEffects(map[string]string{
+			"TARGET_USER": "test-user",
+			"POLICY_ARN":  "arn:aws:iam::aws:policy/AdministratorAccess",
+		})
+
+		if len(effects) != 1 {
+			t.Fatalf("Expected 1 side effect, got %d", len(effects))
+		}
+
+		effect := effects[0]
+		if effect.Type != "iam:attached-policy" {
+			t.Errorf("Expected type 'iam:attached-policy', got '%s'", effect.Type)
+		}
+		if effect.Metadata["principal_type"] != "user" {
+			t.Errorf("Expected principal_type 'user', got '%s'", effect.Metadata["principal_type"])
+		}
+		if effect.Metadata["principal_name"] != "test-user" {
+			t.Errorf("Expected principal_name 'test-user', got '%s'", effect.Metadata["principal_name"])
+		}
+		if effect.Metadata["policy_arn"] != "arn:aws:iam::aws:policy/AdministratorAccess" {
+			t.Errorf("Expected correct policy_arn, got '%s'", effect.Metadata["policy_arn"])
+		}
+		if effect.CleanupMethod != "iam:DetachUserPolicy" {
+			t.Errorf("Expected cleanup method 'iam:DetachUserPolicy', got '%s'", effect.CleanupMethod)
+		}
+	})
+
+	t.Run("BackdoorAttachPolicy_DefaultPolicyARN", func(t *testing.T) {
+		payload, err := payloads.GetPayload("backdoor/attach-policy")
+		if err != nil {
+			t.Fatalf("Failed to get payload: %v", err)
+		}
+
+		reporter := payload.(payloads.SideEffectReporter)
+		effects := reporter.ReportSideEffects(map[string]string{
+			"TARGET_USER": "my-user",
+		})
+
+		if len(effects) != 1 {
+			t.Fatalf("Expected 1 side effect, got %d", len(effects))
+		}
+
+		if effects[0].Metadata["policy_arn"] != "arn:aws:iam::aws:policy/AdministratorAccess" {
+			t.Errorf("Expected default AdministratorAccess policy, got '%s'", effects[0].Metadata["policy_arn"])
+		}
+	})
+
+	t.Run("ElevationDirect_ImplementsSideEffectReporter", func(t *testing.T) {
+		payload, err := payloads.GetPayload("elevation/direct")
+		if err != nil {
+			t.Fatalf("Failed to get payload: %v", err)
+		}
+
+		reporter, ok := payload.(payloads.SideEffectReporter)
+		if !ok {
+			t.Fatal("elevation/direct should implement SideEffectReporter")
+		}
+
+		// Test user principal
+		effects := reporter.ReportSideEffects(map[string]string{
+			"TARGET_PRINCIPAL_TYPE": "user",
+			"TARGET_PRINCIPAL_NAME": "test-user",
+		})
+
+		if len(effects) != 1 {
+			t.Fatalf("Expected 1 side effect, got %d", len(effects))
+		}
+		if effects[0].CleanupMethod != "iam:DetachUserPolicy" {
+			t.Errorf("Expected 'iam:DetachUserPolicy' for user, got '%s'", effects[0].CleanupMethod)
+		}
+		if effects[0].Metadata["principal_type"] != "user" {
+			t.Errorf("Expected principal_type 'user', got '%s'", effects[0].Metadata["principal_type"])
+		}
+	})
+
+	t.Run("ElevationDirect_RolePrincipal", func(t *testing.T) {
+		payload, err := payloads.GetPayload("elevation/direct")
+		if err != nil {
+			t.Fatalf("Failed to get payload: %v", err)
+		}
+
+		reporter := payload.(payloads.SideEffectReporter)
+		effects := reporter.ReportSideEffects(map[string]string{
+			"TARGET_PRINCIPAL_TYPE": "role",
+			"TARGET_PRINCIPAL_NAME": "test-role",
+		})
+
+		if len(effects) != 1 {
+			t.Fatalf("Expected 1 side effect, got %d", len(effects))
+		}
+		if effects[0].CleanupMethod != "iam:DetachRolePolicy" {
+			t.Errorf("Expected 'iam:DetachRolePolicy' for role, got '%s'", effects[0].CleanupMethod)
+		}
+		if effects[0].Metadata["principal_type"] != "role" {
+			t.Errorf("Expected principal_type 'role', got '%s'", effects[0].Metadata["principal_type"])
+		}
+	})
+
+	t.Run("ExfilPayloads_DoNotImplementSideEffectReporter", func(t *testing.T) {
+		for _, name := range []string{"exfil/output", "exfil/https"} {
+			payload, err := payloads.GetPayload(name)
+			if err != nil {
+				t.Fatalf("Failed to get payload %s: %v", name, err)
+			}
+
+			_, ok := payload.(payloads.SideEffectReporter)
+			if ok {
+				t.Errorf("Payload %s should NOT implement SideEffectReporter (read-only)", name)
+			}
+		}
+	})
+
+	t.Run("SideEffectResources_CompatibleWithCleanupHandler", func(t *testing.T) {
+		// Verify that reported side effects match the metadata schema
+		// expected by the iam:attached-policy cleanup handler
+		payload, _ := payloads.GetPayload("backdoor/attach-policy")
+		reporter := payload.(payloads.SideEffectReporter)
+		effects := reporter.ReportSideEffects(map[string]string{
+			"TARGET_USER": "cleanup-test-user",
+		})
+
+		effect := effects[0]
+
+		// The cleanup handler reads these three fields
+		if effect.Metadata["principal_type"] == "" {
+			t.Error("Side effect must include principal_type in metadata")
+		}
+		if effect.Metadata["principal_name"] == "" {
+			t.Error("Side effect must include principal_name in metadata")
+		}
+		if effect.Metadata["policy_arn"] == "" {
+			t.Error("Side effect must include policy_arn in metadata")
+		}
+	})
+
+	t.Run("SideEffect_ModuleIDNotSetByPayload", func(t *testing.T) {
+		// ModuleID should be empty — the module sets it after calling ReportSideEffects
+		payload, _ := payloads.GetPayload("backdoor/attach-policy")
+		reporter := payload.(payloads.SideEffectReporter)
+		effects := reporter.ReportSideEffects(map[string]string{
+			"TARGET_USER": "test",
+		})
+
+		if effects[0].ModuleID != "" {
+			t.Errorf("Payload should not set ModuleID (module does that), got '%s'", effects[0].ModuleID)
+		}
+	})
+
+	t.Run("SideEffect_NameIsReadable", func(t *testing.T) {
+		payload, _ := payloads.GetPayload("backdoor/attach-policy")
+		reporter := payload.(payloads.SideEffectReporter)
+		effects := reporter.ReportSideEffects(map[string]string{
+			"TARGET_USER": "alice",
+		})
+
+		// Name should contain the target user for display in workspace cleanup
+		if !strings.Contains(effects[0].Name, "alice") {
+			t.Errorf("Side effect Name should contain target user for readability, got '%s'", effects[0].Name)
+		}
+	})
+}
+
+func TestVerifiableInterface(t *testing.T) {
+	t.Run("BackdoorAttachPolicy_ImplementsVerifiable", func(t *testing.T) {
+		payload, err := payloads.GetPayload("backdoor/attach-policy")
+		if err != nil {
+			t.Fatalf("Failed to get payload: %v", err)
+		}
+
+		_, ok := payload.(payloads.Verifiable)
+		if !ok {
+			t.Fatal("backdoor/attach-policy should implement Verifiable")
+		}
+	})
+
+	t.Run("ExfilPayloads_DoNotImplementVerifiable", func(t *testing.T) {
+		for _, name := range []string{"exfil/output", "exfil/https"} {
+			payload, err := payloads.GetPayload(name)
+			if err != nil {
+				t.Fatalf("Failed to get payload %s: %v", name, err)
+			}
+
+			_, ok := payload.(payloads.Verifiable)
+			if ok {
+				t.Errorf("Payload %s should NOT implement Verifiable", name)
+			}
+		}
+	})
+}
+
+func TestSideEffectReporter_ResourceTracking(t *testing.T) {
+	// Simulate what a module does: get side effects, set ModuleID, and verify
+	// the resource is properly formed for the resource tracker
+	t.Run("ModuleIntegration_SetModuleID", func(t *testing.T) {
+		payload, _ := payloads.GetPayload("backdoor/attach-policy")
+		reporter := payload.(payloads.SideEffectReporter)
+
+		effects := reporter.ReportSideEffects(map[string]string{
+			"TARGET_USER": "starting-user",
+			"POLICY_ARN":  "arn:aws:iam::aws:policy/AdministratorAccess",
+		})
+
+		// Simulate what the module does
+		for i := range effects {
+			effects[i].ModuleID = "lambda-002"
+			effects[i].Region = "us-east-1"
+		}
+
+		effect := effects[0]
+		if effect.ModuleID != "lambda-002" {
+			t.Errorf("Expected ModuleID 'lambda-002', got '%s'", effect.ModuleID)
+		}
+		if effect.Region != "us-east-1" {
+			t.Errorf("Expected Region 'us-east-1', got '%s'", effect.Region)
+		}
+	})
+
+	t.Run("FullResourceStruct", func(t *testing.T) {
+		// Verify the resource can be represented as a CreatedResource
+		payload, _ := payloads.GetPayload("backdoor/attach-policy")
+		reporter := payload.(payloads.SideEffectReporter)
+
+		effects := reporter.ReportSideEffects(map[string]string{
+			"TARGET_USER": "my-user",
+		})
+
+		var _ modules.CreatedResource = effects[0] // compile-time check
 	})
 }
 

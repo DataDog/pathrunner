@@ -6,7 +6,12 @@ import (
 
 	// Import modules and payloads to register them
 	_ "pathrunner/pkg/exploits/ec2_passrole"
+	_ "pathrunner/pkg/exploits/lambda_createfunction_addpermission"
 	_ "pathrunner/pkg/exploits/lambda_passrole"
+	_ "pathrunner/pkg/exploits/lambda_passrole_esm"
+	_ "pathrunner/pkg/exploits/lambda_updatecode"
+	_ "pathrunner/pkg/exploits/lambda_updatecode_addpermission"
+	_ "pathrunner/pkg/exploits/lambda_updatecode_invoke"
 	_ "pathrunner/pkg/exploits/sts_assume_role"
 	_ "pathrunner/pkg/payloads/ec2"
 	_ "pathrunner/pkg/payloads/lambda"
@@ -395,5 +400,781 @@ func TestHelpIncludesNewCommands(t *testing.T) {
 	err = r.ExecuteCommand("help payloads")
 	if err != nil {
 		t.Errorf("Expected no error from help payloads, got: %v", err)
+	}
+}
+
+func TestUseLambda002ByID(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use lambda-002")
+	if err != nil {
+		t.Fatalf("Expected no error using lambda-002, got: %v", err)
+	}
+
+	mod := r.GetCurrentModule()
+	if mod == nil {
+		t.Fatal("Expected current module to be set")
+	}
+	if mod.Name() != "lambda-002" {
+		t.Errorf("Expected module name %q, got %q", "lambda-002", mod.Name())
+	}
+}
+
+func TestUseLambda002ByAlias(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use lambda-passrole-esm")
+	if err != nil {
+		t.Fatalf("Expected no error using lambda-passrole-esm, got: %v", err)
+	}
+
+	mod := r.GetCurrentModule()
+	if mod == nil {
+		t.Fatal("Expected current module to be set")
+	}
+	if mod.Name() != "lambda-002" {
+		t.Errorf("Expected module name %q, got %q", "lambda-002", mod.Name())
+	}
+}
+
+func TestUseLambda002OldAlias(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use exploit/lambda_passrole_esm")
+	if err != nil {
+		t.Fatalf("Expected no error using exploit/lambda_passrole_esm, got: %v", err)
+	}
+
+	mod := r.GetCurrentModule()
+	if mod == nil {
+		t.Fatal("Expected current module to be set")
+	}
+	if mod.Name() != "lambda-002" {
+		t.Errorf("Expected module name %q, got %q", "lambda-002", mod.Name())
+	}
+}
+
+func TestShowInfoLambda002(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use lambda-002")
+	if err != nil {
+		t.Fatalf("Failed to use lambda-002: %v", err)
+	}
+
+	err = r.ExecuteCommand("show info")
+	if err != nil {
+		t.Errorf("Expected no error from show info for lambda-002, got: %v", err)
+	}
+}
+
+func TestSearchFindsLambda002(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("search CreateEventSourceMapping")
+	if err != nil {
+		t.Errorf("Expected no error from search, got: %v", err)
+	}
+}
+
+func TestLambda002InModulesList(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("modules list")
+	if err != nil {
+		t.Errorf("Expected no error from modules list, got: %v", err)
+	}
+}
+
+func TestLambda002PromptContainsID(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use lambda-002")
+	if err != nil {
+		t.Fatalf("Failed to use lambda-002: %v", err)
+	}
+
+	prompt := r.BuildContextualPrompt()
+	if !strings.Contains(prompt, "lambda-002") {
+		t.Errorf("Expected prompt to contain 'lambda-002', got: %q", prompt)
+	}
+}
+
+func TestLambda002PayloadsList(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use lambda-002")
+	if err != nil {
+		t.Fatalf("Failed to use lambda-002: %v", err)
+	}
+
+	err = r.ExecuteCommand("payloads list")
+	if err != nil {
+		t.Errorf("Expected no error from payloads list with lambda-002, got: %v", err)
+	}
+}
+
+func TestModuleInfoViaPathInfoIncludesLambda002(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	moduleIDs := []string{"lambda-001", "lambda-002", "lambda-003", "lambda-004", "lambda-005", "lambda-006", "ec2-001", "sts-001"}
+	for _, id := range moduleIDs {
+		t.Run(id, func(t *testing.T) {
+			err := r.ExecuteCommand("use " + id)
+			if err != nil {
+				t.Fatalf("Failed to use %s: %v", id, err)
+			}
+
+			mod := r.GetCurrentModule()
+			if mod == nil {
+				t.Fatalf("Expected module to be set for %s", id)
+			}
+
+			info := mod.PathInfo()
+			if info.ID != id {
+				t.Errorf("Expected PathInfo().ID = %q, got %q", id, info.ID)
+			}
+			if info.Name == "" {
+				t.Error("Expected non-empty PathInfo().Name")
+			}
+			if info.Category == "" {
+				t.Error("Expected non-empty PathInfo().Category")
+			}
+			if len(info.Services) == 0 {
+				t.Error("Expected non-empty PathInfo().Services")
+			}
+		})
+	}
+}
+
+// lambda-004 integration tests
+
+func TestUseLambda004ByID(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use lambda-004")
+	if err != nil {
+		t.Fatalf("Expected no error using lambda-004, got: %v", err)
+	}
+
+	mod := r.GetCurrentModule()
+	if mod == nil {
+		t.Fatal("Expected current module to be set")
+	}
+	if mod.Name() != "lambda-004" {
+		t.Errorf("Expected module name %q, got %q", "lambda-004", mod.Name())
+	}
+}
+
+func TestUseLambda004ByAlias(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use lambda-updatecode-invoke")
+	if err != nil {
+		t.Fatalf("Expected no error using lambda-updatecode-invoke, got: %v", err)
+	}
+
+	mod := r.GetCurrentModule()
+	if mod == nil {
+		t.Fatal("Expected current module to be set")
+	}
+	if mod.Name() != "lambda-004" {
+		t.Errorf("Expected module name %q, got %q", "lambda-004", mod.Name())
+	}
+}
+
+func TestUseLambda004OldAlias(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use exploit/lambda_updatecode_invoke")
+	if err != nil {
+		t.Fatalf("Expected no error using exploit/lambda_updatecode_invoke, got: %v", err)
+	}
+
+	mod := r.GetCurrentModule()
+	if mod == nil {
+		t.Fatal("Expected current module to be set")
+	}
+	if mod.Name() != "lambda-004" {
+		t.Errorf("Expected module name %q, got %q", "lambda-004", mod.Name())
+	}
+}
+
+func TestShowInfoLambda004(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use lambda-004")
+	if err != nil {
+		t.Fatalf("Failed to use lambda-004: %v", err)
+	}
+
+	err = r.ExecuteCommand("show info")
+	if err != nil {
+		t.Errorf("Expected no error from show info for lambda-004, got: %v", err)
+	}
+}
+
+func TestSearchFindsLambda004(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("search InvokeFunction")
+	if err != nil {
+		t.Errorf("Expected no error from search, got: %v", err)
+	}
+}
+
+func TestSearchExistingPassroleFindsLambda004(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("search existing-passrole")
+	if err != nil {
+		t.Errorf("Expected no error from search, got: %v", err)
+	}
+}
+
+func TestLambda004PromptContainsID(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use lambda-004")
+	if err != nil {
+		t.Fatalf("Failed to use lambda-004: %v", err)
+	}
+
+	prompt := r.BuildContextualPrompt()
+	if !strings.Contains(prompt, "lambda-004") {
+		t.Errorf("Expected prompt to contain 'lambda-004', got: %q", prompt)
+	}
+}
+
+func TestLambda004PayloadsList(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use lambda-004")
+	if err != nil {
+		t.Fatalf("Failed to use lambda-004: %v", err)
+	}
+
+	err = r.ExecuteCommand("payloads list")
+	if err != nil {
+		t.Errorf("Expected no error from payloads list with lambda-004, got: %v", err)
+	}
+}
+
+func TestLambda004ShowOptions(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use lambda-004")
+	if err != nil {
+		t.Fatalf("Failed to use lambda-004: %v", err)
+	}
+
+	err = r.ExecuteCommand("show options")
+	if err != nil {
+		t.Errorf("Expected no error from show options for lambda-004, got: %v", err)
+	}
+}
+
+func TestLambda004WorkspacePersistence(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("workspace create lambda004-test")
+	if err != nil {
+		t.Fatalf("Failed to create workspace: %v", err)
+	}
+
+	err = r.ExecuteCommand("use lambda-004")
+	if err != nil {
+		t.Fatalf("Failed to use lambda-004: %v", err)
+	}
+
+	err = r.ExecuteCommand("workspace save")
+	if err != nil {
+		t.Fatalf("Failed to save workspace: %v", err)
+	}
+
+	err = r.ExecuteCommand("workspace create temp-ws-004")
+	if err != nil {
+		t.Fatalf("Failed to create temp workspace: %v", err)
+	}
+
+	err = r.ExecuteCommand("workspace switch lambda004-test")
+	if err != nil {
+		t.Fatalf("Failed to switch back: %v", err)
+	}
+
+	mod := r.GetCurrentModule()
+	if mod == nil {
+		t.Fatal("Expected module to be restored after workspace switch")
+	}
+	if mod.Name() != "lambda-004" {
+		t.Errorf("Expected restored module name %q, got %q", "lambda-004", mod.Name())
+	}
+}
+
+// lambda-003 integration tests
+
+func TestUseLambda003ByID(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use lambda-003")
+	if err != nil {
+		t.Fatalf("Expected no error using lambda-003, got: %v", err)
+	}
+
+	mod := r.GetCurrentModule()
+	if mod == nil {
+		t.Fatal("Expected current module to be set")
+	}
+	if mod.Name() != "lambda-003" {
+		t.Errorf("Expected module name %q, got %q", "lambda-003", mod.Name())
+	}
+}
+
+func TestUseLambda003ByAlias(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use lambda-updatecode")
+	if err != nil {
+		t.Fatalf("Expected no error using lambda-updatecode, got: %v", err)
+	}
+
+	mod := r.GetCurrentModule()
+	if mod == nil {
+		t.Fatal("Expected current module to be set")
+	}
+	if mod.Name() != "lambda-003" {
+		t.Errorf("Expected module name %q, got %q", "lambda-003", mod.Name())
+	}
+}
+
+func TestUseLambda003OldAlias(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use exploit/lambda_updatecode")
+	if err != nil {
+		t.Fatalf("Expected no error using exploit/lambda_updatecode, got: %v", err)
+	}
+
+	mod := r.GetCurrentModule()
+	if mod == nil {
+		t.Fatal("Expected current module to be set")
+	}
+	if mod.Name() != "lambda-003" {
+		t.Errorf("Expected module name %q, got %q", "lambda-003", mod.Name())
+	}
+}
+
+func TestShowInfoLambda003(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use lambda-003")
+	if err != nil {
+		t.Fatalf("Failed to use lambda-003: %v", err)
+	}
+
+	err = r.ExecuteCommand("show info")
+	if err != nil {
+		t.Errorf("Expected no error from show info for lambda-003, got: %v", err)
+	}
+}
+
+func TestSearchFindsLambda003(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("search UpdateFunctionCode")
+	if err != nil {
+		t.Errorf("Expected no error from search, got: %v", err)
+	}
+}
+
+func TestSearchExistingPassroleFindsLambda003(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("search existing-passrole")
+	if err != nil {
+		t.Errorf("Expected no error from search, got: %v", err)
+	}
+}
+
+func TestLambda003InModulesList(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("modules list")
+	if err != nil {
+		t.Errorf("Expected no error from modules list, got: %v", err)
+	}
+}
+
+func TestLambda003PromptContainsID(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use lambda-003")
+	if err != nil {
+		t.Fatalf("Failed to use lambda-003: %v", err)
+	}
+
+	prompt := r.BuildContextualPrompt()
+	if !strings.Contains(prompt, "lambda-003") {
+		t.Errorf("Expected prompt to contain 'lambda-003', got: %q", prompt)
+	}
+}
+
+func TestLambda003PayloadsList(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use lambda-003")
+	if err != nil {
+		t.Fatalf("Failed to use lambda-003: %v", err)
+	}
+
+	err = r.ExecuteCommand("payloads list")
+	if err != nil {
+		t.Errorf("Expected no error from payloads list with lambda-003, got: %v", err)
+	}
+}
+
+func TestLambda003ShowOptions(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use lambda-003")
+	if err != nil {
+		t.Fatalf("Failed to use lambda-003: %v", err)
+	}
+
+	err = r.ExecuteCommand("show options")
+	if err != nil {
+		t.Errorf("Expected no error from show options for lambda-003, got: %v", err)
+	}
+}
+
+func TestLambda003WorkspacePersistence(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	// Set up lambda-003 in a workspace
+	err := r.ExecuteCommand("workspace create lambda003-test")
+	if err != nil {
+		t.Fatalf("Failed to create workspace: %v", err)
+	}
+
+	err = r.ExecuteCommand("use lambda-003")
+	if err != nil {
+		t.Fatalf("Failed to use lambda-003: %v", err)
+	}
+
+	err = r.ExecuteCommand("workspace save")
+	if err != nil {
+		t.Fatalf("Failed to save workspace: %v", err)
+	}
+
+	// Switch away and back
+	err = r.ExecuteCommand("workspace create temp-ws-003")
+	if err != nil {
+		t.Fatalf("Failed to create temp workspace: %v", err)
+	}
+
+	err = r.ExecuteCommand("workspace switch lambda003-test")
+	if err != nil {
+		t.Fatalf("Failed to switch back: %v", err)
+	}
+
+	// Module should be restored
+	mod := r.GetCurrentModule()
+	if mod == nil {
+		t.Fatal("Expected module to be restored after workspace switch")
+	}
+	if mod.Name() != "lambda-003" {
+		t.Errorf("Expected restored module name %q, got %q", "lambda-003", mod.Name())
+	}
+}
+
+// lambda-005 integration tests
+
+func TestUseLambda005ByID(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use lambda-005")
+	if err != nil {
+		t.Fatalf("Expected no error using lambda-005, got: %v", err)
+	}
+
+	mod := r.GetCurrentModule()
+	if mod == nil {
+		t.Fatal("Expected current module to be set")
+	}
+	if mod.Name() != "lambda-005" {
+		t.Errorf("Expected module name %q, got %q", "lambda-005", mod.Name())
+	}
+}
+
+func TestUseLambda005ByAlias(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use lambda-updatecode-addpermission")
+	if err != nil {
+		t.Fatalf("Expected no error using lambda-updatecode-addpermission, got: %v", err)
+	}
+
+	mod := r.GetCurrentModule()
+	if mod == nil {
+		t.Fatal("Expected current module to be set")
+	}
+	if mod.Name() != "lambda-005" {
+		t.Errorf("Expected module name %q, got %q", "lambda-005", mod.Name())
+	}
+}
+
+func TestUseLambda005OldAlias(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use exploit/lambda_updatecode_addpermission")
+	if err != nil {
+		t.Fatalf("Expected no error using exploit/lambda_updatecode_addpermission, got: %v", err)
+	}
+
+	mod := r.GetCurrentModule()
+	if mod == nil {
+		t.Fatal("Expected current module to be set")
+	}
+	if mod.Name() != "lambda-005" {
+		t.Errorf("Expected module name %q, got %q", "lambda-005", mod.Name())
+	}
+}
+
+func TestShowInfoLambda005(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use lambda-005")
+	if err != nil {
+		t.Fatalf("Failed to use lambda-005: %v", err)
+	}
+
+	err = r.ExecuteCommand("show info")
+	if err != nil {
+		t.Errorf("Expected no error from show info for lambda-005, got: %v", err)
+	}
+}
+
+func TestSearchFindsLambda005(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("search AddPermission")
+	if err != nil {
+		t.Errorf("Expected no error from search, got: %v", err)
+	}
+}
+
+func TestLambda005PromptContainsID(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use lambda-005")
+	if err != nil {
+		t.Fatalf("Failed to use lambda-005: %v", err)
+	}
+
+	prompt := r.BuildContextualPrompt()
+	if !strings.Contains(prompt, "lambda-005") {
+		t.Errorf("Expected prompt to contain 'lambda-005', got: %q", prompt)
+	}
+}
+
+func TestLambda005PayloadsList(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use lambda-005")
+	if err != nil {
+		t.Fatalf("Failed to use lambda-005: %v", err)
+	}
+
+	err = r.ExecuteCommand("payloads list")
+	if err != nil {
+		t.Errorf("Expected no error from payloads list with lambda-005, got: %v", err)
+	}
+}
+
+func TestLambda005ShowOptions(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use lambda-005")
+	if err != nil {
+		t.Fatalf("Failed to use lambda-005: %v", err)
+	}
+
+	err = r.ExecuteCommand("show options")
+	if err != nil {
+		t.Errorf("Expected no error from show options for lambda-005, got: %v", err)
+	}
+}
+
+// lambda-006 integration tests
+
+func TestUseLambda006ByID(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use lambda-006")
+	if err != nil {
+		t.Fatalf("Expected no error using lambda-006, got: %v", err)
+	}
+
+	mod := r.GetCurrentModule()
+	if mod == nil {
+		t.Fatal("Expected current module to be set")
+	}
+	if mod.Name() != "lambda-006" {
+		t.Errorf("Expected module name %q, got %q", "lambda-006", mod.Name())
+	}
+}
+
+func TestUseLambda006ByAlias(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use lambda-createfunction-addpermission")
+	if err != nil {
+		t.Fatalf("Expected no error using lambda-createfunction-addpermission, got: %v", err)
+	}
+
+	mod := r.GetCurrentModule()
+	if mod == nil {
+		t.Fatal("Expected current module to be set")
+	}
+	if mod.Name() != "lambda-006" {
+		t.Errorf("Expected module name %q, got %q", "lambda-006", mod.Name())
+	}
+}
+
+func TestUseLambda006OldAlias(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use exploit/lambda_createfunction_addpermission")
+	if err != nil {
+		t.Fatalf("Expected no error using exploit/lambda_createfunction_addpermission, got: %v", err)
+	}
+
+	mod := r.GetCurrentModule()
+	if mod == nil {
+		t.Fatal("Expected current module to be set")
+	}
+	if mod.Name() != "lambda-006" {
+		t.Errorf("Expected module name %q, got %q", "lambda-006", mod.Name())
+	}
+}
+
+func TestShowInfoLambda006(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use lambda-006")
+	if err != nil {
+		t.Fatalf("Failed to use lambda-006: %v", err)
+	}
+
+	err = r.ExecuteCommand("show info")
+	if err != nil {
+		t.Errorf("Expected no error from show info for lambda-006, got: %v", err)
+	}
+}
+
+func TestSearchFindsLambda006(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("search CreateFunction")
+	if err != nil {
+		t.Errorf("Expected no error from search, got: %v", err)
+	}
+}
+
+func TestSearchNewPassroleFindsLambda006(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("search new-passrole")
+	if err != nil {
+		t.Errorf("Expected no error from search, got: %v", err)
+	}
+}
+
+func TestLambda006PromptContainsID(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use lambda-006")
+	if err != nil {
+		t.Fatalf("Failed to use lambda-006: %v", err)
+	}
+
+	prompt := r.BuildContextualPrompt()
+	if !strings.Contains(prompt, "lambda-006") {
+		t.Errorf("Expected prompt to contain 'lambda-006', got: %q", prompt)
+	}
+}
+
+func TestLambda006PayloadsList(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use lambda-006")
+	if err != nil {
+		t.Fatalf("Failed to use lambda-006: %v", err)
+	}
+
+	err = r.ExecuteCommand("payloads list")
+	if err != nil {
+		t.Errorf("Expected no error from payloads list with lambda-006, got: %v", err)
+	}
+}
+
+func TestLambda006ShowOptions(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use lambda-006")
+	if err != nil {
+		t.Fatalf("Failed to use lambda-006: %v", err)
+	}
+
+	err = r.ExecuteCommand("show options")
+	if err != nil {
+		t.Errorf("Expected no error from show options for lambda-006, got: %v", err)
 	}
 }

@@ -2,9 +2,9 @@
 
 This document contains Go code templates extracted from existing pathrunner modules, organized by exploit category. Use these as the basis for new modules.
 
-## Category: new-passrole (lambda-001, ec2-001)
+## Category: new-passrole — Direct Invoke (lambda-001, ec2-001)
 
-Pattern: Create a new AWS resource with a privileged role attached, then execute code through that resource.
+Pattern: Create a new AWS resource with a privileged role attached, then directly invoke/execute code and capture the response.
 
 ### Template Structure
 
@@ -14,6 +14,7 @@ package {service}_{technique}
 import (
     "context"
     "fmt"
+    "pathrunner/pkg/discovery"
     "pathrunner/pkg/modules"
     "pathrunner/pkg/payloads"
     "time"
@@ -90,6 +91,25 @@ func (m *Module) GetPayloadContext() string {
     return payloads.TagService{Service}
 }
 
+// Implement Discoverable for auto-discovery of option values
+// Only include options where the "additional" permissions in PathInfo enable enumeration
+func (m *Module) DiscoverableOptions() []string {
+    return []string{"ROLE_ARN"} // adjust based on module's discoverable options
+}
+
+func (m *Module) Discover(optionName string, identity *modules.Identity, currentOptions map[string]string) ([]modules.DiscoveryChoice, error) {
+    config := identity.GetConfig()
+    if region := currentOptions["REGION"]; region != "" {
+        config.Region = region
+    }
+    switch optionName {
+    case "ROLE_ARN":
+        return discovery.DiscoverRolesForService(context.Background(), config, "{service}.amazonaws.com")
+    default:
+        return nil, fmt.Errorf("option '%s' does not support auto-discovery", optionName)
+    }
+}
+
 func (m *Module) PayloadOptions(payloadName string) []modules.Option {
     payload, err := payloads.GetPayload(payloadName)
     if err != nil {
@@ -155,7 +175,18 @@ func (m *Module) Execute(identity *modules.Identity, options map[string]string, 
     // 7. Execute/invoke the resource
     // ... invoke the function/instance/task ...
 
-    // 8. Process and return result
+    // 8. Track payload side effects for cleanup
+    if tracker != nil {
+        if reporter, ok := payload.(payloads.SideEffectReporter); ok {
+            for _, sideEffect := range reporter.ReportSideEffects(options) {
+                sideEffect.ModuleID = "{service}-{number}"
+                sideEffect.Region = config.Region
+                tracker.TrackResource(sideEffect)
+            }
+        }
+    }
+
+    // 9. Process and return result
     result, err := payload.ProcessResult(rawResult)
     if err != nil {
         return rawResult, fmt.Errorf("failed to process result: %v", err)
@@ -163,6 +194,109 @@ func (m *Module) Execute(identity *modules.Identity, options map[string]string, 
     return result, nil
 }
 ```
+
+## Category: new-passrole — Event-Triggered (lambda-002)
+
+Pattern: Create a new AWS resource with a privileged role attached, configure an event trigger (DynamoDB stream, CloudWatch Events, SQS queue, etc.), then trigger execution indirectly and verify the effect.
+
+### Key Differences from Direct Invoke
+- **No function response is captured** — the function runs asynchronously via the event source
+- **Only action-based payloads work** — `exfil/output` does NOT work; use `backdoor/attach-policy`, `backdoor/role`, `exfil/https`, etc.
+- **Trigger-and-verify retry loop** — must repeatedly trigger the event and check if the payload's effect has been observed (e.g., policy attached, user created)
+- **Payloads should implement `Verifiable`** — so the module can confirm the payload executed
+- **Longer context timeouts** — the full attack with retries can take 5-10 minutes
+- **Lambda environment variables** — pass payload parameters via env vars, not hardcoded in source
+- **Starting user often lacks cleanup permissions** — default CLEANUP to "false"
+
+### Template Structure
+
+```go
+func (m *Module) Execute(identity *modules.Identity, options map[string]string, tracker modules.ResourceTracker) (string, error) {
+    // 1. Parse and validate options
+    // 2. Get, validate, and generate payload code
+    // 3. Configure AWS client with LONG timeout
+    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+    defer cancel()
+
+    // 4. Build Lambda environment variables for payload parameters
+    envVars := map[string]string{}
+    if targetUser := options["TARGET_USER"]; targetUser != "" {
+        envVars["TARGET_USER"] = targetUser
+    }
+    if policyArn := options["POLICY_ARN"]; policyArn != "" {
+        envVars["POLICY_ARN"] = policyArn
+    }
+
+    // 5. Create resource (Lambda function) with privileged role + env vars
+    createInput := &lambda.CreateFunctionInput{
+        // ... standard fields ...
+    }
+    if len(envVars) > 0 {
+        createInput.Environment = &types.Environment{Variables: envVars}
+    }
+    // ... create function, track resource ...
+
+    // 6. Wait for function to become active
+    // ... poll GetFunction until State=Active ...
+
+    // 7. Create event source mapping (ESM)
+    // ... CreateEventSourceMapping, track resource ...
+
+    // 8. Wait for ESM to become Enabled (time-based, ~60s)
+    // NOTE: ESM showing "Enabled" does NOT mean it's processing events yet!
+
+    // 9. Trigger-and-verify retry loop
+    //    This is the critical pattern for event-triggered modules.
+    //    Extract retry params from demo_attack.sh (e.g., 30 attempts x 10s = 5 min)
+    verifiable, isVerifiable := payload.(payloads.Verifiable)
+    maxAttempts := 30  // from demo_attack.sh
+
+    for attempt := 1; attempt <= maxAttempts; attempt++ {
+        // Insert trigger record (DynamoDB PutItem, SQS SendMessage, etc.)
+        // Wait ~5 seconds for Lambda to execute
+        time.Sleep(5 * time.Second)
+
+        // Verify payload effect
+        if isVerifiable {
+            success, _ := verifiable.VerifySuccess(ctx, config, options)
+            if success {
+                verified = true
+                break
+            }
+        }
+
+        // Wait before next attempt
+        time.Sleep(5 * time.Second)
+    }
+
+    // 10. If verified, wait for IAM propagation (~15 seconds)
+    if verified {
+        time.Sleep(15 * time.Second)
+    }
+
+    // 11. Track payload side effects for cleanup
+    if tracker != nil {
+        if reporter, ok := payload.(payloads.SideEffectReporter); ok {
+            for _, sideEffect := range reporter.ReportSideEffects(options) {
+                sideEffect.ModuleID = "{service}-{number}"
+                sideEffect.Region = config.Region
+                tracker.TrackResource(sideEffect)
+            }
+        }
+    }
+
+    // 12. Build and return result
+    return result.String(), nil
+}
+```
+
+### Cleanup Permission Considerations
+
+Starting users often have permissions to CREATE resources but NOT DELETE them (e.g., lambda:CreateFunction but not lambda:DeleteFunction). For event-triggered modules:
+
+- Default the `CLEANUP` option to `"false"` — the starting user likely can't delete what they created
+- Print a message telling the user to run `workspace cleanup` with admin credentials later
+- The tracked resources + side effects will be cleaned up when the user switches to an admin identity
 
 ## Category: principal-access (sts-001)
 

@@ -30,6 +30,10 @@ Use this checklist after generating a new module to verify everything is complet
 - [ ] `Execute()` implements the full exploitation flow
 - [ ] If payload-based: `PayloadOptions()` and `ListPayloads()` are overridden
 - [ ] If payload-based: `PayloadCompatible` interface is implemented (`GetCompatibleTags()`, `GetPayloadContext()`)
+- [ ] If options can be enumerated via AWS API: `Discoverable` interface is implemented
+  - `DiscoverableOptions()` returns option names that support discovery
+  - `Discover()` uses `pkg/discovery/` utilities (e.g., `discovery.DiscoverRolesForService()`, `discovery.DiscoverInstanceProfiles()`, `discovery.DiscoverDynamoDBStreams()`)
+  - Error handling uses `discovery.IsAccessDenied()` for graceful permission-denied messages
 
 ## Resource Tracking
 - [ ] ALL created AWS resources call `tracker.TrackResource()` with:
@@ -41,6 +45,23 @@ Use this checklist after generating a new module to verify everything is complet
   - `ModuleID` set to the path ID
   - `Metadata` includes info needed for cleanup
 - [ ] Cleanup handler exists in `pkg/core/repl/session.go` for each resource type created
+
+## Side Effect Tracking (payload modifications)
+- [ ] After execution, module checks if payload implements `SideEffectReporter`
+- [ ] If yes, calls `ReportSideEffects()` and tracks each resource with `ModuleID` and `Region` set
+- [ ] Payloads that modify existing resources (attach policy, modify role, etc.) implement `SideEffectReporter`
+- [ ] Side effect resources use existing cleanup handler types (e.g., `iam:attached-policy`)
+
+## Event-Triggered Modules (if applicable)
+- [ ] Payload implements `Verifiable` interface for effect verification
+- [ ] Module has a trigger-and-verify retry loop with timing from demo_attack.sh
+- [ ] `MAX_TRIGGER_ATTEMPTS` option with default matching demo script
+- [ ] Context timeout is long enough for full retry loop (10+ minutes)
+- [ ] IAM propagation wait after verified success (~15 seconds)
+- [ ] `CLEANUP` defaults to "false" (starting user likely lacks delete permissions)
+- [ ] Guidance message about using `workspace cleanup` with admin credentials
+- [ ] Payload parameters passed via Lambda environment variables (not hardcoded in source)
+- [ ] Only action-based payloads recommended (NOT exfil/output)
 
 ## Credential Output
 - [ ] If module produces credentials, uses `PATHFINDER_IDENTITY_DATA` structured format

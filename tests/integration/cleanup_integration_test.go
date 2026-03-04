@@ -183,3 +183,127 @@ func TestCleanupHelpShowsFlags(t *testing.T) {
 		t.Errorf("Expected no error for workspace help, got: %v", err)
 	}
 }
+
+// === Workspace Report Tests ===
+
+func TestReportNoResources(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("workspace report")
+	if err != nil {
+		t.Errorf("Expected no error for report with no resources, got: %v", err)
+	}
+}
+
+func TestReportWithCreatedResources(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	sm := r.GetSessionManager()
+	sm.TrackResource(modules.CreatedResource{
+		Type:     "lambda:function",
+		Name:     "pathrunner-1234",
+		Region:   "us-east-1",
+		ModuleID: "lambda-002",
+		Metadata: map[string]string{"runtime": "python3.11"},
+	})
+	sm.TrackResource(modules.CreatedResource{
+		Type:     "lambda:event-source-mapping",
+		Name:     "abc-123-uuid",
+		Region:   "us-east-1",
+		ModuleID: "lambda-002",
+		Metadata: map[string]string{"uuid": "abc-123-uuid"},
+	})
+
+	err := r.ExecuteCommand("workspace report")
+	if err != nil {
+		t.Errorf("Expected no error, got: %v", err)
+	}
+}
+
+func TestReportWithModifiedResources(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	sm := r.GetSessionManager()
+	sm.TrackResource(modules.CreatedResource{
+		Type:          "iam:attached-policy",
+		Name:          "starting-user←AdministratorAccess",
+		CleanupMethod: "iam:DetachUserPolicy",
+		ModuleID:      "lambda-002",
+		Metadata: map[string]string{
+			"principal_type": "user",
+			"principal_name": "starting-user",
+			"policy_arn":     "arn:aws:iam::aws:policy/AdministratorAccess",
+		},
+	})
+
+	err := r.ExecuteCommand("workspace report")
+	if err != nil {
+		t.Errorf("Expected no error, got: %v", err)
+	}
+}
+
+func TestReportModuleFilter(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	sm := r.GetSessionManager()
+	sm.TrackResource(modules.CreatedResource{
+		Type:     "lambda:function",
+		Name:     "func-from-001",
+		Region:   "us-east-1",
+		ModuleID: "lambda-001",
+	})
+	sm.TrackResource(modules.CreatedResource{
+		Type:     "lambda:function",
+		Name:     "func-from-002",
+		Region:   "us-east-1",
+		ModuleID: "lambda-002",
+	})
+
+	// Filter to lambda-002 only
+	err := r.ExecuteCommand("workspace report --module lambda-002")
+	if err != nil {
+		t.Errorf("Expected no error, got: %v", err)
+	}
+}
+
+func TestReportModuleFilterNoMatch(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	sm := r.GetSessionManager()
+	sm.TrackResource(modules.CreatedResource{
+		Type:     "lambda:function",
+		Name:     "func1",
+		Region:   "us-east-1",
+		ModuleID: "lambda-001",
+	})
+
+	err := r.ExecuteCommand("workspace report --module nonexistent")
+	if err != nil {
+		t.Errorf("Expected no error for no matching resources, got: %v", err)
+	}
+}
+
+func TestReportHelp(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("workspace report help")
+	if err != nil {
+		t.Errorf("Expected no error for report help, got: %v", err)
+	}
+}
+
+func TestReportWorkspacesAlias(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("workspaces report")
+	if err != nil {
+		t.Errorf("Expected no error via alias, got: %v", err)
+	}
+}

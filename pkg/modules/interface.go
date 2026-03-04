@@ -19,16 +19,18 @@ type Option struct {
 }
 
 type Identity struct {
-	Name        string            `json:"name"`
-	Type        string            `json:"type"`
-	Profile     string            `json:"profile,omitempty"`
-	AccessKeyID string            `json:"access_key_id,omitempty"`
-	SecretKey   string            `json:"secret_key,omitempty"`
-	SessionToken string           `json:"session_token,omitempty"`
-	Region      string            `json:"region,omitempty"`
-	ExpiresAt   *time.Time        `json:"expires_at,omitempty"`
-	Metadata    map[string]string `json:"metadata,omitempty"`
-	config      aws.Config        `json:"-"`
+	Name         string            `json:"name"`
+	Type         string            `json:"type"`
+	Profile      string            `json:"profile,omitempty"`
+	AccessKeyID  string            `json:"access_key_id,omitempty"`
+	SecretKey    string            `json:"secret_key,omitempty"`
+	SessionToken string            `json:"session_token,omitempty"`
+	Region       string            `json:"region,omitempty"`
+	ExpiresAt    *time.Time        `json:"expires_at,omitempty"`
+	IsAdmin      *bool             `json:"is_admin,omitempty"`
+	CallerARN    string            `json:"caller_arn,omitempty"`
+	Metadata     map[string]string `json:"metadata,omitempty"`
+	config       aws.Config        `json:"-"`
 }
 
 func (i *Identity) IsExpired() bool {
@@ -49,9 +51,14 @@ func (i *Identity) Validate() error {
 	// Use GetConfig() to ensure fresh credentials for profiles
 	cfg := i.GetConfig()
 	stsClient := sts.NewFromConfig(cfg)
-	_, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+	result, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 	if err != nil {
 		return fmt.Errorf("credential validation failed: %v", err)
+	}
+
+	// Cache the caller ARN for later use (admin check, display)
+	if result.Arn != nil {
+		i.CallerARN = *result.Arn
 	}
 
 	return nil
@@ -196,4 +203,27 @@ type CreatedResource struct {
 
 type ResourceTracker interface {
 	TrackResource(resource CreatedResource)
+}
+
+// Discoverable is an optional interface that modules can implement
+// to support auto-discovery of option values via AWS API calls.
+// When a user runs 'discover' or 'exploit' with missing options,
+// the framework checks if the module implements this interface
+// and attempts to enumerate valid values.
+type Discoverable interface {
+	// DiscoverableOptions returns which option names support auto-discovery
+	// e.g., ["ROLE_ARN", "EVENT_SOURCE_ARN"]
+	DiscoverableOptions() []string
+
+	// Discover enumerates valid values for the given option name.
+	// Returns structured choices for interactive selection, or an error
+	// (e.g., AccessDenied with the specific permission needed).
+	Discover(optionName string, identity *Identity, currentOptions map[string]string) ([]DiscoveryChoice, error)
+}
+
+// DiscoveryChoice represents a single discovered value for an option.
+type DiscoveryChoice struct {
+	Value    string            // The actual value to set (ARN, name, etc.)
+	Label    string            // Human-readable display label
+	Metadata map[string]string // Extra info for display (e.g., attached policies)
 }

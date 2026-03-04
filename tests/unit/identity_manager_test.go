@@ -1,8 +1,10 @@
 package unit
 
 import (
+	"encoding/json"
 	"pathrunner/pkg/core"
 	"pathrunner/pkg/modules"
+	"strings"
 	"testing"
 	"time"
 )
@@ -386,5 +388,136 @@ func TestRemoveIdentityRequiresArgument(t *testing.T) {
 	err := im.RemoveIdentity([]string{})
 	if err == nil {
 		t.Error("Expected error when RemoveIdentity called with no arguments")
+	}
+}
+
+func TestIsAdminNilByDefault(t *testing.T) {
+	identity := &modules.Identity{
+		Name:   "test",
+		Type:   "keys",
+		Region: "us-east-1",
+	}
+
+	if identity.IsAdmin != nil {
+		t.Error("Expected IsAdmin to be nil by default")
+	}
+}
+
+func TestIsAdminJsonRoundTrip(t *testing.T) {
+	// Test nil (unchecked)
+	identity := &modules.Identity{
+		Name:   "test",
+		Type:   "keys",
+		Region: "us-east-1",
+	}
+
+	data, err := json.Marshal(identity)
+	if err != nil {
+		t.Fatalf("Failed to marshal identity: %v", err)
+	}
+
+	var decoded modules.Identity
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("Failed to unmarshal identity: %v", err)
+	}
+
+	if decoded.IsAdmin != nil {
+		t.Errorf("Expected IsAdmin nil after round-trip, got %v", *decoded.IsAdmin)
+	}
+
+	// Test true (admin)
+	isAdmin := true
+	identity.IsAdmin = &isAdmin
+
+	data, err = json.Marshal(identity)
+	if err != nil {
+		t.Fatalf("Failed to marshal identity: %v", err)
+	}
+
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("Failed to unmarshal identity: %v", err)
+	}
+
+	if decoded.IsAdmin == nil || !*decoded.IsAdmin {
+		t.Error("Expected IsAdmin true after round-trip")
+	}
+
+	// Test false (not admin)
+	notAdmin := false
+	identity.IsAdmin = &notAdmin
+
+	data, err = json.Marshal(identity)
+	if err != nil {
+		t.Fatalf("Failed to marshal identity: %v", err)
+	}
+
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("Failed to unmarshal identity: %v", err)
+	}
+
+	if decoded.IsAdmin == nil || *decoded.IsAdmin {
+		t.Error("Expected IsAdmin false after round-trip")
+	}
+}
+
+func TestCallerARNJsonRoundTrip(t *testing.T) {
+	// Test empty CallerARN omitted
+	identity := &modules.Identity{
+		Name:   "test",
+		Type:   "keys",
+		Region: "us-east-1",
+	}
+
+	data, err := json.Marshal(identity)
+	if err != nil {
+		t.Fatalf("Failed to marshal identity: %v", err)
+	}
+
+	// CallerARN should not appear in JSON when empty
+	if strings.Contains(string(data), "caller_arn") {
+		t.Error("Expected caller_arn to be omitted when empty")
+	}
+
+	// Test with CallerARN set
+	identity.CallerARN = "arn:aws:iam::123456789012:user/testuser"
+
+	data, err = json.Marshal(identity)
+	if err != nil {
+		t.Fatalf("Failed to marshal identity: %v", err)
+	}
+
+	var decoded modules.Identity
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("Failed to unmarshal identity: %v", err)
+	}
+
+	if decoded.CallerARN != "arn:aws:iam::123456789012:user/testuser" {
+		t.Errorf("Expected CallerARN 'arn:aws:iam::123456789012:user/testuser', got '%s'", decoded.CallerARN)
+	}
+}
+
+func TestCheckAdminNoCurrentIdentity(t *testing.T) {
+	im := core.NewIdentityManager(nil, nil)
+
+	err := im.CheckAdmin("")
+	if err == nil {
+		t.Error("Expected error when checking admin with no current identity")
+	}
+
+	if !strings.Contains(err.Error(), "no current identity") {
+		t.Errorf("Expected 'no current identity' error, got: %v", err)
+	}
+}
+
+func TestCheckAdminNonExistentIdentity(t *testing.T) {
+	im := core.NewIdentityManager(nil, nil)
+
+	err := im.CheckAdmin("nonexistent")
+	if err == nil {
+		t.Error("Expected error when checking admin for non-existent identity")
+	}
+
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("Expected 'not found' error, got: %v", err)
 	}
 }

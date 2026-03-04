@@ -97,13 +97,25 @@ Create a summary table:
 
 If pathrunner cleanup missed anything, flag it as a bug that needs fixing in the cleanup handlers.
 
-### Step 7: Final Cleanup Safety Net
+### Step 7: Verify Cleanup Completeness
 
-As a safety net, also run the pathfinding-labs cleanup script:
-```bash
-cd /Users/seth.art/Documents/projects/pathfinding-labs
-SCENARIO_DIR=$(grep -rl "pathfinding-cloud-id.*<path-id>" modules/scenarios/*/scenario.yaml | head -1 | xargs dirname)
-bash "$SCENARIO_DIR/cleanup_attack.sh" 2>&1
-```
+After pathrunner cleanup, verify that all resources are actually cleaned up by checking AWS state directly:
 
-Report what pathrunner cleaned vs what the fallback script had to clean. Any resources that only the fallback cleaned indicate gaps in pathrunner's cleanup handlers.
+1. **Check for leftover policy attachments** (for backdoor payloads):
+   ```bash
+   ./pathrunner aws iam list-attached-user-policies --user-name <starting-user> --output json 2>&1
+   ```
+
+2. **Check function code was restored** (for lambda-003 and similar):
+   ```bash
+   ./pathrunner aws lambda invoke --function-name <target-function> --payload '{}' /tmp/verify.json --output json 2>&1
+   ```
+
+3. **Check for leftover pathrunner functions** (for lambda-001/002):
+   ```bash
+   ./pathrunner aws lambda list-functions --query 'Functions[?starts_with(FunctionName, `pathrunner`)]' 2>&1
+   ```
+
+If anything was missed, flag it as a bug in pathrunner's cleanup handlers.
+
+**IMPORTANT**: Do NOT run pathfinding-labs cleanup scripts (`cleanup_attack.sh`). Those belong to a separate project and should only be used as reference for understanding what needs to be cleaned up, never executed from this skill.

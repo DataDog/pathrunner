@@ -35,6 +35,7 @@ type IdentityManager interface {
 	SwitchIdentity(name string) error
 	RemoveIdentity(args []string) error
 	RefreshCurrentIdentity() error
+	CheckAdmin(identityName string) error
 	SetIdentities(identities map[string]*modules.Identity)
 	SetCurrent(identity *modules.Identity)
 }
@@ -295,6 +296,9 @@ func (r *REPL) BuildContextualPrompt() string {
 		identityPart := identity.Name
 		if identity.IsExpired() {
 			identityPart += "*" // Mark expired with asterisk
+		}
+		if identity.IsAdmin != nil && *identity.IsAdmin {
+			identityPart += "!" // Mark admin with exclamation
 		}
 		parts = append(parts, identityPart)
 	}

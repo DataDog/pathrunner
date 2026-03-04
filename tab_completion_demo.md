@@ -51,6 +51,6 @@ pathrunner> unset + TAB
 ## 🎯 Interactive Features:
 - **Context-Aware**: Completions change based on current module and payload selection
 - **Dynamic Updates**: Adding identities immediately updates completion options
-- **Multi-Level**: Supports nested completions (e.g., `identity add --` + TAB shows `--profile`, `--keys`, `--from-output`)
+- **Multi-Level**: Supports nested completions (e.g., `identity add --` + TAB shows `--profile`, `--access`, `--from-output`)
 
 This makes the tool much more discoverable and user-friendly for penetration testers!
