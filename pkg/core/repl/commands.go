@@ -415,7 +415,7 @@ func (r *REPL) showSetHelp() error {
 	fmt.Println()
 	fmt.Println("Examples:")
 	fmt.Println("  set ROLE_ARN arn:aws:iam::123456789012:role/MyRole")
-	fmt.Println("  set PAYLOAD exfil/output")
+	fmt.Println("  set PAYLOAD exfil/response")
 	return nil
 }
 

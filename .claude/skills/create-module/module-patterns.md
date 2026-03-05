@@ -111,7 +111,7 @@ func (m *Module) Discover(optionName string, identity *modules.Identity, current
 }
 
 func (m *Module) PayloadOptions(payloadName string) []modules.Option {
-    payload, err := payloads.GetPayload(payloadName)
+    payload, err := payloads.GetPayloadForService(payloadName, payloads.TagService{Service})
     if err != nil {
         return []modules.Option{}
     }
@@ -133,7 +133,7 @@ func (m *Module) Execute(identity *modules.Identity, options map[string]string, 
     payloadType := options["PAYLOAD"]
 
     // 2. Get and validate payload
-    payload, err := payloads.GetPayload(payloadType)
+    payload, err := payloads.GetPayloadForService(payloadType, payloads.TagService{Service})
     if err != nil {
         return "", fmt.Errorf("unknown payload type: %s", payloadType)
     }
@@ -201,7 +201,7 @@ Pattern: Create a new AWS resource with a privileged role attached, configure an
 
 ### Key Differences from Direct Invoke
 - **No function response is captured** — the function runs asynchronously via the event source
-- **Only action-based payloads work** — `exfil/output` does NOT work; use `backdoor/attach-policy`, `backdoor/role`, `exfil/https`, etc.
+- **Only action-based payloads work** — `exfil/response` does NOT work; use `backdoor/attach-policy`, `backdoor/create-role`, `exfil/https`, etc.
 - **Trigger-and-verify retry loop** — must repeatedly trigger the event and check if the payload's effect has been observed (e.g., policy attached, user created)
 - **Payloads should implement `Verifiable`** — so the module can confirm the payload executed
 - **Longer context timeouts** — the full attack with retries can take 5-10 minutes

@@ -660,15 +660,15 @@ func TestLambda004Module(t *testing.T) {
 		if len(payloadList) == 0 {
 			t.Error("Expected at least one payload for lambda-004")
 		}
-		// Should include exfil/output since this is a direct-invoke module
+		// Should include exfil/response since this is a direct-invoke module
 		foundExfil := false
 		for _, p := range payloadList {
-			if p.Name == "exfil/output" {
+			if p.Name == "exfil/response" {
 				foundExfil = true
 			}
 		}
 		if !foundExfil {
-			t.Error("Expected exfil/output payload for direct-invoke lambda-004")
+			t.Error("Expected exfil/response payload for direct-invoke lambda-004")
 		}
 	})
 }
@@ -848,15 +848,15 @@ func TestLambda003Module(t *testing.T) {
 		if len(payloadList) == 0 {
 			t.Error("Expected at least one payload for lambda-003")
 		}
-		// Should include exfil/output since this is a direct-invoke module
+		// Should include exfil/response since this is a direct-invoke module
 		foundExfil := false
 		for _, p := range payloadList {
-			if p.Name == "exfil/output" {
+			if p.Name == "exfil/response" {
 				foundExfil = true
 			}
 		}
 		if !foundExfil {
-			t.Error("Expected exfil/output payload for direct-invoke lambda-003")
+			t.Error("Expected exfil/response payload for direct-invoke lambda-003")
 		}
 	})
 }
@@ -1038,12 +1038,12 @@ func TestLambda005Module(t *testing.T) {
 		}
 		foundExfil := false
 		for _, p := range payloadList {
-			if p.Name == "exfil/output" {
+			if p.Name == "exfil/response" {
 				foundExfil = true
 			}
 		}
 		if !foundExfil {
-			t.Error("Expected exfil/output payload for direct-invoke lambda-005")
+			t.Error("Expected exfil/response payload for direct-invoke lambda-005")
 		}
 	})
 }
@@ -1248,12 +1248,12 @@ func TestLambda006Module(t *testing.T) {
 		}
 		foundExfil := false
 		for _, p := range payloadList {
-			if p.Name == "exfil/output" {
+			if p.Name == "exfil/response" {
 				foundExfil = true
 			}
 		}
 		if !foundExfil {
-			t.Error("Expected exfil/output payload for direct-invoke lambda-006")
+			t.Error("Expected exfil/response payload for direct-invoke lambda-006")
 		}
 	})
 }
