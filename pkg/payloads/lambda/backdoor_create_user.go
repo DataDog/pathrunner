@@ -7,34 +7,34 @@ import (
 	"strings"
 )
 
-type BackdoorUserPayload struct{}
+type BackdoorCreateUserPayload struct{}
 
-func NewBackdoorUserPayload() *BackdoorUserPayload {
-	return &BackdoorUserPayload{}
+func NewBackdoorCreateUserPayload() *BackdoorCreateUserPayload {
+	return &BackdoorCreateUserPayload{}
 }
 
 func init() {
-	payloads.Register(NewBackdoorUserPayload())
+	payloads.Register(NewBackdoorCreateUserPayload())
 }
 
-func (p *BackdoorUserPayload) GetName() string {
-	return "backdoor/user"
+func (p *BackdoorCreateUserPayload) GetName() string {
+	return "backdoor/create-user"
 }
 
-func (p *BackdoorUserPayload) GetDescription() string {
+func (p *BackdoorCreateUserPayload) GetDescription() string {
 	return "Create an IAM user with administrator privileges and console access"
 }
 
-func (p *BackdoorUserPayload) GetTags() []string {
+func (p *BackdoorCreateUserPayload) GetTags() []string {
 	return []string{
 		payloads.TagServiceLambda,
 		payloads.TagLanguagePython,
 		payloads.TagTechniqueBackdoor,
-		payloads.TagTransportOutput,
+		payloads.TagTransportResponse,
 	}
 }
 
-func (p *BackdoorUserPayload) GetOptions() []modules.Option {
+func (p *BackdoorCreateUserPayload) GetOptions() []modules.Option {
 	return []modules.Option{
 		{
 			Name:        "USER_NAME",
@@ -63,7 +63,7 @@ func (p *BackdoorUserPayload) GetOptions() []modules.Option {
 	}
 }
 
-func (p *BackdoorUserPayload) GenerateCode(options map[string]string) (string, error) {
+func (p *BackdoorCreateUserPayload) GenerateCode(options map[string]string) (string, error) {
 	userName := options["USER_NAME"]
 	consoleAccess := options["CONSOLE_ACCESS"] != "false" // default true
 	accessKey := options["ACCESS_KEY"] != "false"         // default true
@@ -182,7 +182,7 @@ def lambda_handler(event, context):
 	return code, nil
 }
 
-func (p *BackdoorUserPayload) ProcessResult(result string) (string, error) {
+func (p *BackdoorCreateUserPayload) ProcessResult(result string) (string, error) {
 	var lambdaResponse map[string]interface{}
 	if err := json.Unmarshal([]byte(result), &lambdaResponse); err != nil {
 		return result, err
@@ -258,7 +258,7 @@ func (p *BackdoorUserPayload) ProcessResult(result string) (string, error) {
 	return output.String(), nil
 }
 
-func (p *BackdoorUserPayload) Validate(options map[string]string) error {
+func (p *BackdoorCreateUserPayload) Validate(options map[string]string) error {
 	// No required options for this payload
 	return nil
 }

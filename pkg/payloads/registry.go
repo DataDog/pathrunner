@@ -12,7 +12,7 @@ var globalRegistry = NewRegistry()
 // Registry manages all available payloads
 type Registry struct {
 	mu       sync.RWMutex
-	payloads map[string]Payload
+	payloads map[string]Payload // keyed by "service:name"
 }
 
 // NewRegistry creates a new payload registry
@@ -22,13 +22,37 @@ func NewRegistry() *Registry {
 	}
 }
 
-// Register adds a payload to the global registry
-// This is typically called in init() functions of payload packages
+// QualifiedName returns the composite registry key for a service and payload name.
+func QualifiedName(service, name string) string {
+	return service + ":" + name
+}
+
+// extractServiceTag finds the service tag from a payload's tags.
+func extractServiceTag(tags []string) string {
+	serviceTags := []string{
+		TagServiceLambda, TagServiceEC2, TagServiceECS,
+		TagServiceAppRunner, TagServiceCodeBuild, TagServiceGlue,
+		TagServiceSageMaker, TagServiceCloudFormation, TagServiceSSM,
+		TagServiceBedrock,
+	}
+	for _, tag := range tags {
+		for _, st := range serviceTags {
+			if tag == st {
+				return st
+			}
+		}
+	}
+	return ""
+}
+
+// Register adds a payload to the global registry.
+// This is typically called in init() functions of payload packages.
 func Register(payload Payload) error {
 	return globalRegistry.RegisterPayload(payload)
 }
 
-// RegisterPayload adds a payload to this registry
+// RegisterPayload adds a payload to this registry.
+// The internal key is "service:name" to allow same-name payloads across services.
 func (r *Registry) RegisterPayload(payload Payload) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -38,30 +62,77 @@ func (r *Registry) RegisterPayload(payload Payload) error {
 		return fmt.Errorf("payload name cannot be empty")
 	}
 
-	if _, exists := r.payloads[name]; exists {
-		return fmt.Errorf("payload '%s' is already registered", name)
+	service := extractServiceTag(payload.GetTags())
+	if service == "" {
+		return fmt.Errorf("payload '%s' must have a service tag", name)
 	}
 
-	r.payloads[name] = payload
+	key := QualifiedName(service, name)
+	if _, exists := r.payloads[key]; exists {
+		return fmt.Errorf("payload '%s' is already registered for service '%s'", name, service)
+	}
+
+	r.payloads[key] = payload
 	return nil
 }
 
-// GetPayload retrieves a payload by name from the global registry
+// GetPayloadForService retrieves a payload by name and service from the global registry.
+// This is the primary lookup used by modules that know their service context.
+func GetPayloadForService(name, service string) (Payload, error) {
+	return globalRegistry.GetPayloadByNameAndService(name, service)
+}
+
+// GetPayloadByNameAndService retrieves a payload by name and service.
+func (r *Registry) GetPayloadByNameAndService(name, service string) (Payload, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	key := QualifiedName(service, name)
+	payload, exists := r.payloads[key]
+	if !exists {
+		return nil, fmt.Errorf("payload '%s' not found for service '%s'", name, service)
+	}
+
+	return payload, nil
+}
+
+// GetPayload retrieves a payload by name from the global registry.
+// If only one payload has this name, returns it. If multiple services provide
+// the same name, returns an error suggesting service-qualified lookup.
 func GetPayload(name string) (Payload, error) {
 	return globalRegistry.GetPayloadByName(name)
 }
 
-// GetPayloadByName retrieves a payload by name
+// GetPayloadByName retrieves a payload by name.
+// Returns error if the name is ambiguous (exists in multiple services).
 func (r *Registry) GetPayloadByName(name string) (Payload, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	payload, exists := r.payloads[name]
-	if !exists {
+	var matches []Payload
+	var services []string
+	for key, payload := range r.payloads {
+		if payload.GetName() == name {
+			matches = append(matches, payload)
+			// Extract service from key
+			for i, ch := range key {
+				if ch == ':' {
+					services = append(services, key[:i])
+					break
+				}
+			}
+		}
+	}
+
+	if len(matches) == 0 {
 		return nil, fmt.Errorf("payload '%s' not found", name)
 	}
 
-	return payload, nil
+	if len(matches) == 1 {
+		return matches[0], nil
+	}
+
+	return nil, fmt.Errorf("payload '%s' is ambiguous (found in services: %v) — use GetPayloadForService() with a service tag", name, services)
 }
 
 // GetPayloadsByTags returns all payloads that have ALL the specified tags

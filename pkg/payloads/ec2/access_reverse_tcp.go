@@ -19,7 +19,7 @@ func init() {
 }
 
 func (p *ReverseShellPayload) GetName() string {
-	return "shell/reverse"
+	return "access/reverse-tcp"
 }
 
 func (p *ReverseShellPayload) GetDescription() string {
@@ -30,8 +30,8 @@ func (p *ReverseShellPayload) GetTags() []string {
 	return []string{
 		payloads.TagServiceEC2,
 		payloads.TagLanguageBash,
-		payloads.TagTechniqueReverseShell,
-		payloads.TagTransportNetwork,
+		payloads.TagTechniqueAccess,
+		payloads.TagTransportTCP,
 	}
 }
 
@@ -143,7 +143,7 @@ func (p *ReverseShellPayload) ProcessResult(result string) (string, error) {
 
 func (p *ReverseShellPayload) Validate(options map[string]string) error {
 	if options["LISTENER_IP"] == "" {
-		return fmt.Errorf("LISTENER_IP is required for shell/reverse payload")
+		return fmt.Errorf("LISTENER_IP is required for access/reverse-tcp payload")
 	}
 
 	shellType := options["SHELL_TYPE"]

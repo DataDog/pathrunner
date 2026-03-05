@@ -34,7 +34,6 @@ func (p *BackdoorAttachPolicyPayload) GetTags() []string {
 		payloads.TagServiceLambda,
 		payloads.TagLanguagePython,
 		payloads.TagTechniqueBackdoor,
-		payloads.TagTechniqueDirectAction,
 	}
 }
 

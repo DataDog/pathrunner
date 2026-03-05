@@ -8,34 +8,34 @@ import (
 	"strings"
 )
 
-type BackdoorRolePayload struct{}
+type BackdoorCreateRolePayload struct{}
 
-func NewBackdoorRolePayload() *BackdoorRolePayload {
-	return &BackdoorRolePayload{}
+func NewBackdoorCreateRolePayload() *BackdoorCreateRolePayload {
+	return &BackdoorCreateRolePayload{}
 }
 
 func init() {
-	payloads.Register(NewBackdoorRolePayload())
+	payloads.Register(NewBackdoorCreateRolePayload())
 }
 
-func (p *BackdoorRolePayload) GetName() string {
-	return "backdoor/role"
+func (p *BackdoorCreateRolePayload) GetName() string {
+	return "backdoor/create-role"
 }
 
-func (p *BackdoorRolePayload) GetDescription() string {
+func (p *BackdoorCreateRolePayload) GetDescription() string {
 	return "Create an IAM role with administrator privileges and a custom trust policy"
 }
 
-func (p *BackdoorRolePayload) GetTags() []string {
+func (p *BackdoorCreateRolePayload) GetTags() []string {
 	return []string{
 		payloads.TagServiceLambda,
 		payloads.TagLanguagePython,
 		payloads.TagTechniqueBackdoor,
-		payloads.TagTransportOutput,
+		payloads.TagTransportResponse,
 	}
 }
 
-func (p *BackdoorRolePayload) GetOptions() []modules.Option {
+func (p *BackdoorCreateRolePayload) GetOptions() []modules.Option {
 	return []modules.Option{
 		{
 			Name:        "TRUSTED_PRINCIPAL",
@@ -63,7 +63,7 @@ func (p *BackdoorRolePayload) GetOptions() []modules.Option {
 	}
 }
 
-func (p *BackdoorRolePayload) GenerateCode(options map[string]string) (string, error) {
+func (p *BackdoorCreateRolePayload) GenerateCode(options map[string]string) (string, error) {
 	trustedPrincipal := options["TRUSTED_PRINCIPAL"]
 	roleName := options["ROLE_NAME"]
 	externalID := options["EXTERNAL_ID"]
@@ -195,7 +195,7 @@ def lambda_handler(event, context):
 	return code, nil
 }
 
-func (p *BackdoorRolePayload) ProcessResult(result string) (string, error) {
+func (p *BackdoorCreateRolePayload) ProcessResult(result string) (string, error) {
 	var lambdaResponse map[string]interface{}
 	if err := json.Unmarshal([]byte(result), &lambdaResponse); err != nil {
 		return result, err
@@ -257,9 +257,9 @@ func (p *BackdoorRolePayload) ProcessResult(result string) (string, error) {
 	return output.String(), nil
 }
 
-func (p *BackdoorRolePayload) Validate(options map[string]string) error {
+func (p *BackdoorCreateRolePayload) Validate(options map[string]string) error {
 	if options["TRUSTED_PRINCIPAL"] == "" {
-		return fmt.Errorf("TRUSTED_PRINCIPAL is required for backdoor/role payload")
+		return fmt.Errorf("TRUSTED_PRINCIPAL is required for backdoor/create-role payload")
 	}
 	return nil
 }

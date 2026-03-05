@@ -12,7 +12,7 @@
 
 2. Does `pkg/payloads/{service}/` already exist?
    - If YES: check existing payloads first
-   - If NO: create the directory and at least `exfil/output` payload
+   - If NO: create the directory and at least `exfil/response` payload
 
 3. For the existing service, does an existing payload match the exploitation pattern?
    - Same code execution context → reuse directly
@@ -32,18 +32,18 @@ existingPayloads := payloads.GetPayloadsByTags([]string{payloads.TagServiceLambd
 #### Lambda (Python) — `pkg/payloads/lambda/`
 | Payload | Tags | Description | Optional Interfaces |
 |---------|------|-------------|---------------------|
-| `exfil/output` | lambda, python, exfil, output | Returns credentials via Lambda response | — |
-| `exfil/https` | lambda, python, exfil, webhook | Sends credentials to webhook URL | — |
-| `backdoor/role` | lambda, python, backdoor | Attaches AdministratorAccess to a role | SideEffectReporter |
-| `backdoor/user` | lambda, python, backdoor | Creates IAM user with admin access | — |
-| `backdoor/attach-policy` | lambda, python, backdoor, direct_action | Attaches AdministratorAccess to an existing IAM user | Verifiable, SideEffectReporter |
+| `exfil/response` | lambda, python, exfil, response | Returns credentials via Lambda response | — |
+| `exfil/https` | lambda, python, exfil, https | Sends credentials via HTTPS POST | — |
+| `backdoor/create-role` | lambda, python, backdoor | Creates IAM role with admin trust policy | SideEffectReporter |
+| `backdoor/create-user` | lambda, python, backdoor | Creates IAM user with admin access | — |
+| `backdoor/attach-policy` | lambda, python, backdoor | Attaches AdministratorAccess to an existing IAM user | Verifiable, SideEffectReporter |
 
 #### EC2 (Bash) — `pkg/payloads/ec2/`
 | Payload | Tags | Description |
 |---------|------|-------------|
-| `exfil/webhook` | ec2, bash, exfil, webhook | Sends instance metadata creds to webhook |
-| `elevation/direct` | ec2, bash, direct_action | Attaches admin policy to instance role |
-| `shell/reverse` | ec2, bash, reverse_shell, network | Opens reverse shell to attacker |
+| `exfil/https` | ec2, bash, exfil, https | Sends instance metadata creds via HTTPS POST |
+| `backdoor/attach-policy` | ec2, bash, backdoor | Attaches admin policy to instance role |
+| `access/reverse-tcp` | ec2, bash, access, tcp | Opens reverse TCP shell to attacker |
 
 ## Payload Template: Lambda (Python)
 
@@ -69,7 +69,7 @@ func (p *NewPayload) GetTags() []string {
         payloads.TagServiceLambda,
         payloads.TagLanguagePython,
         payloads.TagTechniqueExfil,
-        payloads.TagTransportOutput,
+        payloads.TagTransportResponse,
     }
 }
 
@@ -134,7 +134,7 @@ func (p *NewPayload) GetTags() []string {
         payloads.TagServiceEC2,
         payloads.TagLanguageBash,
         payloads.TagTechniqueExfil,
-        payloads.TagTransportWebhook,
+        payloads.TagTransportHTTPS,
     }
 }
 
@@ -181,14 +181,14 @@ func init() {
     payloads.Register(&ExfilOutput{})
 }
 
-func (p *ExfilOutput) GetName() string        { return "exfil/output" }
+func (p *ExfilOutput) GetName() string        { return "exfil/response" }
 func (p *ExfilOutput) GetDescription() string  { return "Exfiltrate task role credentials via container output" }
 func (p *ExfilOutput) GetTags() []string {
     return []string{
         payloads.TagServiceECS,
         payloads.TagLanguageBash,
         payloads.TagTechniqueExfil,
-        payloads.TagTransportOutput,
+        payloads.TagTransportResponse,
     }
 }
 
@@ -330,11 +330,21 @@ createInput.Environment = &types.Environment{Variables: envVars}
 
 ## Naming Convention
 
-Payloads follow `technique/method` naming:
-- `exfil/output` — Exfiltrate via function/task return value
-- `exfil/webhook` — Exfiltrate via HTTP callback
-- `exfil/https` — Exfiltrate via HTTPS POST
-- `backdoor/role` — Create persistence via IAM role modification
-- `backdoor/user` — Create persistence via new IAM user
-- `shell/reverse` — Open reverse shell connection
-- `elevation/direct` — Direct privilege escalation (e.g., attach admin policy)
+Payloads follow `{category}/{action}` naming. No service prefix — same logical action across services shares the same name. Service context is handled by tags + registry composite keys.
+
+### Categories
+
+| Category | Purpose | Examples |
+|---|---|---|
+| `backdoor/` | IAM modification — escalating existing principals or creating new ones | `attach-policy`, `create-user`, `create-role` |
+| `exfil/` | Extract credentials/data to the attacker (read-only against AWS) | `response`, `https`, `dns` |
+| `access/` | Interactive access to the compute environment | `reverse-tcp`, `reverse-https`, `webshell` |
+
+### Current Names
+
+- `exfil/response` — Return credentials via function/task return value (direct-invoke only)
+- `exfil/https` — Send credentials to attacker endpoint via HTTPS POST
+- `backdoor/attach-policy` — Attach AdministratorAccess to an existing IAM principal
+- `backdoor/create-role` — Create IAM role with admin trust policy
+- `backdoor/create-user` — Create IAM user with admin access + keys
+- `access/reverse-tcp` — Open raw TCP reverse shell to attacker

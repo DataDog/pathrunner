@@ -9,7 +9,7 @@ import (
 
 // Payload represents a reusable exploitation payload that can be used across multiple modules
 type Payload interface {
-	// GetName returns the unique identifier for this payload (e.g., "exfil/output", "exfil/webhook")
+	// GetName returns the unique identifier for this payload (e.g., "exfil/response", "exfil/https")
 	GetName() string
 
 	// GetDescription returns a human-readable description of what this payload does
