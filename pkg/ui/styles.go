@@ -3,7 +3,7 @@ package ui
 import (
 	"os"
 
-	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss/v2"
 )
 
 var (
