@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"pathrunner/pkg/discovery"
 	"pathrunner/pkg/modules"
+	"pathrunner/pkg/ui"
 	"pathrunner/pkg/utils"
 	"runtime"
 	"strings"
 	"time"
 
-	"github.com/aquasecurity/table"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
@@ -24,6 +25,8 @@ type IdentityManager struct {
 	current          *modules.Identity
 	getLastResult    func() string
 	updateCompletion func()
+	autoSwitch       bool // when true, skip interactive prompt and auto-switch
+	checkAdmin       bool // when true, skip interactive prompt and auto-check admin
 }
 
 func NewIdentityManager(getLastResult func() string, updateCompletion func()) *IdentityManager {
@@ -49,16 +52,7 @@ func (im *IdentityManager) ListIdentities() error {
 		return nil
 	}
 
-	// Create table
-	t := table.New(os.Stdout)
-	t.SetHeaders("Name", "Type", "Profile/Source", "Expires", "Status", "Current")
-	t.SetHeaderStyle(table.StyleBold)
-	t.SetRowLines(false)
-	t.SetLineStyle(table.StyleCyan)
-	t.SetDividers(table.UnicodeRoundedDividers)
-	t.SetAlignment(table.AlignLeft)
-
-	// Add rows
+	rows := make([][]string, 0, len(im.identities))
 	for name, identity := range im.identities {
 		status := "✓ valid"
 		if identity.IsExpired() {
@@ -91,13 +85,21 @@ func (im *IdentityManager) ListIdentities() error {
 			expires = "auto-refresh"
 		}
 
-		t.AddRow(name, identity.Type, source, expires, status, current)
+		admin := "-"
+		if identity.IsAdmin != nil {
+			if *identity.IsAdmin {
+				admin = "Yes"
+			} else {
+				admin = "No"
+			}
+		}
+
+		rows = append(rows, []string{name, identity.CallerARN, identity.Type, source, expires, admin, status, current})
 	}
 
-	// Print table
 	fmt.Println("Configured identities:")
 	fmt.Println()
-	t.Render()
+	ui.Table([]string{"Name", "ARN", "Type", "Profile/Source", "Expires", "Admin", "Status", "Current"}, rows)
 	fmt.Println()
 
 	if im.current != nil {
@@ -115,62 +117,108 @@ func (im *IdentityManager) ShowCurrent() error {
 		return nil
 	}
 
-	// Get caller identity info first
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	// Use cached CallerARN if available, otherwise call STS
+	callerARN := im.current.CallerARN
+	account := ""
+	if callerARN == "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
 
-	// GetConfig() will provide fresh credentials for profile identities
-	stsClient := sts.NewFromConfig(im.current.GetConfig())
-	result, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
-	if err != nil {
-		fmt.Printf("Error getting caller identity: %v\n", err)
-		return nil
+		stsClient := sts.NewFromConfig(im.current.GetConfig())
+		result, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+		if err != nil {
+			fmt.Printf("Error getting caller identity: %v\n", err)
+			return nil
+		}
+		callerARN = aws.ToString(result.Arn)
+		account = aws.ToString(result.Account)
+		im.current.CallerARN = callerARN
+	} else {
+		// Extract account from ARN (arn:aws:iam::123456789012:...)
+		parts := strings.Split(callerARN, ":")
+		if len(parts) >= 5 {
+			account = parts[4]
+		}
 	}
 
-	// Create table
-	t := table.New(os.Stdout)
-	t.SetHeaders("Property", "Value")
-	t.SetHeaderStyle(table.StyleBold)
-	t.SetRowLines(false)
-	t.SetLineStyle(table.StyleCyan)
-	t.SetDividers(table.UnicodeRoundedDividers)
-	t.SetAlignment(table.AlignLeft)
-
-	// Add basic identity info
-	t.AddRow("Name", im.current.Name)
-	t.AddRow("Type", im.current.Type)
-	t.AddRow("Region", im.current.Region)
+	kvPairs := []ui.KV{
+		{Key: "Name", Value: im.current.Name},
+		{Key: "Type", Value: im.current.Type},
+		{Key: "Region", Value: im.current.Region},
+	}
 
 	if im.current.Profile != "" {
-		t.AddRow("Profile", im.current.Profile)
+		kvPairs = append(kvPairs, ui.KV{Key: "Profile", Value: im.current.Profile})
 	}
 
-	// Add AWS caller identity info
-	t.AddRow("Account", aws.ToString(result.Account))
-	t.AddRow("User/Role ARN", aws.ToString(result.Arn))
+	kvPairs = append(kvPairs, ui.KV{Key: "Account", Value: account})
+	kvPairs = append(kvPairs, ui.KV{Key: "User/Role ARN", Value: callerARN})
 
-	// Add expiration info
-	if im.current.ExpiresAt != nil {
-		t.AddRow("Expires", im.current.ExpiresAt.Format("2006-01-02 15:04:05 MST"))
-		if im.current.IsExpired() {
-			t.AddRow("Status", "EXPIRED")
+	if im.current.IsAdmin != nil {
+		if *im.current.IsAdmin {
+			kvPairs = append(kvPairs, ui.KV{Key: "Admin", Value: "Yes"})
 		} else {
-			t.AddRow("Status", "Valid")
+			kvPairs = append(kvPairs, ui.KV{Key: "Admin", Value: "No"})
 		}
 	} else {
-		t.AddRow("Status", "Valid (no expiration)")
+		kvPairs = append(kvPairs, ui.KV{Key: "Admin", Value: "- (not checked)"})
 	}
 
-	// Print table
+	if im.current.ExpiresAt != nil {
+		kvPairs = append(kvPairs, ui.KV{Key: "Expires", Value: im.current.ExpiresAt.Format("2006-01-02 15:04:05 MST")})
+		if im.current.IsExpired() {
+			kvPairs = append(kvPairs, ui.KV{Key: "Status", Value: "EXPIRED"})
+		} else {
+			kvPairs = append(kvPairs, ui.KV{Key: "Status", Value: "Valid"})
+		}
+	} else {
+		kvPairs = append(kvPairs, ui.KV{Key: "Status", Value: "Valid (no expiration)"})
+	}
+
 	fmt.Printf("Current Identity: %s\n", im.current.Name)
 	fmt.Println()
-	t.Render()
+	ui.KeyValueTable("", kvPairs)
 	fmt.Println()
 
 	return nil
 }
 
+// hasFlag checks if a boolean flag is present in the args
+func (im *IdentityManager) hasFlag(args []string, flag string) bool {
+	for _, arg := range args {
+		if arg == flag {
+			return true
+		}
+	}
+	return false
+}
+
+// removeFlag removes a boolean flag from args
+func (im *IdentityManager) removeFlag(args []string, flag string) []string {
+	result := make([]string, 0, len(args))
+	for _, arg := range args {
+		if arg != flag {
+			result = append(result, arg)
+		}
+	}
+	return result
+}
+
 func (im *IdentityManager) AddIdentity(args []string) error {
+	if len(args) == 0 {
+		return im.addFromEnvironment()
+	}
+
+	// Check for --switch flag (auto-switch without prompting)
+	im.autoSwitch = im.hasFlag(args, "--switch")
+	args = im.removeFlag(args, "--switch")
+	defer func() { im.autoSwitch = false }()
+
+	// Check for --check-admin flag (auto-check admin without prompting)
+	im.checkAdmin = im.hasFlag(args, "--check-admin")
+	args = im.removeFlag(args, "--check-admin")
+	defer func() { im.checkAdmin = false }()
+
 	if len(args) == 0 {
 		return im.addFromEnvironment()
 	}
@@ -194,28 +242,32 @@ func (im *IdentityManager) AddIdentity(args []string) error {
 			return fmt.Errorf("--profile requires profile name")
 		}
 		return im.addFromProfile(args[1])
-	case "--keys":
-		if len(args) < 3 {
-			return fmt.Errorf("--keys requires access-key-id and secret-access-key")
+	case "--access":
+		secretKey := im.extractFlag(args[1:], "--secret")
+		if secretKey == "" {
+			return fmt.Errorf("--secret is required when using --access")
 		}
-		sessionToken := ""
-		if len(args) > 3 {
-			sessionToken = args[3]
-		}
-		return im.addFromKeys(args[1], args[2], sessionToken)
+		sessionToken := im.extractFlag(args[1:], "--token")
+		customName := im.extractFlag(args[1:], "--name")
+		return im.addFromKeys(args[1], secretKey, sessionToken, customName)
 	default:
 		return fmt.Errorf("unknown add option: %s", args[0])
 	}
 }
 
-// extractNameFlag extracts the --name flag value from args
-func (im *IdentityManager) extractNameFlag(args []string) string {
+// extractFlag extracts the value for a given --flag from args
+func (im *IdentityManager) extractFlag(args []string, flag string) string {
 	for i, arg := range args {
-		if arg == "--name" && i+1 < len(args) {
+		if arg == flag && i+1 < len(args) {
 			return args[i+1]
 		}
 	}
 	return ""
+}
+
+// extractNameFlag extracts the --name flag value from args
+func (im *IdentityManager) extractNameFlag(args []string) string {
+	return im.extractFlag(args, "--name")
 }
 
 // promptForIdentityName prompts the user to provide a custom name for the identity
@@ -269,7 +321,8 @@ func (im *IdentityManager) addFromEnvironment() error {
 
 	fmt.Printf("Added identity '%s' from environment variables\n", identity.Name)
 
-	// Prompt to switch to the new identity
+	// Prompt for admin check, then to switch
+	im.promptForAdminCheck(identity.Name)
 	im.promptToSwitch(identity.Name)
 	return nil
 }
@@ -315,12 +368,13 @@ func (im *IdentityManager) addFromProfile(profileName string) error {
 	fmt.Printf("Added identity '%s' from AWS profile\n", identity.Name)
 	fmt.Printf("Profile credentials will be refreshed automatically on each use\n")
 
-	// Prompt to switch to the new identity
+	// Prompt for admin check, then to switch
+	im.promptForAdminCheck(identity.Name)
 	im.promptToSwitch(identity.Name)
 	return nil
 }
 
-func (im *IdentityManager) addFromKeys(accessKeyID, secretKey, sessionToken string) error {
+func (im *IdentityManager) addFromKeys(accessKeyID, secretKey, sessionToken, customName string) error {
 	creds := credentials.NewStaticCredentialsProvider(accessKeyID, secretKey, sessionToken)
 
 	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithCredentialsProvider(creds))
@@ -328,7 +382,10 @@ func (im *IdentityManager) addFromKeys(accessKeyID, secretKey, sessionToken stri
 		return fmt.Errorf("failed to create config from keys: %v", err)
 	}
 
-	name := fmt.Sprintf("keys_%s", accessKeyID[len(accessKeyID)-4:])
+	name := customName
+	if name == "" {
+		name = fmt.Sprintf("keys_%s", accessKeyID[len(accessKeyID)-4:])
+	}
 
 	identity := &modules.Identity{
 		Name:         name,
@@ -361,7 +418,8 @@ func (im *IdentityManager) addFromKeys(accessKeyID, secretKey, sessionToken stri
 
 	fmt.Printf("Added identity '%s' from access keys\n", identity.Name)
 
-	// Prompt to switch to the new identity
+	// Prompt for admin check, then to switch
+	im.promptForAdminCheck(identity.Name)
 	im.promptToSwitch(identity.Name)
 	return nil
 }
@@ -451,7 +509,8 @@ func (im *IdentityManager) addFromLastOutput(customName string) error {
 		fmt.Printf("Session Token: Present (expires in ~1 hour)\n")
 	}
 
-	// Prompt to switch to the new identity
+	// Prompt for admin check, then to switch
+	im.promptForAdminCheck(identity.Name)
 	im.promptToSwitch(identity.Name)
 
 	return nil
@@ -545,7 +604,8 @@ func (im *IdentityManager) addFromFile(filePath string, customName string) error
 		fmt.Printf("Session Token: Present (expires in ~1 hour)\n")
 	}
 
-	// Prompt to switch to the new identity
+	// Prompt for admin check, then to switch
+	im.promptForAdminCheck(identity.Name)
 	im.promptToSwitch(identity.Name)
 
 	return nil
@@ -660,7 +720,8 @@ func (im *IdentityManager) addFromClipboard(customName string) error {
 		fmt.Printf("Session Token: Present (expires in ~1 hour)\n")
 	}
 
-	// Prompt to switch to the new identity
+	// Prompt for admin check, then to switch
+	im.promptForAdminCheck(identity.Name)
 	im.promptToSwitch(identity.Name)
 
 	return nil
@@ -772,10 +833,98 @@ func (im *IdentityManager) SetCurrent(identity *modules.Identity) {
 	im.current = identity
 }
 
+// CheckAdmin checks whether the named identity (or current if empty) has admin privileges.
+func (im *IdentityManager) CheckAdmin(identityName string) error {
+	var identity *modules.Identity
+	if identityName == "" {
+		identity = im.current
+		if identity == nil {
+			return fmt.Errorf("no current identity selected")
+		}
+		identityName = identity.Name
+	} else {
+		var exists bool
+		identity, exists = im.identities[identityName]
+		if !exists {
+			return fmt.Errorf("identity '%s' not found", identityName)
+		}
+	}
+
+	// Get the caller ARN — use cached value or call STS
+	principalARN := identity.CallerARN
+	if principalARN == "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		stsClient := sts.NewFromConfig(identity.GetConfig())
+		result, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+		if err != nil {
+			return fmt.Errorf("failed to get caller identity: %v", err)
+		}
+		principalARN = aws.ToString(result.Arn)
+		identity.CallerARN = principalARN
+	}
+
+	fmt.Printf("Checking admin privileges for '%s' (%s)...\n", identityName, principalARN)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	adminResult, err := discovery.CheckAdminPrivileges(ctx, identity.GetConfig(), principalARN)
+	if err != nil {
+		fmt.Printf("Admin check failed: %v\n", err)
+		fmt.Println("The identity may lack iam:SimulatePrincipalPolicy permission.")
+		return nil
+	}
+
+	isAdmin := adminResult.IsAdmin
+	identity.IsAdmin = &isAdmin
+
+	if adminResult.IsAdmin {
+		fmt.Printf("Result: %s is an ADMIN (%d/%d actions allowed)\n",
+			identityName, adminResult.AllowedCount, adminResult.AllowedCount+adminResult.DeniedCount)
+	} else {
+		fmt.Printf("Result: %s is NOT an admin (%d/%d actions allowed)\n",
+			identityName, adminResult.AllowedCount, adminResult.AllowedCount+adminResult.DeniedCount)
+		if len(adminResult.DeniedActions) > 0 {
+			fmt.Printf("Denied: %s\n", strings.Join(adminResult.DeniedActions, ", "))
+		}
+	}
+
+	return nil
+}
+
+// promptForAdminCheck prompts the user to check admin privileges after adding an identity.
+func (im *IdentityManager) promptForAdminCheck(identityName string) {
+	if im.checkAdmin {
+		im.CheckAdmin(identityName)
+		return
+	}
+
+	// Skip interactive prompt when --switch is set (non-interactive/scripted usage)
+	if im.autoSwitch {
+		return
+	}
+
+	fmt.Printf("Check if '%s' has admin privileges? [y/N]: ", identityName)
+	var response string
+	fmt.Scanln(&response)
+
+	if strings.ToLower(response) == "y" || strings.ToLower(response) == "yes" {
+		im.CheckAdmin(identityName)
+	}
+}
+
 // promptToSwitch asks the user if they want to switch to the new identity
 func (im *IdentityManager) promptToSwitch(identityName string) {
 	// Only prompt if there's already a current identity (not auto-switching)
 	if im.current == nil || im.current.Name == identityName {
+		return
+	}
+
+	if im.autoSwitch {
+		im.current = im.identities[identityName]
+		fmt.Printf("Switched to identity: %s\n", identityName)
 		return
 	}
 

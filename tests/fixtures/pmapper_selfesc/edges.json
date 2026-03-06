@@ -1,0 +1,8 @@
+[
+  {
+    "source": "arn:aws:iam::111111111111:user/NormalUser",
+    "destination": "arn:aws:iam::111111111111:user/PolicyVersionUser",
+    "reason": "can create access keys to authenticate as the user",
+    "short_reason": "IAM"
+  }
+]

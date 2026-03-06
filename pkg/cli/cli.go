@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"pathrunner/pkg/core"
 	"pathrunner/pkg/core/repl"
 
@@ -47,11 +46,6 @@ func (c *CLI) CreateRootCommand() *cobra.Command {
 		Short: "AWS Post-Exploitation Framework",
 		Long:  "Pathrunner is a modular AWS post-exploitation framework for penetration testing",
 		Run: func(cmd *cobra.Command, args []string) {
-			// If no subcommand, start REPL
-			fmt.Println("Pathrunner AWS Post-Exploitation Framework")
-			fmt.Println("=========================================")
-			fmt.Println("Type 'help' for available commands")
-			fmt.Println()
 			c.repl.Start()
 		},
 	}
@@ -72,7 +66,12 @@ func (c *CLI) CreateRootCommand() *cobra.Command {
 	rootCmd.AddCommand(c.createExploitCmd())
 	rootCmd.AddCommand(c.createContextCmd())
 	rootCmd.AddCommand(c.createWhoamiCmd())
+	rootCmd.AddCommand(c.createSearchCmd())
+	rootCmd.AddCommand(c.createDiscoverCmd())
+	rootCmd.AddCommand(c.createInfoCmd())
 	rootCmd.AddCommand(c.createAWSCmd())
+	rootCmd.AddCommand(c.createPmapperCmd())
+	rootCmd.AddCommand(c.createVersionCmd())
 
 	return rootCmd
 }

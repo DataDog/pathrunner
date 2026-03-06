@@ -4,13 +4,16 @@ package payloads
 
 // Service tags indicate which AWS service context the payload is designed for
 const (
-	TagServiceLambda    = "lambda"
-	TagServiceEC2       = "ec2"
-	TagServiceECS       = "ecs"
-	TagServiceAppRunner = "apprunner"
-	TagServiceCodeBuild = "codebuild"
-	TagServiceGlue      = "glue"
-	TagServiceSageMaker = "sagemaker"
+	TagServiceLambda         = "lambda"
+	TagServiceEC2            = "ec2"
+	TagServiceECS            = "ecs"
+	TagServiceAppRunner      = "apprunner"
+	TagServiceCodeBuild      = "codebuild"
+	TagServiceGlue           = "glue"
+	TagServiceSageMaker      = "sagemaker"
+	TagServiceCloudFormation = "cloudformation"
+	TagServiceSSM            = "ssm"
+	TagServiceBedrock        = "bedrock"
 )
 
 // Language tags indicate the programming/scripting language of the payload
@@ -24,20 +27,20 @@ const (
 
 // Technique tags categorize the exploitation technique
 const (
-	TagTechniqueExfil        = "exfil"         // Credential/data exfiltration
-	TagTechniqueBackdoor     = "backdoor"      // Persistence mechanism
-	TagTechniqueReverseShell = "reverse_shell" // Interactive shell
-	TagTechniqueDirectAction = "direct_action" // Immediate privilege escalation
-	TagTechniqueRecon        = "recon"         // Reconnaissance/enumeration
+	TagTechniqueExfil    = "exfil"    // Credential/data exfiltration
+	TagTechniqueBackdoor = "backdoor" // IAM modification (escalation or persistence)
+	TagTechniqueAccess   = "access"   // Interactive access (reverse shell, webshell)
+	TagTechniqueRecon    = "recon"    // Reconnaissance/enumeration
 )
 
 // Transport tags indicate how data/commands are transmitted
 const (
-	TagTransportWebhook    = "webhook"    // HTTP/HTTPS webhook
-	TagTransportOutput     = "output"     // Function/command output
-	TagTransportNetwork    = "network"    // Direct network connection
-	TagTransportFilesystem = "filesystem" // File-based exfil
+	TagTransportResponse   = "response"   // Function return value
+	TagTransportHTTPS      = "https"      // HTTPS connection
+	TagTransportTCP        = "tcp"        // Raw TCP connection
+	TagTransportWebhook    = "webhook"    // HTTP/HTTPS webhook (kept for backward compat)
 	TagTransportDNS        = "dns"        // DNS-based exfil
+	TagTransportFilesystem = "filesystem" // File-based exfil
 )
 
 // TagFilter helps filter payloads based on tag requirements

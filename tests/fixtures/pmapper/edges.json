@@ -1,0 +1,26 @@
+[
+  {
+    "source": "arn:aws:iam::123456789012:user/LabUser",
+    "destination": "arn:aws:iam::123456789012:role/LambdaAdmin",
+    "reason": "can use Lambda to create a new function with arbitrary code, then pass and access the role to escalate privileges",
+    "short_reason": "Lambda"
+  },
+  {
+    "source": "arn:aws:iam::123456789012:role/LambdaAdmin",
+    "destination": "arn:aws:iam::123456789012:role/AdminRole",
+    "reason": "can access via sts:AssumeRole",
+    "short_reason": "AssumeRole"
+  },
+  {
+    "source": "arn:aws:iam::123456789012:user/DevUser",
+    "destination": "arn:aws:iam::123456789012:role/EC2Admin",
+    "reason": "can use EC2 to run an instance with an existing instance profile to access the role",
+    "short_reason": "EC2"
+  },
+  {
+    "source": "arn:aws:iam::123456789012:user/DevUser",
+    "destination": "arn:aws:iam::123456789012:role/LambdaAdmin",
+    "reason": "can create access keys to authenticate as the role",
+    "short_reason": "IAM"
+  }
+]

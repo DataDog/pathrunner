@@ -3,17 +3,15 @@ package repl
 import (
 	"context"
 	"fmt"
-	"os"
+	"pathrunner/pkg/modules"
+	"pathrunner/pkg/ui"
 	"strconv"
 	"strings"
 	"time"
 
-	"pathrunner/pkg/modules"
-
-	"github.com/AlecAivazis/survey/v2"
-	"github.com/aquasecurity/table"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 )
@@ -37,7 +35,9 @@ func (r *REPL) cmdWorkspace(repl *REPL, args []string) error {
 	case "delete":
 		return r.sessionDelete(args[1:])
 	case "cleanup":
-		return r.sessionCleanup()
+		return r.sessionCleanup(args[1:])
+	case "report":
+		return r.sessionReport(args[1:])
 	case "history":
 		return r.sessionHistory(args[1:])
 	case "help":
@@ -49,6 +49,10 @@ func (r *REPL) cmdWorkspace(repl *REPL, args []string) error {
 
 // sessionCreate creates a new session
 func (r *REPL) sessionCreate(args []string) error {
+	if len(args) > 0 && args[0] == "help" {
+		return r.showWorkspaceCreateHelp()
+	}
+
 	if len(args) == 0 {
 		return NewInvalidArgumentsError("workspace create requires a workspace name")
 	}
@@ -91,36 +95,28 @@ func (r *REPL) sessionList() error {
 		return nil
 	}
 
-	// Create table
-	t := table.New(os.Stdout)
-	t.SetHeaders("Name", "Created", "Last Accessed", "Commands", "Resources", "Current")
-	t.SetHeaderStyle(table.StyleBold)
-	t.SetRowLines(false)
-	t.SetLineStyle(table.StyleCyan)
-	t.SetDividers(table.UnicodeRoundedDividers)
-	t.SetAlignment(table.AlignLeft)
-
 	currentName := r.sessionManager.GetCurrentSession().GetName()
 
+	rows := make([][]string, 0, len(sessions))
 	for _, session := range sessions {
 		current := ""
 		if session.GetName() == currentName {
 			current = "●"
 		}
 
-		t.AddRow(
+		rows = append(rows, []string{
 			session.GetName(),
 			session.GetCreated(),
 			session.GetLastAccessed(),
 			strconv.Itoa(session.GetCommandCount()),
 			strconv.Itoa(session.GetResourceCount()),
 			current,
-		)
+		})
 	}
 
 	fmt.Println("Available workspaces:")
 	fmt.Println()
-	t.Render()
+	ui.Table([]string{"Name", "Created", "Last Accessed", "Commands", "Resources", "Current"}, rows)
 	fmt.Println()
 
 	return nil
@@ -128,6 +124,10 @@ func (r *REPL) sessionList() error {
 
 // sessionSwitch switches to a different session
 func (r *REPL) sessionSwitch(args []string) error {
+	if len(args) > 0 && args[0] == "help" {
+		return r.showWorkspaceSwitchHelp()
+	}
+
 	if len(args) == 0 {
 		return NewInvalidArgumentsError("workspace switch requires workspace name")
 	}
@@ -161,6 +161,10 @@ func (r *REPL) sessionSave() error {
 
 // sessionDelete deletes a session
 func (r *REPL) sessionDelete(args []string) error {
+	if len(args) > 0 && args[0] == "help" {
+		return r.showWorkspaceDeleteHelp()
+	}
+
 	if len(args) == 0 {
 		return NewInvalidArgumentsError("workspace delete requires workspace name")
 	}
@@ -175,10 +179,49 @@ func (r *REPL) sessionDelete(args []string) error {
 }
 
 // sessionCleanup cleans up AWS resources created in the current session
-func (r *REPL) sessionCleanup() error {
+func (r *REPL) sessionCleanup(args []string) error {
+	if len(args) > 0 && args[0] == "help" {
+		return r.showWorkspaceCleanupHelp()
+	}
+
+	// Parse flags
+	cleanAll := false
+	moduleFilter := ""
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--all":
+			cleanAll = true
+		case "--module":
+			if i+1 < len(args) {
+				i++
+				moduleFilter = args[i]
+			} else {
+				return NewInvalidArgumentsError("--module requires a module ID")
+			}
+		default:
+			return NewInvalidArgumentsError(fmt.Sprintf("unknown flag: %s", args[i]))
+		}
+	}
+
 	resources := r.sessionManager.GetCreatedResources()
+
+	// Filter by module ID if specified
+	if moduleFilter != "" {
+		var filtered []CreatedResource
+		for _, res := range resources {
+			if res.ModuleID == moduleFilter {
+				filtered = append(filtered, res)
+			}
+		}
+		resources = filtered
+	}
+
 	if len(resources) == 0 {
-		fmt.Println("No resources to clean up in current workspace.")
+		if moduleFilter != "" {
+			fmt.Printf("No resources to clean up for module '%s' in current workspace.\n", moduleFilter)
+		} else {
+			fmt.Println("No resources to clean up in current workspace.")
+		}
 		return nil
 	}
 
@@ -187,66 +230,62 @@ func (r *REPL) sessionCleanup() error {
 		return NewIdentityRequiredError()
 	}
 
-	// Build options for multi-select
-	options := make([]string, 0, len(resources)+1)
-	resourceMap := make(map[string]CreatedResource)
-
-	// Add "All resources" option
-	allOption := fmt.Sprintf("All resources (%d)", len(resources))
-	options = append(options, allOption)
-
-	// Add individual resources
-	for _, resource := range resources {
-		regionInfo := ""
-		if resource.Region != "" {
-			regionInfo = fmt.Sprintf(" [%s]", resource.Region)
-		}
-		option := fmt.Sprintf("%s: %s%s", resource.Type, resource.Name, regionInfo)
-		options = append(options, option)
-		resourceMap[option] = resource
-	}
-
-	// Show multi-select prompt
-	var selected []string
-	prompt := &survey.MultiSelect{
-		Message: "Select resources to clean up (space to select, enter to confirm):",
-		Options: options,
-		Description: func(value string, index int) string {
-			if index == 0 {
-				return "Clean up all tracked resources"
-			}
-			return ""
-		},
-	}
-
-	err := survey.AskOne(prompt, &selected, survey.WithPageSize(10))
-	if err != nil {
-		return fmt.Errorf("selection cancelled")
-	}
-
-	if len(selected) == 0 {
-		fmt.Println("No resources selected for cleanup.")
-		return nil
-	}
-
-	// Determine which resources to clean up
 	var resourcesToCleanup []CreatedResource
 
-	// Check if "All resources" was selected
-	selectAll := false
-	for _, sel := range selected {
-		if sel == allOption {
-			selectAll = true
-			break
-		}
-	}
-
-	if selectAll {
+	if cleanAll {
+		// Non-interactive: clean up all (optionally filtered) resources
 		resourcesToCleanup = resources
 	} else {
-		for _, sel := range selected {
-			if resource, exists := resourceMap[sel]; exists {
-				resourcesToCleanup = append(resourcesToCleanup, resource)
+		// Interactive: show multi-select prompt
+		options := make([]string, 0, len(resources)+1)
+		resourceMap := make(map[int]CreatedResource)
+
+		// Add "All resources" option
+		allOption := fmt.Sprintf("All resources (%d)", len(resources))
+		options = append(options, allOption)
+
+		// Add individual resources
+		for i, resource := range resources {
+			regionInfo := ""
+			if resource.Region != "" {
+				regionInfo = fmt.Sprintf(" [%s]", resource.Region)
+			}
+			moduleInfo := ""
+			if resource.ModuleID != "" {
+				moduleInfo = fmt.Sprintf(" (%s)", resource.ModuleID)
+			}
+			option := fmt.Sprintf("%s: %s%s%s", resource.Type, resource.Name, regionInfo, moduleInfo)
+			options = append(options, option)
+			resourceMap[i+1] = resource // +1 because index 0 is "All resources"
+		}
+
+		// Show multi-select prompt
+		selectedIndices, err := ui.MultiSelect("Select resources to clean up:", options)
+		if err != nil {
+			return fmt.Errorf("selection cancelled")
+		}
+
+		if len(selectedIndices) == 0 {
+			fmt.Println("No resources selected for cleanup.")
+			return nil
+		}
+
+		// Check if "All resources" was selected (index 0)
+		selectAll := false
+		for _, idx := range selectedIndices {
+			if idx == 0 {
+				selectAll = true
+				break
+			}
+		}
+
+		if selectAll {
+			resourcesToCleanup = resources
+		} else {
+			for _, idx := range selectedIndices {
+				if resource, exists := resourceMap[idx]; exists {
+					resourcesToCleanup = append(resourcesToCleanup, resource)
+				}
 			}
 		}
 	}
@@ -256,6 +295,7 @@ func (r *REPL) sessionCleanup() error {
 	fmt.Println()
 
 	var cleaned, failed int
+	permissionFailures := 0
 	for _, resource := range resourcesToCleanup {
 		regionInfo := ""
 		if resource.Region != "" {
@@ -266,6 +306,9 @@ func (r *REPL) sessionCleanup() error {
 		if err := r.cleanupResource(resource, identity); err != nil {
 			fmt.Printf(" FAILED (%v)\n", err)
 			failed++
+			if isPermissionError(err) {
+				permissionFailures++
+			}
 		} else {
 			fmt.Printf(" OK\n")
 			cleaned++
@@ -276,6 +319,18 @@ func (r *REPL) sessionCleanup() error {
 	fmt.Println()
 	fmt.Printf("Cleanup complete: %d cleaned, %d failed\n", cleaned, failed)
 
+	if permissionFailures > 0 {
+		fmt.Println()
+		fmt.Printf("Note: %d failure(s) appear to be permission-related.\n", permissionFailures)
+		fmt.Println("The current identity may lack delete/detach permissions.")
+		fmt.Println("Try switching to an identity with higher privileges:")
+		fmt.Println("  identity add --profile <admin-profile>")
+		fmt.Println("  identity switch <admin-identity>")
+		fmt.Println("  workspace cleanup --all")
+		fmt.Println()
+		fmt.Println("Use 'workspace report' to generate a cleanup report you can hand off.")
+	}
+
 	if cleaned > 0 {
 		r.sessionSave()
 	}
@@ -283,8 +338,234 @@ func (r *REPL) sessionCleanup() error {
 	return nil
 }
 
+// isPermissionError checks if an error is likely an AWS permissions issue.
+func isPermissionError(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "AccessDenied") ||
+		strings.Contains(msg, "UnauthorizedAccess") ||
+		strings.Contains(msg, "is not authorized to perform") ||
+		strings.Contains(msg, "AccessDeniedException")
+}
+
+// sessionReport generates a cleanup report for handoff to a client or admin.
+func (r *REPL) sessionReport(args []string) error {
+	if len(args) > 0 && args[0] == "help" {
+		return r.showWorkspaceReportHelp()
+	}
+
+	resources := r.sessionManager.GetCreatedResources()
+	if len(resources) == 0 {
+		fmt.Println("No tracked resources in current workspace. Nothing to report.")
+		return nil
+	}
+
+	// Parse optional --module filter
+	moduleFilter := ""
+	for i, arg := range args {
+		if arg == "--module" && i+1 < len(args) {
+			moduleFilter = args[i+1]
+		}
+	}
+
+	if moduleFilter != "" {
+		var filtered []CreatedResource
+		for _, res := range resources {
+			if res.ModuleID == moduleFilter {
+				filtered = append(filtered, res)
+			}
+		}
+		resources = filtered
+		if len(resources) == 0 {
+			fmt.Printf("No tracked resources for module '%s'.\n", moduleFilter)
+			return nil
+		}
+	}
+
+	current := r.sessionManager.GetCurrentSession()
+	workspaceName := "unknown"
+	if current != nil {
+		workspaceName = current.GetName()
+	}
+
+	// Separate created vs modified resources
+	var created, modified []CreatedResource
+	for _, res := range resources {
+		if isModificationResource(res) {
+			modified = append(modified, res)
+		} else {
+			created = append(created, res)
+		}
+	}
+
+	// Header
+	ui.ReportHeader(workspaceName, time.Now().Format("2006-01-02 15:04:05 MST"), len(resources), len(created), len(modified))
+
+	// Created resources
+	if len(created) > 0 {
+		ui.ReportSection("CREATED RESOURCES (delete to clean up)")
+		for _, res := range created {
+			fmt.Println()
+			fmt.Printf("    Type:     %s\n", res.Type)
+			fmt.Printf("    Name:     %s\n", res.Name)
+			if res.ARN != "" {
+				fmt.Printf("    ARN:      %s\n", res.ARN)
+			}
+			if res.Region != "" {
+				fmt.Printf("    Region:   %s\n", res.Region)
+			}
+			if res.ModuleID != "" {
+				fmt.Printf("    Module:   %s\n", res.ModuleID)
+			}
+			fmt.Printf("    Cleanup:  %s\n", res.CleanupMethod)
+			if res.Created != "" {
+				fmt.Printf("    Created:  %s\n", res.Created)
+			}
+		}
+		fmt.Println()
+	}
+
+	// Modified resources
+	if len(modified) > 0 {
+		ui.ReportSection("MODIFIED RESOURCES (revert to clean up)")
+		for _, res := range modified {
+			fmt.Println()
+			fmt.Printf("    Type:       %s\n", res.Type)
+			if principalName, ok := res.Metadata["principal_name"]; ok {
+				fmt.Printf("    Principal:  %s (%s)\n", principalName, res.Metadata["principal_type"])
+			} else {
+				fmt.Printf("    Name:       %s\n", res.Name)
+			}
+			if policyArn, ok := res.Metadata["policy_arn"]; ok {
+				fmt.Printf("    Policy:     %s\n", policyArn)
+			}
+			if res.Region != "" {
+				fmt.Printf("    Region:     %s\n", res.Region)
+			}
+			if res.ModuleID != "" {
+				fmt.Printf("    Module:     %s\n", res.ModuleID)
+			}
+			fmt.Printf("    Reversal:   %s\n", res.CleanupMethod)
+		}
+		fmt.Println()
+	}
+
+	// Manual cleanup instructions
+	ui.ReportSection("MANUAL CLEANUP COMMANDS")
+	fmt.Println()
+	for _, res := range created {
+		printManualCleanupCommand(res)
+	}
+	for _, res := range modified {
+		printManualCleanupCommand(res)
+	}
+
+	ui.ReportFooter()
+
+	return nil
+}
+
+// isModificationResource returns true for resources that represent modifications
+// to existing AWS resources (e.g., policy attachments) rather than new creations.
+func isModificationResource(res CreatedResource) bool {
+	return res.Type == "iam:attached-policy" || res.Type == "iam:policy-version" ||
+		res.Type == "iam:inline-policy" || res.Type == "iam:group-membership" ||
+		res.Type == "iam:trust-policy"
+}
+
+// printManualCleanupCommand prints the AWS CLI command to clean up a resource.
+func printManualCleanupCommand(res CreatedResource) {
+	region := res.Region
+	if region == "" {
+		region = "us-east-1"
+	}
+
+	switch res.Type {
+	case "lambda:function":
+		fmt.Printf("    aws lambda delete-function --function-name %s --region %s\n", res.Name, region)
+	case "lambda:event-source-mapping":
+		uuid := res.Metadata["uuid"]
+		if uuid == "" {
+			uuid = res.Name
+		}
+		fmt.Printf("    aws lambda delete-event-source-mapping --uuid %s --region %s\n", uuid, region)
+	case "lambda:permission":
+		funcName := res.Metadata["function_name"]
+		stmtID := res.Metadata["statement_id"]
+		fmt.Printf("    aws lambda remove-permission --function-name %s --statement-id %s --region %s\n", funcName, stmtID, region)
+	case "ec2:instance":
+		instanceID := res.Metadata["instance_id"]
+		if instanceID == "" {
+			instanceID = res.Name
+		}
+		fmt.Printf("    aws ec2 terminate-instances --instance-ids %s --region %s\n", instanceID, region)
+	case "iam:attached-policy":
+		principalType := res.Metadata["principal_type"]
+		principalName := res.Metadata["principal_name"]
+		policyArn := res.Metadata["policy_arn"]
+		switch principalType {
+		case "role":
+			fmt.Printf("    aws iam detach-role-policy --role-name %s --policy-arn %s\n", principalName, policyArn)
+		case "group":
+			fmt.Printf("    aws iam detach-group-policy --group-name %s --policy-arn %s\n", principalName, policyArn)
+		default:
+			fmt.Printf("    aws iam detach-user-policy --user-name %s --policy-arn %s\n", principalName, policyArn)
+		}
+	case "iam:inline-policy":
+		principalType := res.Metadata["principal_type"]
+		principalName := res.Metadata["principal_name"]
+		policyName := res.Metadata["policy_name"]
+		switch principalType {
+		case "role":
+			fmt.Printf("    aws iam delete-role-policy --role-name %s --policy-name %s\n", principalName, policyName)
+		case "group":
+			fmt.Printf("    aws iam delete-group-policy --group-name %s --policy-name %s\n", principalName, policyName)
+		default:
+			fmt.Printf("    aws iam delete-user-policy --user-name %s --policy-name %s\n", principalName, policyName)
+		}
+	case "iam:group-membership":
+		userName := res.Metadata["user_name"]
+		groupName := res.Metadata["group_name"]
+		fmt.Printf("    aws iam remove-user-from-group --user-name %s --group-name %s\n", userName, groupName)
+	case "iam:trust-policy":
+		roleName := res.Metadata["role_name"]
+		fmt.Printf("    aws iam update-assume-role-policy --role-name %s --policy-document '<original-trust-policy>'\n", roleName)
+	case "iam:policy-version":
+		policyArn := res.Metadata["policy_arn"]
+		versionID := res.Metadata["version_id"]
+		fmt.Printf("    aws iam delete-policy-version --policy-arn %s --version-id %s\n", policyArn, versionID)
+	case "iam:access-key":
+		username := res.Metadata["username"]
+		accessKeyID := res.Metadata["access_key_id"]
+		if accessKeyID == "" {
+			accessKeyID = res.Name
+		}
+		fmt.Printf("    aws iam delete-access-key --user-name %s --access-key-id %s\n", username, accessKeyID)
+	case "iam:login-profile":
+		username := res.Metadata["username"]
+		if username == "" {
+			username = res.Name
+		}
+		fmt.Printf("    aws iam delete-login-profile --user-name %s\n", username)
+	case "iam:role":
+		fmt.Printf("    aws iam delete-role --role-name %s\n", res.Name)
+	case "iam:user":
+		fmt.Printf("    aws iam delete-user --user-name %s\n", res.Name)
+	case "ecs:service":
+		cluster := res.Metadata["cluster"]
+		fmt.Printf("    aws ecs delete-service --cluster %s --service %s --force --region %s\n", cluster, res.Name, region)
+	case "ecs:cluster":
+		fmt.Printf("    aws ecs delete-cluster --cluster %s --region %s\n", res.Name, region)
+	default:
+		fmt.Printf("    # %s: %s (manual cleanup required)\n", res.Type, res.Name)
+	}
+}
+
 // sessionHistory shows command history
 func (r *REPL) sessionHistory(args []string) error {
+	if len(args) > 0 && args[0] == "help" {
+		return r.showWorkspaceHistoryHelp()
+	}
+
 	current := r.sessionManager.GetCurrentSession()
 
 	limit := 20 // Default limit
@@ -311,15 +592,7 @@ func (r *REPL) sessionHistory(args []string) error {
 		start = totalCommands - limit
 	}
 
-	// Create table
-	t := table.New(os.Stdout)
-	t.SetHeaders("Timestamp", "Command", "Status")
-	t.SetHeaderStyle(table.StyleBold)
-	t.SetRowLines(false)
-	t.SetLineStyle(table.StyleCyan)
-	t.SetDividers(table.UnicodeRoundedDividers)
-	t.SetAlignment(table.AlignLeft)
-
+	rows := make([][]string, 0, limit)
 	for i := start; i < totalCommands; i++ {
 		entry := commandLog[i]
 		status := "✓"
@@ -330,10 +603,10 @@ func (r *REPL) sessionHistory(args []string) error {
 			}
 		}
 
-		t.AddRow(entry.Timestamp, entry.Command, status)
+		rows = append(rows, []string{entry.Timestamp, entry.Command, status})
 	}
 
-	t.Render()
+	ui.Table([]string{"Timestamp", "Command", "Status"}, rows)
 	fmt.Println()
 	fmt.Printf("Total commands: %d\n", totalCommands)
 
@@ -419,6 +692,30 @@ func (r *REPL) cleanupResource(resource CreatedResource, identity *modules.Ident
 		return r.cleanupIAMRole(ctx, config, resource)
 	case "iam:user":
 		return r.cleanupIAMUser(ctx, config, resource)
+	case "iam:attached-policy":
+		return r.cleanupIAMAttachedPolicy(ctx, config, resource)
+	case "iam:inline-policy":
+		return r.cleanupIAMInlinePolicy(ctx, config, resource)
+	case "iam:group-membership":
+		return r.cleanupIAMGroupMembership(ctx, config, resource)
+	case "iam:trust-policy":
+		return r.cleanupIAMTrustPolicy(ctx, config, resource)
+	case "iam:policy-version":
+		return r.cleanupIAMPolicyVersion(ctx, config, resource)
+	case "iam:access-key":
+		return r.cleanupIAMAccessKey(ctx, config, resource)
+	case "iam:login-profile":
+		return r.cleanupIAMLoginProfile(ctx, config, resource)
+	case "ecs:service":
+		return r.cleanupECSService(ctx, config, resource)
+	case "ecs:cluster":
+		return r.cleanupECSCluster(ctx, config, resource)
+	case "lambda:event-source-mapping":
+		return r.cleanupLambdaEventSourceMapping(ctx, config, resource)
+	case "lambda:permission":
+		return r.cleanupLambdaPermission(ctx, config, resource)
+	case "ecs:task-definition":
+		return r.cleanupECSTaskDefinition(ctx, config, resource)
 	default:
 		return fmt.Errorf("unsupported resource type: %s", resource.Type)
 	}
@@ -426,7 +723,6 @@ func (r *REPL) cleanupResource(resource CreatedResource, identity *modules.Ident
 
 // cleanupLambdaFunction deletes a Lambda function
 func (r *REPL) cleanupLambdaFunction(ctx context.Context, config aws.Config, resource CreatedResource) error {
-	// Override region with the resource's region if it was tracked
 	if resource.Region != "" {
 		config.Region = resource.Region
 	}
@@ -438,19 +734,56 @@ func (r *REPL) cleanupLambdaFunction(ctx context.Context, config aws.Config, res
 	return err
 }
 
+// cleanupLambdaEventSourceMapping deletes a Lambda event source mapping
+func (r *REPL) cleanupLambdaEventSourceMapping(ctx context.Context, config aws.Config, resource CreatedResource) error {
+	if resource.Region != "" {
+		config.Region = resource.Region
+	}
+
+	client := lambda.NewFromConfig(config)
+
+	uuid := resource.Metadata["uuid"]
+	if uuid == "" {
+		uuid = resource.Name
+	}
+
+	_, err := client.DeleteEventSourceMapping(ctx, &lambda.DeleteEventSourceMappingInput{
+		UUID: aws.String(uuid),
+	})
+	return err
+}
+
+// cleanupLambdaPermission removes a resource-based policy statement from a Lambda function.
+func (r *REPL) cleanupLambdaPermission(ctx context.Context, config aws.Config, resource CreatedResource) error {
+	if resource.Region != "" {
+		config.Region = resource.Region
+	}
+
+	client := lambda.NewFromConfig(config)
+
+	funcName := resource.Metadata["function_name"]
+	stmtID := resource.Metadata["statement_id"]
+	if funcName == "" || stmtID == "" {
+		return fmt.Errorf("missing function_name or statement_id metadata for lambda:permission resource")
+	}
+
+	_, err := client.RemovePermission(ctx, &lambda.RemovePermissionInput{
+		FunctionName: aws.String(funcName),
+		StatementId:  aws.String(stmtID),
+	})
+	return err
+}
+
 // cleanupEC2Instance terminates an EC2 instance
 func (r *REPL) cleanupEC2Instance(ctx context.Context, config aws.Config, resource CreatedResource) error {
-	// Override region with the resource's region if it was tracked
 	if resource.Region != "" {
 		config.Region = resource.Region
 	}
 
 	client := ec2.NewFromConfig(config)
 
-	// Get instance ID from metadata
 	instanceID, exists := resource.Metadata["instance_id"]
 	if !exists {
-		// Fallback to using resource name as instance ID
 		instanceID = resource.Name
 	}
 
@@ -495,6 +828,173 @@ func (r *REPL) cleanupIAMRole(ctx context.Context, config aws.Config, resource C
 		RoleName: aws.String(resource.Name),
 	})
 	return err
+}
+
+// cleanupIAMAttachedPolicy detaches a managed policy from a role or user
+func (r *REPL) cleanupIAMAttachedPolicy(ctx context.Context, config aws.Config, resource CreatedResource) error {
+	client := iam.NewFromConfig(config)
+
+	principalType := resource.Metadata["principal_type"]
+	principalName := resource.Metadata["principal_name"]
+	policyArn := resource.Metadata["policy_arn"]
+
+	if policyArn == "" {
+		policyArn = resource.ARN
+	}
+	if principalName == "" {
+		principalName = resource.Name
+	}
+
+	// Normalize ARNs to friendly names — IAM APIs require names, not ARNs
+	if strings.HasPrefix(principalName, "arn:") {
+		if idx := strings.LastIndex(principalName, "/"); idx != -1 {
+			principalName = principalName[idx+1:]
+		}
+	}
+
+	switch principalType {
+	case "user":
+		_, err := client.DetachUserPolicy(ctx, &iam.DetachUserPolicyInput{
+			UserName:  aws.String(principalName),
+			PolicyArn: aws.String(policyArn),
+		})
+		return err
+	case "group":
+		_, err := client.DetachGroupPolicy(ctx, &iam.DetachGroupPolicyInput{
+			GroupName: aws.String(principalName),
+			PolicyArn: aws.String(policyArn),
+		})
+		return err
+	case "role", "":
+		_, err := client.DetachRolePolicy(ctx, &iam.DetachRolePolicyInput{
+			RoleName:  aws.String(principalName),
+			PolicyArn: aws.String(policyArn),
+		})
+		return err
+	default:
+		return fmt.Errorf("unsupported principal type: %s", principalType)
+	}
+}
+
+// cleanupIAMPolicyVersion deletes a specific policy version
+func (r *REPL) cleanupIAMPolicyVersion(ctx context.Context, config aws.Config, resource CreatedResource) error {
+	client := iam.NewFromConfig(config)
+
+	policyArn := resource.Metadata["policy_arn"]
+	if policyArn == "" {
+		policyArn = resource.ARN
+	}
+
+	versionID := resource.Metadata["version_id"]
+	if versionID == "" {
+		return fmt.Errorf("no version_id in resource metadata")
+	}
+
+	_, err := client.DeletePolicyVersion(ctx, &iam.DeletePolicyVersionInput{
+		PolicyArn: aws.String(policyArn),
+		VersionId: aws.String(versionID),
+	})
+	return err
+}
+
+// cleanupIAMAccessKey deletes an IAM access key
+func (r *REPL) cleanupIAMAccessKey(ctx context.Context, config aws.Config, resource CreatedResource) error {
+	client := iam.NewFromConfig(config)
+
+	username := resource.Metadata["username"]
+	accessKeyID := resource.Metadata["access_key_id"]
+	if accessKeyID == "" {
+		accessKeyID = resource.Name
+	}
+
+	_, err := client.DeleteAccessKey(ctx, &iam.DeleteAccessKeyInput{
+		UserName:    aws.String(username),
+		AccessKeyId: aws.String(accessKeyID),
+	})
+	return err
+}
+
+// cleanupIAMLoginProfile deletes an IAM login profile
+func (r *REPL) cleanupIAMLoginProfile(ctx context.Context, config aws.Config, resource CreatedResource) error {
+	client := iam.NewFromConfig(config)
+
+	username := resource.Metadata["username"]
+	if username == "" {
+		username = resource.Name
+	}
+
+	_, err := client.DeleteLoginProfile(ctx, &iam.DeleteLoginProfileInput{
+		UserName: aws.String(username),
+	})
+	return err
+}
+
+// cleanupECSService updates desired count to 0 and deletes the service
+func (r *REPL) cleanupECSService(ctx context.Context, config aws.Config, resource CreatedResource) error {
+	if resource.Region != "" {
+		config.Region = resource.Region
+	}
+
+	client := ecs.NewFromConfig(config)
+
+	cluster := resource.Metadata["cluster"]
+	serviceName := resource.Name
+
+	// Scale down to 0 first
+	_, _ = client.UpdateService(ctx, &ecs.UpdateServiceInput{
+		Cluster:      aws.String(cluster),
+		Service:      aws.String(serviceName),
+		DesiredCount: aws.Int32(0),
+	})
+
+	// Delete the service
+	_, err := client.DeleteService(ctx, &ecs.DeleteServiceInput{
+		Cluster: aws.String(cluster),
+		Service: aws.String(serviceName),
+		Force:   aws.Bool(true),
+	})
+	return err
+}
+
+// cleanupECSCluster deletes an ECS cluster
+func (r *REPL) cleanupECSCluster(ctx context.Context, config aws.Config, resource CreatedResource) error {
+	if resource.Region != "" {
+		config.Region = resource.Region
+	}
+
+	client := ecs.NewFromConfig(config)
+
+	_, err := client.DeleteCluster(ctx, &ecs.DeleteClusterInput{
+		Cluster: aws.String(resource.Name),
+	})
+	return err
+}
+
+// cleanupECSTaskDefinition deregisters an ECS task definition
+func (r *REPL) cleanupECSTaskDefinition(ctx context.Context, config aws.Config, resource CreatedResource) error {
+	if resource.Region != "" {
+		config.Region = resource.Region
+	}
+
+	client := ecs.NewFromConfig(config)
+
+	taskDefArn := resource.ARN
+	if taskDefArn == "" {
+		taskDefArn = resource.Name
+	}
+
+	_, err := client.DeregisterTaskDefinition(ctx, &ecs.DeregisterTaskDefinitionInput{
+		TaskDefinition: aws.String(taskDefArn),
+	})
+	if err != nil {
+		return err
+	}
+
+	// Also delete the deregistered task definition
+	_, _ = client.DeleteTaskDefinitions(ctx, &ecs.DeleteTaskDefinitionsInput{
+		TaskDefinitions: []string{taskDefArn},
+	})
+	return nil
 }
 
 // cleanupIAMUser deletes an IAM user and its policies
@@ -543,6 +1043,81 @@ func (r *REPL) cleanupIAMUser(ctx context.Context, config aws.Config, resource C
 	// Delete the user
 	_, err = client.DeleteUser(ctx, &iam.DeleteUserInput{
 		UserName: aws.String(resource.Name),
+	})
+	return err
+}
+
+// cleanupIAMInlinePolicy deletes an inline policy from a role, group, or user
+func (r *REPL) cleanupIAMInlinePolicy(ctx context.Context, config aws.Config, resource CreatedResource) error {
+	client := iam.NewFromConfig(config)
+
+	principalType := resource.Metadata["principal_type"]
+	principalName := resource.Metadata["principal_name"]
+	policyName := resource.Metadata["policy_name"]
+
+	if policyName == "" {
+		policyName = resource.Name
+	}
+
+	switch principalType {
+	case "user":
+		_, err := client.DeleteUserPolicy(ctx, &iam.DeleteUserPolicyInput{
+			UserName:   aws.String(principalName),
+			PolicyName: aws.String(policyName),
+		})
+		return err
+	case "group":
+		_, err := client.DeleteGroupPolicy(ctx, &iam.DeleteGroupPolicyInput{
+			GroupName:  aws.String(principalName),
+			PolicyName: aws.String(policyName),
+		})
+		return err
+	case "role", "":
+		_, err := client.DeleteRolePolicy(ctx, &iam.DeleteRolePolicyInput{
+			RoleName:   aws.String(principalName),
+			PolicyName: aws.String(policyName),
+		})
+		return err
+	default:
+		return fmt.Errorf("unsupported principal type for inline policy: %s", principalType)
+	}
+}
+
+// cleanupIAMGroupMembership removes a user from a group
+func (r *REPL) cleanupIAMGroupMembership(ctx context.Context, config aws.Config, resource CreatedResource) error {
+	client := iam.NewFromConfig(config)
+
+	userName := resource.Metadata["user_name"]
+	groupName := resource.Metadata["group_name"]
+
+	if userName == "" || groupName == "" {
+		return fmt.Errorf("missing user_name or group_name in resource metadata")
+	}
+
+	_, err := client.RemoveUserFromGroup(ctx, &iam.RemoveUserFromGroupInput{
+		UserName:  aws.String(userName),
+		GroupName: aws.String(groupName),
+	})
+	return err
+}
+
+// cleanupIAMTrustPolicy restores the original trust policy on a role
+func (r *REPL) cleanupIAMTrustPolicy(ctx context.Context, config aws.Config, resource CreatedResource) error {
+	client := iam.NewFromConfig(config)
+
+	roleName := resource.Metadata["role_name"]
+	originalPolicy := resource.Metadata["original_policy"]
+
+	if roleName == "" {
+		roleName = resource.Name
+	}
+	if originalPolicy == "" {
+		return fmt.Errorf("no original_policy in resource metadata; cannot restore trust policy")
+	}
+
+	_, err := client.UpdateAssumeRolePolicy(ctx, &iam.UpdateAssumeRolePolicyInput{
+		RoleName:       aws.String(roleName),
+		PolicyDocument: aws.String(originalPolicy),
 	})
 	return err
 }

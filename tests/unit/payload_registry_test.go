@@ -1,28 +1,68 @@
 package unit
 
 import (
+	"pathrunner/pkg/modules"
 	"pathrunner/pkg/payloads"
+	_ "pathrunner/pkg/payloads/ec2"    // Import to register EC2 payloads
 	_ "pathrunner/pkg/payloads/lambda" // Import to register payloads
+	"strings"
 	"testing"
 )
 
 func TestPayloadRegistry(t *testing.T) {
-	t.Run("GetPayload", func(t *testing.T) {
-		// Test retrieving an existing payload
-		payload, err := payloads.GetPayload("exfil/output")
+	t.Run("GetPayload_Unambiguous", func(t *testing.T) {
+		// exfil/response only exists in Lambda, so GetPayload should work
+		payload, err := payloads.GetPayload("exfil/response")
 		if err != nil {
-			t.Errorf("Expected no error getting exfil/output payload, got: %v", err)
+			t.Errorf("Expected no error getting exfil/response payload, got: %v", err)
 		}
 		if payload == nil {
 			t.Error("Expected payload to be non-nil")
 		}
-		if payload.GetName() != "exfil/output" {
-			t.Errorf("Expected payload name 'exfil/output', got: %s", payload.GetName())
+		if payload.GetName() != "exfil/response" {
+			t.Errorf("Expected payload name 'exfil/response', got: %s", payload.GetName())
+		}
+	})
+
+	t.Run("GetPayload_Ambiguous", func(t *testing.T) {
+		// backdoor/attach-policy exists in both Lambda and EC2
+		_, err := payloads.GetPayload("backdoor/attach-policy")
+		if err == nil {
+			t.Error("Expected ambiguity error for backdoor/attach-policy (exists in Lambda and EC2)")
+		}
+		if err != nil && !strings.Contains(err.Error(), "ambiguous") {
+			t.Errorf("Expected ambiguity error, got: %v", err)
+		}
+	})
+
+	t.Run("GetPayloadForService", func(t *testing.T) {
+		// Lambda version of backdoor/attach-policy
+		lambdaPayload, err := payloads.GetPayloadForService("backdoor/attach-policy", payloads.TagServiceLambda)
+		if err != nil {
+			t.Fatalf("Expected no error, got: %v", err)
+		}
+		if !hasTag(lambdaPayload.GetTags(), payloads.TagServiceLambda) {
+			t.Error("Expected Lambda service tag on Lambda payload")
+		}
+
+		// EC2 version of backdoor/attach-policy
+		ec2Payload, err := payloads.GetPayloadForService("backdoor/attach-policy", payloads.TagServiceEC2)
+		if err != nil {
+			t.Fatalf("Expected no error, got: %v", err)
+		}
+		if !hasTag(ec2Payload.GetTags(), payloads.TagServiceEC2) {
+			t.Error("Expected EC2 service tag on EC2 payload")
+		}
+	})
+
+	t.Run("GetPayloadForService_NotFound", func(t *testing.T) {
+		_, err := payloads.GetPayloadForService("nonexistent/payload", payloads.TagServiceLambda)
+		if err == nil {
+			t.Error("Expected error for non-existent payload")
 		}
 	})
 
 	t.Run("GetPayload_NotFound", func(t *testing.T) {
-		// Test retrieving a non-existent payload
 		_, err := payloads.GetPayload("nonexistent/payload")
 		if err == nil {
 			t.Error("Expected error for non-existent payload, got nil")
@@ -30,13 +70,11 @@ func TestPayloadRegistry(t *testing.T) {
 	})
 
 	t.Run("GetPayloadsByTags_Lambda", func(t *testing.T) {
-		// Test filtering by Lambda tag
 		lambdaPayloads := payloads.GetPayloadsByTags([]string{payloads.TagServiceLambda})
 		if len(lambdaPayloads) == 0 {
 			t.Error("Expected at least one Lambda payload")
 		}
 
-		// Verify all returned payloads have the Lambda tag
 		for _, payload := range lambdaPayloads {
 			if !hasTag(payload.GetTags(), payloads.TagServiceLambda) {
 				t.Errorf("Payload %s missing Lambda tag", payload.GetName())
@@ -45,7 +83,6 @@ func TestPayloadRegistry(t *testing.T) {
 	})
 
 	t.Run("GetPayloadsByTags_Multiple", func(t *testing.T) {
-		// Test filtering by multiple tags (Lambda AND Python)
 		filteredPayloads := payloads.GetPayloadsByTags([]string{
 			payloads.TagServiceLambda,
 			payloads.TagLanguagePython,
@@ -55,7 +92,6 @@ func TestPayloadRegistry(t *testing.T) {
 			t.Error("Expected at least one Lambda Python payload")
 		}
 
-		// Verify all returned payloads have both tags
 		for _, payload := range filteredPayloads {
 			tags := payload.GetTags()
 			if !hasTag(tags, payloads.TagServiceLambda) {
@@ -68,7 +104,6 @@ func TestPayloadRegistry(t *testing.T) {
 	})
 
 	t.Run("GetPayloadsByTags_Exfil", func(t *testing.T) {
-		// Test filtering by technique tag
 		exfilPayloads := payloads.GetPayloadsByTags([]string{payloads.TagTechniqueExfil})
 		if len(exfilPayloads) < 2 {
 			t.Errorf("Expected at least 2 exfil payloads, got: %d", len(exfilPayloads))
@@ -76,7 +111,6 @@ func TestPayloadRegistry(t *testing.T) {
 	})
 
 	t.Run("GetPayloadsByTags_Backdoor", func(t *testing.T) {
-		// Test filtering by backdoor technique
 		backdoorPayloads := payloads.GetPayloadsByTags([]string{payloads.TagTechniqueBackdoor})
 		if len(backdoorPayloads) < 2 {
 			t.Errorf("Expected at least 2 backdoor payloads, got: %d", len(backdoorPayloads))
@@ -84,25 +118,36 @@ func TestPayloadRegistry(t *testing.T) {
 	})
 
 	t.Run("ListAllPayloads", func(t *testing.T) {
-		// Test getting all registered payloads
 		allPayloads := payloads.ListAllPayloads()
 		if len(allPayloads) < 4 {
 			t.Errorf("Expected at least 4 payloads, got: %d", len(allPayloads))
 		}
+	})
 
-		// Verify names are unique
-		nameMap := make(map[string]bool)
-		for _, payload := range allPayloads {
-			name := payload.GetName()
-			if nameMap[name] {
-				t.Errorf("Duplicate payload name: %s", name)
+	t.Run("CompositeKey_SameNameDifferentServices", func(t *testing.T) {
+		// Both exfil/https and backdoor/attach-policy exist in Lambda and EC2
+		allPayloads := payloads.ListAllPayloads()
+
+		exfilHTTPSCount := 0
+		backdoorAPCount := 0
+		for _, p := range allPayloads {
+			if p.GetName() == "exfil/https" {
+				exfilHTTPSCount++
 			}
-			nameMap[name] = true
+			if p.GetName() == "backdoor/attach-policy" {
+				backdoorAPCount++
+			}
+		}
+
+		if exfilHTTPSCount != 2 {
+			t.Errorf("Expected 2 exfil/https payloads (Lambda + EC2), got %d", exfilHTTPSCount)
+		}
+		if backdoorAPCount != 2 {
+			t.Errorf("Expected 2 backdoor/attach-policy payloads (Lambda + EC2), got %d", backdoorAPCount)
 		}
 	})
 
 	t.Run("PayloadInterface", func(t *testing.T) {
-		// Test that all payloads implement the interface correctly
 		allPayloads := payloads.ListAllPayloads()
 		for _, payload := range allPayloads {
 			if payload.GetName() == "" {
@@ -192,7 +237,6 @@ func TestPayloadRegistry(t *testing.T) {
 			t.Errorf("Expected at least 2 payloads, got: %d", len(filteredPayloads))
 		}
 
-		// Verify none of the returned payloads have the backdoor tag
 		for _, payload := range filteredPayloads {
 			if hasTag(payload.GetTags(), payloads.TagTechniqueBackdoor) {
 				t.Errorf("Payload %s should have been excluded", payload.GetName())
@@ -201,12 +245,12 @@ func TestPayloadRegistry(t *testing.T) {
 	})
 
 	t.Run("GetPayloadInfo", func(t *testing.T) {
-		info, err := payloads.GetPayloadInfo("exfil/output")
+		info, err := payloads.GetPayloadInfo("exfil/response")
 		if err != nil {
 			t.Errorf("Expected no error getting payload info, got: %v", err)
 		}
-		if info.Name != "exfil/output" {
-			t.Errorf("Expected name 'exfil/output', got: %s", info.Name)
+		if info.Name != "exfil/response" {
+			t.Errorf("Expected name 'exfil/response', got: %s", info.Name)
 		}
 		if info.Description == "" {
 			t.Error("Expected non-empty description")
@@ -215,45 +259,295 @@ func TestPayloadRegistry(t *testing.T) {
 			t.Error("Expected non-empty tags")
 		}
 	})
+
+	t.Run("QualifiedName", func(t *testing.T) {
+		qn := payloads.QualifiedName("lambda", "backdoor/attach-policy")
+		if qn != "lambda:backdoor/attach-policy" {
+			t.Errorf("Expected 'lambda:backdoor/attach-policy', got '%s'", qn)
+		}
+	})
 }
 
 func TestPayloadValidation(t *testing.T) {
 	t.Run("ExfilHTTPS_RequiresURL", func(t *testing.T) {
-		payload, err := payloads.GetPayload("exfil/https")
+		payload, err := payloads.GetPayloadForService("exfil/https", payloads.TagServiceLambda)
 		if err != nil {
 			t.Fatalf("Failed to get payload: %v", err)
 		}
 
-		// Should fail without HTTPS_URL
 		err = payload.Validate(map[string]string{})
 		if err == nil {
 			t.Error("Expected validation error for missing HTTPS_URL")
 		}
 
-		// Should pass with HTTPS_URL
 		err = payload.Validate(map[string]string{"HTTPS_URL": "https://example.com"})
 		if err != nil {
 			t.Errorf("Expected no validation error, got: %v", err)
 		}
 	})
 
-	t.Run("BackdoorRole_RequiresAccount", func(t *testing.T) {
-		payload, err := payloads.GetPayload("backdoor/role")
+	t.Run("BackdoorCreateRole_RequiresTrustedPrincipal", func(t *testing.T) {
+		payload, err := payloads.GetPayload("backdoor/create-role")
 		if err != nil {
 			t.Fatalf("Failed to get payload: %v", err)
 		}
 
-		// Should fail without BACKDOOR_ACCOUNT
 		err = payload.Validate(map[string]string{})
 		if err == nil {
-			t.Error("Expected validation error for missing BACKDOOR_ACCOUNT")
+			t.Error("Expected validation error for missing TRUSTED_PRINCIPAL")
 		}
 
-		// Should pass with BACKDOOR_ACCOUNT
-		err = payload.Validate(map[string]string{"BACKDOOR_ACCOUNT": "123456789012"})
+		err = payload.Validate(map[string]string{"TRUSTED_PRINCIPAL": "arn:aws:iam::123456789012:user/attacker"})
 		if err != nil {
 			t.Errorf("Expected no validation error, got: %v", err)
 		}
+	})
+}
+
+func TestSideEffectReporter(t *testing.T) {
+	t.Run("BackdoorAttachPolicy_Lambda_ImplementsSideEffectReporter", func(t *testing.T) {
+		payload, err := payloads.GetPayloadForService("backdoor/attach-policy", payloads.TagServiceLambda)
+		if err != nil {
+			t.Fatalf("Failed to get payload: %v", err)
+		}
+
+		reporter, ok := payload.(payloads.SideEffectReporter)
+		if !ok {
+			t.Fatal("backdoor/attach-policy (lambda) should implement SideEffectReporter")
+		}
+
+		effects := reporter.ReportSideEffects(map[string]string{
+			"TARGET_USER": "test-user",
+			"POLICY_ARN":  "arn:aws:iam::aws:policy/AdministratorAccess",
+		})
+
+		if len(effects) != 1 {
+			t.Fatalf("Expected 1 side effect, got %d", len(effects))
+		}
+
+		effect := effects[0]
+		if effect.Type != "iam:attached-policy" {
+			t.Errorf("Expected type 'iam:attached-policy', got '%s'", effect.Type)
+		}
+		if effect.Metadata["principal_type"] != "user" {
+			t.Errorf("Expected principal_type 'user', got '%s'", effect.Metadata["principal_type"])
+		}
+		if effect.Metadata["principal_name"] != "test-user" {
+			t.Errorf("Expected principal_name 'test-user', got '%s'", effect.Metadata["principal_name"])
+		}
+		if effect.Metadata["policy_arn"] != "arn:aws:iam::aws:policy/AdministratorAccess" {
+			t.Errorf("Expected correct policy_arn, got '%s'", effect.Metadata["policy_arn"])
+		}
+		if effect.CleanupMethod != "iam:DetachUserPolicy" {
+			t.Errorf("Expected cleanup method 'iam:DetachUserPolicy', got '%s'", effect.CleanupMethod)
+		}
+	})
+
+	t.Run("BackdoorAttachPolicy_DefaultPolicyARN", func(t *testing.T) {
+		payload, err := payloads.GetPayloadForService("backdoor/attach-policy", payloads.TagServiceLambda)
+		if err != nil {
+			t.Fatalf("Failed to get payload: %v", err)
+		}
+
+		reporter := payload.(payloads.SideEffectReporter)
+		effects := reporter.ReportSideEffects(map[string]string{
+			"TARGET_USER": "my-user",
+		})
+
+		if len(effects) != 1 {
+			t.Fatalf("Expected 1 side effect, got %d", len(effects))
+		}
+
+		if effects[0].Metadata["policy_arn"] != "arn:aws:iam::aws:policy/AdministratorAccess" {
+			t.Errorf("Expected default AdministratorAccess policy, got '%s'", effects[0].Metadata["policy_arn"])
+		}
+	})
+
+	t.Run("BackdoorAttachPolicy_EC2_ImplementsSideEffectReporter", func(t *testing.T) {
+		payload, err := payloads.GetPayloadForService("backdoor/attach-policy", payloads.TagServiceEC2)
+		if err != nil {
+			t.Fatalf("Failed to get payload: %v", err)
+		}
+
+		reporter, ok := payload.(payloads.SideEffectReporter)
+		if !ok {
+			t.Fatal("backdoor/attach-policy (ec2) should implement SideEffectReporter")
+		}
+
+		// Test user principal
+		effects := reporter.ReportSideEffects(map[string]string{
+			"TARGET_PRINCIPAL_TYPE": "user",
+			"TARGET_PRINCIPAL_NAME": "test-user",
+		})
+
+		if len(effects) != 1 {
+			t.Fatalf("Expected 1 side effect, got %d", len(effects))
+		}
+		if effects[0].CleanupMethod != "iam:DetachUserPolicy" {
+			t.Errorf("Expected 'iam:DetachUserPolicy' for user, got '%s'", effects[0].CleanupMethod)
+		}
+		if effects[0].Metadata["principal_type"] != "user" {
+			t.Errorf("Expected principal_type 'user', got '%s'", effects[0].Metadata["principal_type"])
+		}
+	})
+
+	t.Run("BackdoorAttachPolicy_EC2_RolePrincipal", func(t *testing.T) {
+		payload, err := payloads.GetPayloadForService("backdoor/attach-policy", payloads.TagServiceEC2)
+		if err != nil {
+			t.Fatalf("Failed to get payload: %v", err)
+		}
+
+		reporter := payload.(payloads.SideEffectReporter)
+		effects := reporter.ReportSideEffects(map[string]string{
+			"TARGET_PRINCIPAL_TYPE": "role",
+			"TARGET_PRINCIPAL_NAME": "test-role",
+		})
+
+		if len(effects) != 1 {
+			t.Fatalf("Expected 1 side effect, got %d", len(effects))
+		}
+		if effects[0].CleanupMethod != "iam:DetachRolePolicy" {
+			t.Errorf("Expected 'iam:DetachRolePolicy' for role, got '%s'", effects[0].CleanupMethod)
+		}
+		if effects[0].Metadata["principal_type"] != "role" {
+			t.Errorf("Expected principal_type 'role', got '%s'", effects[0].Metadata["principal_type"])
+		}
+	})
+
+	t.Run("ExfilPayloads_DoNotImplementSideEffectReporter", func(t *testing.T) {
+		// exfil/response only exists in Lambda
+		payload, err := payloads.GetPayload("exfil/response")
+		if err != nil {
+			t.Fatalf("Failed to get payload exfil/response: %v", err)
+		}
+		_, ok := payload.(payloads.SideEffectReporter)
+		if ok {
+			t.Errorf("Payload exfil/response should NOT implement SideEffectReporter (read-only)")
+		}
+
+		// exfil/https exists in both — check Lambda version
+		lambdaExfil, err := payloads.GetPayloadForService("exfil/https", payloads.TagServiceLambda)
+		if err != nil {
+			t.Fatalf("Failed to get payload exfil/https (lambda): %v", err)
+		}
+		_, ok = lambdaExfil.(payloads.SideEffectReporter)
+		if ok {
+			t.Errorf("Payload exfil/https (lambda) should NOT implement SideEffectReporter (read-only)")
+		}
+	})
+
+	t.Run("SideEffectResources_CompatibleWithCleanupHandler", func(t *testing.T) {
+		payload, _ := payloads.GetPayloadForService("backdoor/attach-policy", payloads.TagServiceLambda)
+		reporter := payload.(payloads.SideEffectReporter)
+		effects := reporter.ReportSideEffects(map[string]string{
+			"TARGET_USER": "cleanup-test-user",
+		})
+
+		effect := effects[0]
+
+		if effect.Metadata["principal_type"] == "" {
+			t.Error("Side effect must include principal_type in metadata")
+		}
+		if effect.Metadata["principal_name"] == "" {
+			t.Error("Side effect must include principal_name in metadata")
+		}
+		if effect.Metadata["policy_arn"] == "" {
+			t.Error("Side effect must include policy_arn in metadata")
+		}
+	})
+
+	t.Run("SideEffect_ModuleIDNotSetByPayload", func(t *testing.T) {
+		payload, _ := payloads.GetPayloadForService("backdoor/attach-policy", payloads.TagServiceLambda)
+		reporter := payload.(payloads.SideEffectReporter)
+		effects := reporter.ReportSideEffects(map[string]string{
+			"TARGET_USER": "test",
+		})
+
+		if effects[0].ModuleID != "" {
+			t.Errorf("Payload should not set ModuleID (module does that), got '%s'", effects[0].ModuleID)
+		}
+	})
+
+	t.Run("SideEffect_NameIsReadable", func(t *testing.T) {
+		payload, _ := payloads.GetPayloadForService("backdoor/attach-policy", payloads.TagServiceLambda)
+		reporter := payload.(payloads.SideEffectReporter)
+		effects := reporter.ReportSideEffects(map[string]string{
+			"TARGET_USER": "alice",
+		})
+
+		if !strings.Contains(effects[0].Name, "alice") {
+			t.Errorf("Side effect Name should contain target user for readability, got '%s'", effects[0].Name)
+		}
+	})
+}
+
+func TestVerifiableInterface(t *testing.T) {
+	t.Run("BackdoorAttachPolicy_ImplementsVerifiable", func(t *testing.T) {
+		payload, err := payloads.GetPayloadForService("backdoor/attach-policy", payloads.TagServiceLambda)
+		if err != nil {
+			t.Fatalf("Failed to get payload: %v", err)
+		}
+
+		_, ok := payload.(payloads.Verifiable)
+		if !ok {
+			t.Fatal("backdoor/attach-policy (lambda) should implement Verifiable")
+		}
+	})
+
+	t.Run("ExfilPayloads_DoNotImplementVerifiable", func(t *testing.T) {
+		payload, err := payloads.GetPayload("exfil/response")
+		if err != nil {
+			t.Fatalf("Failed to get payload exfil/response: %v", err)
+		}
+		_, ok := payload.(payloads.Verifiable)
+		if ok {
+			t.Errorf("Payload exfil/response should NOT implement Verifiable")
+		}
+
+		lambdaExfil, err := payloads.GetPayloadForService("exfil/https", payloads.TagServiceLambda)
+		if err != nil {
+			t.Fatalf("Failed to get payload exfil/https (lambda): %v", err)
+		}
+		_, ok = lambdaExfil.(payloads.Verifiable)
+		if ok {
+			t.Errorf("Payload exfil/https (lambda) should NOT implement Verifiable")
+		}
+	})
+}
+
+func TestSideEffectReporter_ResourceTracking(t *testing.T) {
+	t.Run("ModuleIntegration_SetModuleID", func(t *testing.T) {
+		payload, _ := payloads.GetPayloadForService("backdoor/attach-policy", payloads.TagServiceLambda)
+		reporter := payload.(payloads.SideEffectReporter)
+
+		effects := reporter.ReportSideEffects(map[string]string{
+			"TARGET_USER": "starting-user",
+			"POLICY_ARN":  "arn:aws:iam::aws:policy/AdministratorAccess",
+		})
+
+		for i := range effects {
+			effects[i].ModuleID = "lambda-002"
+			effects[i].Region = "us-east-1"
+		}
+
+		effect := effects[0]
+		if effect.ModuleID != "lambda-002" {
+			t.Errorf("Expected ModuleID 'lambda-002', got '%s'", effect.ModuleID)
+		}
+		if effect.Region != "us-east-1" {
+			t.Errorf("Expected Region 'us-east-1', got '%s'", effect.Region)
+		}
+	})
+
+	t.Run("FullResourceStruct", func(t *testing.T) {
+		payload, _ := payloads.GetPayloadForService("backdoor/attach-policy", payloads.TagServiceLambda)
+		reporter := payload.(payloads.SideEffectReporter)
+
+		effects := reporter.ReportSideEffects(map[string]string{
+			"TARGET_USER": "my-user",
+		})
+
+		var _ modules.CreatedResource = effects[0] // compile-time check
 	})
 }
 
