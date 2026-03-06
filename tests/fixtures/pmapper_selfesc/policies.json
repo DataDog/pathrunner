@@ -1,0 +1,72 @@
+[
+  {
+    "arn": "arn:aws:iam::111111111111:policy/SelfManage",
+    "name": "SelfManage",
+    "policy_doc": {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": "iam:CreatePolicyVersion",
+          "Resource": "arn:aws:iam::111111111111:policy/SelfManage"
+        }
+      ]
+    }
+  },
+  {
+    "arn": "arn:aws:iam::111111111111:policy/RoleSelfManage",
+    "name": "RoleSelfManage",
+    "policy_doc": {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": "iam:AttachRolePolicy",
+          "Resource": "arn:aws:iam::111111111111:role/AttachPolicyRole"
+        }
+      ]
+    }
+  },
+  {
+    "arn": "arn:aws:iam::111111111111:policy/GroupManage",
+    "name": "GroupManage",
+    "policy_doc": {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": "iam:PutGroupPolicy",
+          "Resource": "arn:aws:iam::111111111111:group/DevTeam"
+        }
+      ]
+    }
+  },
+  {
+    "arn": "arn:aws:iam::111111111111:policy/ReadOnly",
+    "name": "ReadOnly",
+    "policy_doc": {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": ["s3:GetObject", "s3:ListBucket"],
+          "Resource": "*"
+        }
+      ]
+    }
+  },
+  {
+    "arn": "arn:aws:iam::111111111111:policy/WildcardIAM",
+    "name": "WildcardIAM",
+    "policy_doc": {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": "iam:*",
+          "Resource": "*"
+        }
+      ]
+    }
+  }
+]

@@ -94,12 +94,12 @@ func (im *IdentityManager) ListIdentities() error {
 			}
 		}
 
-		rows = append(rows, []string{name, identity.Type, source, expires, admin, status, current})
+		rows = append(rows, []string{name, identity.CallerARN, identity.Type, source, expires, admin, status, current})
 	}
 
 	fmt.Println("Configured identities:")
 	fmt.Println()
-	ui.Table([]string{"Name", "Type", "Profile/Source", "Expires", "Admin", "Status", "Current"}, rows)
+	ui.Table([]string{"Name", "ARN", "Type", "Profile/Source", "Expires", "Admin", "Status", "Current"}, rows)
 	fmt.Println()
 
 	if im.current != nil {
@@ -898,6 +898,11 @@ func (im *IdentityManager) CheckAdmin(identityName string) error {
 func (im *IdentityManager) promptForAdminCheck(identityName string) {
 	if im.checkAdmin {
 		im.CheckAdmin(identityName)
+		return
+	}
+
+	// Skip interactive prompt when --switch is set (non-interactive/scripted usage)
+	if im.autoSwitch {
 		return
 	}
 

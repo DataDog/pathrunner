@@ -6,6 +6,27 @@ import (
 
 	// Import modules and payloads to register them
 	_ "pathrunner/pkg/exploits/ec2_passrole"
+	_ "pathrunner/pkg/exploits/iam_addusertogroup"
+	_ "pathrunner/pkg/exploits/iam_attachgrouppolicy"
+	_ "pathrunner/pkg/exploits/iam_attachrolepolicy"
+	_ "pathrunner/pkg/exploits/iam_attachrolepolicy_assumerole"
+	_ "pathrunner/pkg/exploits/iam_attachrolepolicy_updateassumerolepolicy"
+	_ "pathrunner/pkg/exploits/iam_attachuserpolicy"
+	_ "pathrunner/pkg/exploits/iam_attachuserpolicy_createaccesskey"
+	_ "pathrunner/pkg/exploits/iam_create_policy_version"
+	_ "pathrunner/pkg/exploits/iam_createaccesskey"
+	_ "pathrunner/pkg/exploits/iam_createloginprofile"
+	_ "pathrunner/pkg/exploits/iam_createpolicyversion_assumerole"
+	_ "pathrunner/pkg/exploits/iam_createpolicyversion_updateassumerolepolicy"
+	_ "pathrunner/pkg/exploits/iam_deleteaccesskey_createaccesskey"
+	_ "pathrunner/pkg/exploits/iam_putgrouppolicy"
+	_ "pathrunner/pkg/exploits/iam_putrolepolicy"
+	_ "pathrunner/pkg/exploits/iam_putrolepolicy_assumerole"
+	_ "pathrunner/pkg/exploits/iam_putrolepolicy_updateassumerolepolicy"
+	_ "pathrunner/pkg/exploits/iam_putuserpolicy"
+	_ "pathrunner/pkg/exploits/iam_putuserpolicy_createaccesskey"
+	_ "pathrunner/pkg/exploits/iam_updateassumerolepolicy"
+	_ "pathrunner/pkg/exploits/iam_updateloginprofile"
 	_ "pathrunner/pkg/exploits/lambda_createfunction_addpermission"
 	_ "pathrunner/pkg/exploits/lambda_passrole"
 	_ "pathrunner/pkg/exploits/lambda_passrole_esm"
@@ -532,7 +553,9 @@ func TestModuleInfoViaPathInfoIncludesLambda002(t *testing.T) {
 	r, _, _, cleanup := setupTest(t)
 	defer cleanup()
 
-	moduleIDs := []string{"lambda-001", "lambda-002", "lambda-003", "lambda-004", "lambda-005", "lambda-006", "ec2-001", "sts-001"}
+	moduleIDs := []string{"lambda-001", "lambda-002", "lambda-003", "lambda-004", "lambda-005", "lambda-006", "ec2-001", "sts-001",
+		"iam-001", "iam-002", "iam-003", "iam-004", "iam-005", "iam-006", "iam-007", "iam-008", "iam-009", "iam-010",
+		"iam-011", "iam-012", "iam-013", "iam-014", "iam-015", "iam-016", "iam-017", "iam-018", "iam-019", "iam-020", "iam-021"}
 	for _, id := range moduleIDs {
 		t.Run(id, func(t *testing.T) {
 			err := r.ExecuteCommand("use " + id)
@@ -1182,5 +1205,330 @@ func TestLambda006ShowOptions(t *testing.T) {
 	err = r.ExecuteCommand("show options")
 	if err != nil {
 		t.Errorf("Expected no error from show options for lambda-006, got: %v", err)
+	}
+}
+
+// iam-001 integration tests
+
+func TestUseIAM001ByID(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use iam-001")
+	if err != nil {
+		t.Fatalf("Expected no error using iam-001, got: %v", err)
+	}
+
+	mod := r.GetCurrentModule()
+	if mod == nil {
+		t.Fatal("Expected current module to be set")
+	}
+	if mod.Name() != "iam-001" {
+		t.Errorf("Expected module name %q, got %q", "iam-001", mod.Name())
+	}
+}
+
+func TestUseIAM001ByAlias(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use iam-createpolicyversion")
+	if err != nil {
+		t.Fatalf("Expected no error using iam-createpolicyversion, got: %v", err)
+	}
+
+	mod := r.GetCurrentModule()
+	if mod == nil {
+		t.Fatal("Expected current module to be set")
+	}
+	if mod.Name() != "iam-001" {
+		t.Errorf("Expected module name %q, got %q", "iam-001", mod.Name())
+	}
+}
+
+func TestUseIAM001OldAlias(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use exploit/iam_create_policy_version")
+	if err != nil {
+		t.Fatalf("Expected no error using exploit/iam_create_policy_version, got: %v", err)
+	}
+
+	mod := r.GetCurrentModule()
+	if mod == nil {
+		t.Fatal("Expected current module to be set")
+	}
+	if mod.Name() != "iam-001" {
+		t.Errorf("Expected module name %q, got %q", "iam-001", mod.Name())
+	}
+}
+
+func TestShowInfoIAM001(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use iam-001")
+	if err != nil {
+		t.Fatalf("Failed to use iam-001: %v", err)
+	}
+
+	err = r.ExecuteCommand("show info")
+	if err != nil {
+		t.Errorf("Expected no error from show info for iam-001, got: %v", err)
+	}
+}
+
+func TestIAM001ShowOptions(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use iam-001")
+	if err != nil {
+		t.Fatalf("Failed to use iam-001: %v", err)
+	}
+
+	err = r.ExecuteCommand("show options")
+	if err != nil {
+		t.Errorf("Expected no error from show options for iam-001, got: %v", err)
+	}
+}
+
+func TestSearchSelfEscalationFindsIAM001(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("search self-escalation")
+	if err != nil {
+		t.Errorf("Expected no error from search, got: %v", err)
+	}
+}
+
+func TestIAM001PromptContainsID(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use iam-001")
+	if err != nil {
+		t.Fatalf("Failed to use iam-001: %v", err)
+	}
+
+	prompt := r.BuildContextualPrompt()
+	if !strings.Contains(prompt, "iam-001") {
+		t.Errorf("Expected prompt to contain 'iam-001', got: %q", prompt)
+	}
+}
+
+// iam-002 integration tests
+
+func TestUseIAM002ByID(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use iam-002")
+	if err != nil {
+		t.Fatalf("Expected no error using iam-002, got: %v", err)
+	}
+
+	mod := r.GetCurrentModule()
+	if mod == nil {
+		t.Fatal("Expected current module to be set")
+	}
+	if mod.Name() != "iam-002" {
+		t.Errorf("Expected module name %q, got %q", "iam-002", mod.Name())
+	}
+}
+
+func TestUseIAM002ByAlias(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use iam-createaccesskey")
+	if err != nil {
+		t.Fatalf("Expected no error using iam-createaccesskey, got: %v", err)
+	}
+
+	mod := r.GetCurrentModule()
+	if mod == nil {
+		t.Fatal("Expected current module to be set")
+	}
+	if mod.Name() != "iam-002" {
+		t.Errorf("Expected module name %q, got %q", "iam-002", mod.Name())
+	}
+}
+
+func TestShowInfoIAM002(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use iam-002")
+	if err != nil {
+		t.Fatalf("Failed to use iam-002: %v", err)
+	}
+
+	err = r.ExecuteCommand("show info")
+	if err != nil {
+		t.Errorf("Expected no error from show info for iam-002, got: %v", err)
+	}
+}
+
+func TestIAM002ShowOptions(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use iam-002")
+	if err != nil {
+		t.Fatalf("Failed to use iam-002: %v", err)
+	}
+
+	err = r.ExecuteCommand("show options")
+	if err != nil {
+		t.Errorf("Expected no error from show options for iam-002, got: %v", err)
+	}
+}
+
+// iam-003 integration tests
+
+func TestUseIAM003ByID(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use iam-003")
+	if err != nil {
+		t.Fatalf("Expected no error using iam-003, got: %v", err)
+	}
+
+	mod := r.GetCurrentModule()
+	if mod == nil {
+		t.Fatal("Expected current module to be set")
+	}
+	if mod.Name() != "iam-003" {
+		t.Errorf("Expected module name %q, got %q", "iam-003", mod.Name())
+	}
+}
+
+func TestUseIAM003ByAlias(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use iam-deleteaccesskey-createaccesskey")
+	if err != nil {
+		t.Fatalf("Expected no error using iam-deleteaccesskey-createaccesskey, got: %v", err)
+	}
+
+	mod := r.GetCurrentModule()
+	if mod == nil {
+		t.Fatal("Expected current module to be set")
+	}
+	if mod.Name() != "iam-003" {
+		t.Errorf("Expected module name %q, got %q", "iam-003", mod.Name())
+	}
+}
+
+func TestShowInfoIAM003(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use iam-003")
+	if err != nil {
+		t.Fatalf("Failed to use iam-003: %v", err)
+	}
+
+	err = r.ExecuteCommand("show info")
+	if err != nil {
+		t.Errorf("Expected no error from show info for iam-003, got: %v", err)
+	}
+}
+
+func TestIAM003ShowOptions(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use iam-003")
+	if err != nil {
+		t.Fatalf("Failed to use iam-003: %v", err)
+	}
+
+	err = r.ExecuteCommand("show options")
+	if err != nil {
+		t.Errorf("Expected no error from show options for iam-003, got: %v", err)
+	}
+}
+
+// iam-004 integration tests
+
+func TestUseIAM004ByID(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use iam-004")
+	if err != nil {
+		t.Fatalf("Expected no error using iam-004, got: %v", err)
+	}
+
+	mod := r.GetCurrentModule()
+	if mod == nil {
+		t.Fatal("Expected current module to be set")
+	}
+	if mod.Name() != "iam-004" {
+		t.Errorf("Expected module name %q, got %q", "iam-004", mod.Name())
+	}
+}
+
+func TestUseIAM004ByAlias(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use iam-createloginprofile")
+	if err != nil {
+		t.Fatalf("Expected no error using iam-createloginprofile, got: %v", err)
+	}
+
+	mod := r.GetCurrentModule()
+	if mod == nil {
+		t.Fatal("Expected current module to be set")
+	}
+	if mod.Name() != "iam-004" {
+		t.Errorf("Expected module name %q, got %q", "iam-004", mod.Name())
+	}
+}
+
+func TestShowInfoIAM004(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use iam-004")
+	if err != nil {
+		t.Fatalf("Failed to use iam-004: %v", err)
+	}
+
+	err = r.ExecuteCommand("show info")
+	if err != nil {
+		t.Errorf("Expected no error from show info for iam-004, got: %v", err)
+	}
+}
+
+func TestIAM004ShowOptions(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use iam-004")
+	if err != nil {
+		t.Fatalf("Failed to use iam-004: %v", err)
+	}
+
+	err = r.ExecuteCommand("show options")
+	if err != nil {
+		t.Errorf("Expected no error from show options for iam-004, got: %v", err)
+	}
+}
+
+func TestSearchPrincipalAccessFindsIAMModules(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("search principal-access")
+	if err != nil {
+		t.Errorf("Expected no error from search, got: %v", err)
 	}
 }

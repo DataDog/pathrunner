@@ -34,6 +34,7 @@ func (r *REPL) cmdIdentity(repl *REPL, args []string) error {
 		err := r.identityManager.SwitchIdentity(args[1])
 		if err == nil {
 			r.UpdatePrompt()
+			r.showPmapperHint()
 		}
 		return err
 	case "check":

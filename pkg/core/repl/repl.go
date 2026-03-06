@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 	"pathrunner/pkg/modules"
+	"pathrunner/pkg/pmapper"
 	"pathrunner/pkg/ui"
 	"strings"
 
@@ -14,6 +15,7 @@ type REPL struct {
 	rl              *readline.Instance
 	identityManager IdentityManager
 	sessionManager  SessionManager
+	pmapperManager  *pmapper.Manager
 	currentModule   modules.Module
 	options         map[string]string
 	lastResult      string
@@ -100,6 +102,7 @@ func NewREPL(identityManager IdentityManager, sessionManager SessionManager) *RE
 		options:         make(map[string]string),
 		identityManager: identityManager,
 		sessionManager:  sessionManager,
+		pmapperManager:  pmapper.NewManager(),
 		aliases:         make(map[string]string),
 	}
 
@@ -269,6 +272,11 @@ func (r *REPL) GetIdentityManager() IdentityManager {
 // GetSessionManager returns the session manager
 func (r *REPL) GetSessionManager() SessionManager {
 	return r.sessionManager
+}
+
+// GetPMapperManager returns the PMapper graph manager
+func (r *REPL) GetPMapperManager() *pmapper.Manager {
+	return r.pmapperManager
 }
 
 // UpdatePrompt updates the REPL prompt (public method)

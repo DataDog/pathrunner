@@ -528,6 +528,62 @@ func (c *CLI) createAWSCmd() *cobra.Command {
 	}
 }
 
+// PMapper command and subcommands
+func (c *CLI) createPmapperCmd() *cobra.Command {
+	pmapperCmd := &cobra.Command{
+		Use:   "pmapper",
+		Short: "Import and analyze PMapper privilege escalation graphs",
+		Long:  "Import PMapper graph data, find escalation paths, and map them to pathrunner modules",
+	}
+
+	// pmapper import
+	importCmd := &cobra.Command{
+		Use:   "import",
+		Short: "Import PMapper graph data",
+		Run: func(cmd *cobra.Command, args []string) {
+			var replArgs []string
+			replArgs = append(replArgs, "pmapper", "import")
+
+			if path, _ := cmd.Flags().GetString("path"); path != "" {
+				replArgs = append(replArgs, "--path", path)
+			}
+
+			c.executeREPLCommand(strings.Join(replArgs, " "))
+		},
+	}
+	importCmd.Flags().String("path", "", "PMapper data directory path")
+	pmapperCmd.AddCommand(importCmd)
+
+	// pmapper analyze
+	analyzeCmd := &cobra.Command{
+		Use:   "analyze",
+		Short: "Analyze escalation paths for current identity",
+		Run: func(cmd *cobra.Command, args []string) {
+			var replArgs []string
+			replArgs = append(replArgs, "pmapper", "analyze")
+
+			if all, _ := cmd.Flags().GetBool("all"); all {
+				replArgs = append(replArgs, "--all")
+			}
+
+			c.executeREPLCommand(strings.Join(replArgs, " "))
+		},
+	}
+	analyzeCmd.Flags().Bool("all", false, "Analyze all workspace identities")
+	pmapperCmd.AddCommand(analyzeCmd)
+
+	// pmapper status
+	pmapperCmd.AddCommand(&cobra.Command{
+		Use:   "status",
+		Short: "Show graph metadata and module coverage",
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("pmapper status")
+		},
+	})
+
+	return pmapperCmd
+}
+
 // Version command
 func (c *CLI) createVersionCmd() *cobra.Command {
 	return &cobra.Command{
