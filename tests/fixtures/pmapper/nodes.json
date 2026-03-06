@@ -1,0 +1,82 @@
+[
+  {
+    "arn": "arn:aws:iam::123456789012:user/LabUser",
+    "id_value": "AIDAEXAMPLE1",
+    "attached_policies": [
+      {"arn": "arn:aws:iam::123456789012:policy/LambdaAccess", "name": "LambdaAccess"}
+    ],
+    "group_memberships": [],
+    "trust_policy": null,
+    "instance_profile": null,
+    "active_password": true,
+    "access_keys": 1,
+    "is_admin": false,
+    "permissions_boundary": null,
+    "has_mfa": false,
+    "tags": {}
+  },
+  {
+    "arn": "arn:aws:iam::123456789012:role/LambdaAdmin",
+    "id_value": "AROAEXAMPLE2",
+    "attached_policies": [
+      {"arn": "arn:aws:iam::aws:policy/AdministratorAccess", "name": "AdministratorAccess"}
+    ],
+    "group_memberships": [],
+    "trust_policy": {"Version": "2012-10-17", "Statement": [{"Effect": "Allow", "Principal": {"Service": "lambda.amazonaws.com"}, "Action": "sts:AssumeRole"}]},
+    "instance_profile": null,
+    "active_password": false,
+    "access_keys": 0,
+    "is_admin": false,
+    "permissions_boundary": null,
+    "has_mfa": false,
+    "tags": {}
+  },
+  {
+    "arn": "arn:aws:iam::123456789012:role/AdminRole",
+    "id_value": "AROAEXAMPLE3",
+    "attached_policies": [
+      {"arn": "arn:aws:iam::aws:policy/AdministratorAccess", "name": "AdministratorAccess"}
+    ],
+    "group_memberships": [],
+    "trust_policy": {"Version": "2012-10-17", "Statement": [{"Effect": "Allow", "Principal": {"AWS": "arn:aws:iam::123456789012:role/LambdaAdmin"}, "Action": "sts:AssumeRole"}]},
+    "instance_profile": null,
+    "active_password": false,
+    "access_keys": 0,
+    "is_admin": true,
+    "permissions_boundary": null,
+    "has_mfa": false,
+    "tags": {}
+  },
+  {
+    "arn": "arn:aws:iam::123456789012:user/DevUser",
+    "id_value": "AIDAEXAMPLE4",
+    "attached_policies": [
+      {"arn": "arn:aws:iam::123456789012:policy/DevAccess", "name": "DevAccess"}
+    ],
+    "group_memberships": [],
+    "trust_policy": null,
+    "instance_profile": null,
+    "active_password": true,
+    "access_keys": 1,
+    "is_admin": false,
+    "permissions_boundary": null,
+    "has_mfa": false,
+    "tags": {}
+  },
+  {
+    "arn": "arn:aws:iam::123456789012:role/EC2Admin",
+    "id_value": "AROAEXAMPLE5",
+    "attached_policies": [
+      {"arn": "arn:aws:iam::aws:policy/AdministratorAccess", "name": "AdministratorAccess"}
+    ],
+    "group_memberships": [],
+    "trust_policy": {"Version": "2012-10-17", "Statement": [{"Effect": "Allow", "Principal": {"Service": "ec2.amazonaws.com"}, "Action": "sts:AssumeRole"}]},
+    "instance_profile": null,
+    "active_password": false,
+    "access_keys": 0,
+    "is_admin": true,
+    "permissions_boundary": null,
+    "has_mfa": false,
+    "tags": {}
+  }
+]

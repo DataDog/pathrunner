@@ -169,7 +169,7 @@ func TestHelp(t *testing.T) {
 	}
 
 	// Help for specific commands
-	commands := []string{"identity", "workspace", "use", "show", "set", "unset", "exploit", "whoami", "context"}
+	commands := []string{"identity", "workspace", "use", "show", "set", "unset", "exploit", "whoami", "context", "info"}
 
 	for _, cmd := range commands {
 		err := r.ExecuteCommand("help " + cmd)
@@ -347,5 +347,81 @@ func TestInitialPromptShowsWorkspace(t *testing.T) {
 	}
 	if strings.Contains(prompt, "\n") {
 		t.Errorf("Expected single-line prompt, got multi-line: %s", prompt)
+	}
+}
+
+// TestSubcommandHelp tests that all subcommands support a trailing "help" argument
+func TestSubcommandHelp(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	helpCommands := []struct {
+		command     string
+		expectInOutput string
+	}{
+		// Workspace subcommands
+		{"workspace create help", "workspace create"},
+		{"workspace switch help", "workspace switch"},
+		{"workspace delete help", "workspace delete"},
+		{"workspace cleanup help", "workspace cleanup"},
+		{"workspace history help", "workspace history"},
+		{"workspace help", "Workspace Management"},
+		// Identity subcommands
+		{"identity add help", "identity add"},
+		{"identity switch help", "identity switch"},
+		{"identity clear help", "identity clear"},
+		{"identity help", "Identity Management"},
+		// Top-level commands
+		{"help identity", "Identity Management"},
+		{"help workspace", "Workspace Management"},
+		{"help show", "Show Commands"},
+		{"help exploit", "Exploit Command"},
+		{"help whoami", "Whoami Command"},
+		{"help context", "Context Command"},
+		{"help search", "Search Command"},
+		{"help modules", "Modules Command"},
+		{"help payloads", "Payloads Command"},
+		{"help set", "Set Command"},
+		{"help unset", "Unset Command"},
+		{"help info", "Info Command"},
+	}
+
+	for _, tc := range helpCommands {
+		t.Run(tc.command, func(t *testing.T) {
+			err := r.ExecuteCommand(tc.command)
+			if err != nil {
+				t.Errorf("'%s' returned error: %v", tc.command, err)
+			}
+		})
+	}
+}
+
+// TestInfoCommand tests the top-level info command
+func TestInfoCommand(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	// info without module should error
+	err := r.ExecuteCommand("info")
+	if err == nil {
+		t.Error("Expected error from info without module selected")
+	}
+
+	// info help should work without module
+	err = r.ExecuteCommand("info help")
+	if err != nil {
+		t.Errorf("Expected no error from info help, got: %v", err)
+	}
+
+	// Select a module
+	err = r.ExecuteCommand("use lambda-001")
+	if err != nil {
+		t.Fatalf("Failed to use lambda-001: %v", err)
+	}
+
+	// info with module should succeed
+	err = r.ExecuteCommand("info")
+	if err != nil {
+		t.Errorf("Expected no error from info with module selected, got: %v", err)
 	}
 }

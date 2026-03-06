@@ -20,6 +20,13 @@ type MockModule struct {
 	description string
 }
 
+func (m *MockModule) PathInfo() modules.PathInfo {
+	return modules.PathInfo{
+		ID:          m.name,
+		Description: m.description,
+	}
+}
+
 func (m *MockModule) Name() string {
 	return m.name
 }

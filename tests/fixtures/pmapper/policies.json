@@ -1,0 +1,30 @@
+[
+  {
+    "arn": "arn:aws:iam::123456789012:policy/LambdaAccess",
+    "name": "LambdaAccess",
+    "policy_doc": {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": ["lambda:CreateFunction", "lambda:InvokeFunction", "iam:PassRole"],
+          "Resource": "*"
+        }
+      ]
+    }
+  },
+  {
+    "arn": "arn:aws:iam::123456789012:policy/DevAccess",
+    "name": "DevAccess",
+    "policy_doc": {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": ["ec2:RunInstances", "iam:PassRole"],
+          "Resource": "*"
+        }
+      ]
+    }
+  }
+]
