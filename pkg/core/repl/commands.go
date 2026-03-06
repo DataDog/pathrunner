@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"pathrunner/pkg/modules"
+	"pathrunner/pkg/pmapper"
 	"pathrunner/pkg/ui"
 	"pathrunner/pkg/version"
 	"strings"
@@ -110,6 +111,11 @@ func (r *REPL) getCommands() map[string]*Command {
 			Description: "Show detailed module and path information",
 			Handler:     r.cmdInfo,
 		},
+		"pmapper": {
+			Name:        "pmapper",
+			Description: "Import and analyze PMapper privilege escalation graphs",
+			Handler:     r.cmdPmapper,
+		},
 	}
 }
 
@@ -126,8 +132,8 @@ func (r *REPL) cmdHelp(repl *REPL, args []string) error {
 	coreOrder := []string{
 		"modules", "search", "use",
 		"identity", "aws", "whoami",
-		"workspace", "context", "version",
-		"help", "exit",
+		"workspace", "pmapper", "context",
+		"version", "help", "exit",
 	}
 	fmt.Println(ui.BoldCyan.Render("  Core Commands"))
 	fmt.Println()
@@ -195,6 +201,8 @@ func (r *REPL) showSpecificHelp(command string) error {
 		return r.showVersionHelp()
 	case "info":
 		return r.showInfoHelp()
+	case "pmapper":
+		return r.showPmapperHelp()
 	default:
 		return NewCommandNotFoundError(command)
 	}
@@ -813,6 +821,36 @@ func (r *REPL) cmdContext(repl *REPL, args []string) error {
 		fmt.Println("Module: None selected")
 		fmt.Println("  Use 'use <module>' to select a module")
 		fmt.Println()
+	}
+
+	// PMapper graph info
+	if identity != nil && identity.CallerARN != "" {
+		accountID := pmapper.ExtractAccountIDFromARN(identity.CallerARN)
+		if accountID != "" {
+			r.pmapperManager.TryAutoLoad(accountID)
+			if r.pmapperManager.IsLoaded(accountID) {
+				g, err := r.pmapperManager.GetGraph(accountID)
+				if err == nil {
+					status := g.GetStatus()
+					normalizedARN := pmapper.NormalizeARN(identity.CallerARN)
+					pathCount := g.CountPathsToAdmin(normalizedARN)
+
+					pathInfo := fmt.Sprintf("%d path(s) to admin", pathCount)
+					if pathCount == 0 {
+						pathInfo = "no paths to admin"
+					}
+
+					ui.Section("PMapper")
+					ui.KeyValueTable("", []ui.KV{
+						{Key: "Account", Value: status.AccountID},
+						{Key: "Nodes", Value: fmt.Sprintf("%d (%d admin)", status.NodeCount, status.AdminCount)},
+						{Key: "Edges", Value: fmt.Sprintf("%d", status.EdgeCount)},
+						{Key: "Escalation", Value: pathInfo},
+					})
+					fmt.Println()
+				}
+			}
+		}
 	}
 
 	return nil

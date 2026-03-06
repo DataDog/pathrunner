@@ -4,9 +4,13 @@ set -euo pipefail
 # test-module.sh — Test a pathrunner module against a deployed pathfinding-labs scenario
 #
 # Usage:
-#   ./scripts/test-module.sh setup   <plabs-scenario-id> <pathrunner-module-id> [payload1,payload2,...]
-#   ./scripts/test-module.sh cleanup <plabs-scenario-id> <pathrunner-module-id>
-#   ./scripts/test-module.sh full    [-i] <plabs-scenario-id> <pathrunner-module-id> [payload1,payload2,...]
+#   ./scripts/test-module.sh setup   <module-id> [scenario-suffix] [payload1,payload2,...]
+#   ./scripts/test-module.sh cleanup <module-id> [scenario-suffix]
+#   ./scripts/test-module.sh full    [-i] <module-id> [scenario-suffix] [payload1,payload2,...]
+#
+# The module-id is the pathrunner module (e.g., lambda-001, iam-001).
+# The plabs scenario ID is derived as <module-id>-<suffix>, defaulting to "to-admin".
+# If the second positional arg contains '/', it's treated as a payload filter, not a suffix.
 #
 # Subcommands:
 #   setup    Build, import creds, load module, auto-map options — stops before exploit
@@ -17,11 +21,12 @@ set -euo pipefail
 #   -i    Interactive mode (full only): pause before cleanup with y/n prompt
 #
 # Examples:
-#   ./scripts/test-module.sh setup lambda-001-to-admin lambda-001
-#   ./scripts/test-module.sh cleanup lambda-001-to-admin lambda-001
-#   ./scripts/test-module.sh full lambda-001-to-admin lambda-001
-#   ./scripts/test-module.sh full -i lambda-001-to-admin lambda-001 backdoor/attach-policy
-#   ./scripts/test-module.sh lambda-001-to-admin lambda-001 exfil/output   # defaults to "full"
+#   ./scripts/test-module.sh setup lambda-001
+#   ./scripts/test-module.sh cleanup lambda-001
+#   ./scripts/test-module.sh full lambda-001                          # scenario: lambda-001-to-admin
+#   ./scripts/test-module.sh full lambda-001 to-bucket                # scenario: lambda-001-to-bucket
+#   ./scripts/test-module.sh full -i lambda-001 backdoor/attach-policy  # scenario: lambda-001-to-admin
+#   ./scripts/test-module.sh lambda-001 exfil/output                  # defaults to "full"
 
 # === Colors ===
 RED='\033[0;31m'
@@ -66,14 +71,29 @@ for arg in "$@"; do
     esac
 done
 
-SCENARIO_ID="${POSITIONAL[0]:-}"
-MODULE_ID="${POSITIONAL[1]:-}"
-PAYLOAD_FILTER="${POSITIONAL[2]:-}"
+MODULE_ID="${POSITIONAL[0]:-}"
+SCENARIO_SUFFIX=""
+PAYLOAD_FILTER=""
+
+# Second positional arg: if it contains '/' it's a payload filter, otherwise a scenario suffix
+if [[ -n "${POSITIONAL[1]:-}" ]]; then
+    if [[ "${POSITIONAL[1]}" == */* ]]; then
+        PAYLOAD_FILTER="${POSITIONAL[1]}"
+    else
+        SCENARIO_SUFFIX="${POSITIONAL[1]}"
+        PAYLOAD_FILTER="${POSITIONAL[2]:-}"
+    fi
+fi
+
+# Default scenario suffix to "to-admin"
+[[ -z "$SCENARIO_SUFFIX" ]] && SCENARIO_SUFFIX="to-admin"
+SCENARIO_ID="${MODULE_ID}-${SCENARIO_SUFFIX}"
 
 # === State ===
 STARTING_IDENTITY=""
 STARTING_USERNAME=""
 PLABS_RAW=""
+ALL_OPTIONS=""
 declare -a RESULT_PAYLOADS=()
 declare -a RESULT_EXECUTION=()
 declare -a RESULT_CREDS=()
@@ -95,9 +115,12 @@ strip_ansi() {
 
 show_usage() {
     echo "Usage:"
-    echo "  $0 setup   <plabs-scenario-id> <pathrunner-module-id> [payload1,payload2,...]"
-    echo "  $0 cleanup <plabs-scenario-id> <pathrunner-module-id>"
-    echo "  $0 full    [-i] <plabs-scenario-id> <pathrunner-module-id> [payload1,payload2,...]"
+    echo "  $0 setup   <module-id> [scenario-suffix] [payload1,payload2,...]"
+    echo "  $0 cleanup <module-id> [scenario-suffix]"
+    echo "  $0 full    [-i] <module-id> [scenario-suffix] [payload1,payload2,...]"
+    echo ""
+    echo "The plabs scenario ID is derived as <module-id>-<suffix> (default: to-admin)."
+    echo "If the second arg contains '/', it's treated as a payload filter."
     echo ""
     echo "Subcommands:"
     echo "  setup    Build, import creds, load module, auto-map options — stops before exploit"
@@ -108,10 +131,12 @@ show_usage() {
     echo "  -i    Interactive mode (full only): pause before cleanup with y/n prompt"
     echo ""
     echo "Examples:"
-    echo "  $0 setup lambda-001-to-admin lambda-001"
-    echo "  $0 cleanup lambda-001-to-admin lambda-001"
-    echo "  $0 full lambda-001-to-admin lambda-001"
-    echo "  $0 full -i lambda-001-to-admin lambda-001 backdoor/attach-policy"
+    echo "  $0 setup lambda-001"
+    echo "  $0 cleanup lambda-001"
+    echo "  $0 full lambda-001                           # scenario: lambda-001-to-admin"
+    echo "  $0 full lambda-001 to-bucket                 # scenario: lambda-001-to-bucket"
+    echo "  $0 full -i lambda-001 backdoor/attach-policy # scenario: lambda-001-to-admin"
+    echo "  $0 lambda-001 exfil/output                   # defaults to full"
 }
 
 # ──────────────────────────────────────────────────────────────
@@ -166,6 +191,8 @@ parse_deployed_resources() {
 # ──────────────────────────────────────────────────────────────
 # Map an ARN to a pathrunner option name based on resource type.
 # Returns empty string for unrecognized or starting-user resources.
+# Uses ALL_OPTIONS (set by caller) to pick the right option name
+# when multiple candidates exist (e.g., ROLE_ARN vs TARGET_ROLE).
 # ──────────────────────────────────────────────────────────────
 
 map_arn_to_option() {
@@ -176,12 +203,53 @@ map_arn_to_option() {
         return
     fi
     case "$arn" in
-        *:role/*)               echo "ROLE_ARN" ;;
+        *:role/*)
+            # Prefer TARGET_ROLE if module has it, else ROLE_ARN
+            if echo "$ALL_OPTIONS" | grep -q "^TARGET_ROLE$"; then
+                echo "TARGET_ROLE"
+            elif echo "$ALL_OPTIONS" | grep -q "^ROLE_ARN$"; then
+                echo "ROLE_ARN"
+            else
+                echo ""
+            fi
+            ;;
+        *:user/*)
+            if echo "$ALL_OPTIONS" | grep -q "^TARGET_USER$"; then
+                echo "TARGET_USER"
+            else
+                echo ""
+            fi
+            ;;
+        *:group/*)
+            if echo "$ALL_OPTIONS" | grep -q "^GROUP_NAME$"; then
+                echo "GROUP_NAME"
+            else
+                echo ""
+            fi
+            ;;
+        *:policy/*)
+            if echo "$ALL_OPTIONS" | grep -q "^POLICY_ARN$"; then
+                echo "POLICY_ARN"
+            else
+                echo ""
+            fi
+            ;;
         *:function:*)           echo "FUNCTION_NAME" ;;
         *:instance-profile/*)   echo "INSTANCE_PROFILE" ;;
         *:table/*/stream/*)     echo "STREAM_ARN" ;;
         *)                      echo "" ;;
     esac
+}
+
+# ──────────────────────────────────────────────────────────────
+# Get the description for a module option from show options output.
+# ──────────────────────────────────────────────────────────────
+
+get_option_description() {
+    local option="$1"
+    # Extract everything after "Yes/No  " on the matching option line
+    "$PATHRUNNER" show options 2>&1 | strip_ansi | \
+        awk -v opt="$option" '$1 == opt { match($0, /  (Yes|No) +/); print substr($0, RSTART+RLENGTH) }' | head -1
 }
 
 # ──────────────────────────────────────────────────────────────
@@ -196,7 +264,22 @@ extract_value_from_arn() {
             # arn:aws:lambda:region:account:function:NAME
             echo "$arn" | rev | cut -d: -f1 | rev
             ;;
+        TARGET_USER|GROUP_NAME)
+            # These always want just the name
+            echo "$arn" | rev | cut -d/ -f1 | rev
+            ;;
+        TARGET_ROLE)
+            # Some modules want ARN, others want name — check description
+            local desc
+            desc=$(get_option_description "$option")
+            if echo "$desc" | grep -qi "^ARN\|ARN of"; then
+                echo "$arn"
+            else
+                echo "$arn" | rev | cut -d/ -f1 | rev
+            fi
+            ;;
         *)
+            # ROLE_ARN, POLICY_ARN, STREAM_ARN, INSTANCE_PROFILE — full ARN
             echo "$arn"
             ;;
     esac
@@ -210,20 +293,12 @@ extract_value_from_arn() {
 
 get_required_options() {
     "$PATHRUNNER" show options 2>&1 | strip_ansi | \
-        awk -F'│' '{
-            gsub(/^[ \t]+|[ \t]+$/, "", $2);
-            gsub(/^[ \t]+|[ \t]+$/, "", $4);
-            if ($4 == "Yes" && $2 != "" && $2 != "Option") print $2
-        }'
+        awk '/^[A-Z][A-Z_]+/ && /  Yes  / { print $1 }'
 }
 
 get_all_option_names() {
     "$PATHRUNNER" show options 2>&1 | strip_ansi | \
-        awk -F'│' '{
-            gsub(/^[ \t]+|[ \t]+$/, "", $2);
-            gsub(/^[ \t]+|[ \t]+$/, "", $4);
-            if (($4 == "Yes" || $4 == "No") && $2 != "" && $2 != "Option") print $2
-        }'
+        awk '/^[A-Z][A-Z_]+/ && /  (Yes|No)  / { print $1 }'
 }
 
 # ──────────────────────────────────────────────────────────────
@@ -232,10 +307,7 @@ get_all_option_names() {
 
 get_available_payloads() {
     "$PATHRUNNER" show payloads 2>&1 | strip_ansi | \
-        awk -F'│' '{
-            gsub(/^[ \t]+|[ \t]+$/, "", $3);
-            if ($3 != "" && $3 != "Payload" && $3 ~ /\//) print $3
-        }'
+        awk '/\// && !/^Module|^---/ { for(i=1;i<=NF;i++) if($i ~ /\//) { print $i; break } }'
 }
 
 # ──────────────────────────────────────────────────────────────
@@ -254,12 +326,7 @@ run_payload_test() {
         # Auto-fill payload-specific required options
         local payload_required
         payload_required=$("$PATHRUNNER" show options 2>&1 | strip_ansi | \
-            awk -F'│' '{
-                gsub(/^[ \t]+|[ \t]+$/, "", $2);
-                gsub(/^[ \t]+|[ \t]+$/, "", $3);
-                gsub(/^[ \t]+|[ \t]+$/, "", $4);
-                if ($4 == "Yes" && $3 == "<not set>" && $2 != "" && $2 != "Option" && $2 != "Payload Option") print $2
-            }')
+            awk '/^[A-Z][A-Z_]+/ && /  Yes  / && /<not set>/ { print $1 }')
 
         for opt in $payload_required; do
             case "$opt" in
@@ -383,19 +450,40 @@ verify_cleanup() {
     header "Cleanup Verification"
     local has_issues=false
 
-    # Check for leftover pathrunner Lambda functions
-    info "Checking for leftover Lambda functions..."
-    local lambda_output
-    lambda_output=$("$PATHRUNNER" aws lambda list-functions \
-        --output text --region us-east-1 2>&1) || true
+    # Check workspace report for any remaining tracked resources for this module
+    info "Checking tracked resources for module $MODULE_ID..."
+    local report_output
+    report_output=$("$PATHRUNNER" workspace report --module "$MODULE_ID" 2>&1) || true
+    local clean_report
+    clean_report=$(echo "$report_output" | strip_ansi)
 
-    if echo "$lambda_output" | grep -qi "pathrunner"; then
-        warn "Found leftover Lambda functions containing 'pathrunner':"
-        echo "$lambda_output" | grep -i "pathrunner"
+    if echo "$clean_report" | grep -qE "No resources|no tracked resources|0 resources"; then
+        success "No tracked resources remaining for $MODULE_ID"
+    elif echo "$clean_report" | grep -qE "arn:aws:|Resource"; then
+        warn "Found remaining tracked resources for $MODULE_ID:"
+        echo "$report_output"
         has_issues=true
     else
-        success "No leftover Lambda functions"
+        success "No tracked resources remaining for $MODULE_ID"
     fi
+
+    # Module-specific AWS verification based on module type
+    case "$MODULE_ID" in
+        lambda-*)
+            info "Checking for leftover Lambda functions..."
+            local lambda_output
+            lambda_output=$("$PATHRUNNER" aws lambda list-functions \
+                --output text --region us-east-1 2>&1) || true
+
+            if echo "$lambda_output" | grep -qi "pathrunner"; then
+                warn "Found leftover Lambda functions containing 'pathrunner':"
+                echo "$lambda_output" | grep -i "pathrunner"
+                has_issues=true
+            else
+                success "No leftover Lambda functions"
+            fi
+            ;;
+    esac
 
     # Check for leftover policy attachments on starting user
     if [[ -n "$STARTING_USERNAME" ]]; then
@@ -548,11 +636,9 @@ do_setup() {
         success "Switched to existing identity: $STARTING_IDENTITY"
     else
         info "Adding new identity: $STARTING_IDENTITY"
-        local add_output
-        add_output=$("$PATHRUNNER" identity add \
+        "$PATHRUNNER" identity add \
             --access "$access_key" --secret "$secret_key" \
-            --name "$STARTING_IDENTITY" --switch 2>&1) || true
-        echo "$add_output"
+            --name "$STARTING_IDENTITY" --switch 2>&1 || true
         success "Active identity: $STARTING_IDENTITY"
     fi
 
@@ -562,10 +648,10 @@ do_setup() {
     info "Loading module: $MODULE_ID"
     "$PATHRUNNER" use "$MODULE_ID" 2>&1
 
-    # Get module option names
-    local required_options all_options
+    # Get module option names (ALL_OPTIONS is used by map_arn_to_option)
+    local required_options
     required_options=$(get_required_options)
-    all_options=$(get_all_option_names)
+    ALL_OPTIONS=$(get_all_option_names)
     info "Required options: $(echo $required_options | tr '\n' ' ')"
 
     # Map deployed resources to module options
@@ -577,11 +663,6 @@ do_setup() {
         local opt
         opt=$(map_arn_to_option "$arn")
         [[ -z "$opt" ]] && continue
-
-        # Only map if this option exists for the current module
-        if ! echo "$all_options" | grep -q "^${opt}$"; then
-            continue
-        fi
 
         local val
         val=$(extract_value_from_arn "$arn" "$opt")
@@ -726,10 +807,12 @@ do_cleanup() {
 
 main() {
     # Validate arguments
-    if [[ -z "$SCENARIO_ID" || -z "$MODULE_ID" ]]; then
+    if [[ -z "$MODULE_ID" ]]; then
         show_usage
         exit 1
     fi
+
+    info "Module: $MODULE_ID | Scenario: $SCENARIO_ID"
 
     # Check bash version (need 4+ for associative arrays)
     if (( BASH_VERSINFO[0] < 4 )); then

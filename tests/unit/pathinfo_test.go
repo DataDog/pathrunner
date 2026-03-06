@@ -6,6 +6,27 @@ import (
 
 	// Import modules to register them
 	_ "pathrunner/pkg/exploits/ec2_passrole"
+	_ "pathrunner/pkg/exploits/iam_addusertogroup"
+	_ "pathrunner/pkg/exploits/iam_attachgrouppolicy"
+	_ "pathrunner/pkg/exploits/iam_attachrolepolicy"
+	_ "pathrunner/pkg/exploits/iam_attachrolepolicy_assumerole"
+	_ "pathrunner/pkg/exploits/iam_attachrolepolicy_updateassumerolepolicy"
+	_ "pathrunner/pkg/exploits/iam_attachuserpolicy"
+	_ "pathrunner/pkg/exploits/iam_attachuserpolicy_createaccesskey"
+	_ "pathrunner/pkg/exploits/iam_create_policy_version"
+	_ "pathrunner/pkg/exploits/iam_createaccesskey"
+	_ "pathrunner/pkg/exploits/iam_createloginprofile"
+	_ "pathrunner/pkg/exploits/iam_createpolicyversion_assumerole"
+	_ "pathrunner/pkg/exploits/iam_createpolicyversion_updateassumerolepolicy"
+	_ "pathrunner/pkg/exploits/iam_deleteaccesskey_createaccesskey"
+	_ "pathrunner/pkg/exploits/iam_putgrouppolicy"
+	_ "pathrunner/pkg/exploits/iam_putrolepolicy"
+	_ "pathrunner/pkg/exploits/iam_putrolepolicy_assumerole"
+	_ "pathrunner/pkg/exploits/iam_putrolepolicy_updateassumerolepolicy"
+	_ "pathrunner/pkg/exploits/iam_putuserpolicy"
+	_ "pathrunner/pkg/exploits/iam_putuserpolicy_createaccesskey"
+	_ "pathrunner/pkg/exploits/iam_updateassumerolepolicy"
+	_ "pathrunner/pkg/exploits/iam_updateloginprofile"
 	_ "pathrunner/pkg/exploits/lambda_createfunction_addpermission"
 	_ "pathrunner/pkg/exploits/lambda_passrole"
 	_ "pathrunner/pkg/exploits/lambda_passrole_esm"
@@ -1254,6 +1275,461 @@ func TestLambda006Module(t *testing.T) {
 		}
 		if !foundExfil {
 			t.Error("Expected exfil/response payload for direct-invoke lambda-006")
+		}
+	})
+}
+
+func TestIAM001Module(t *testing.T) {
+	t.Run("LoadByPrimaryID", func(t *testing.T) {
+		mod, err := modules.LoadModule("iam-001")
+		if err != nil {
+			t.Fatalf("Expected no error loading iam-001, got: %v", err)
+		}
+		if mod == nil {
+			t.Fatal("Expected non-nil module")
+		}
+		if mod.Name() != "iam-001" {
+			t.Errorf("Expected Name() = %q, got %q", "iam-001", mod.Name())
+		}
+	})
+
+	t.Run("LoadByAlias_ShortForm", func(t *testing.T) {
+		mod, err := modules.LoadModule("iam-createpolicyversion")
+		if err != nil {
+			t.Fatalf("Expected no error loading iam-createpolicyversion, got: %v", err)
+		}
+		if mod.Name() != "iam-001" {
+			t.Errorf("Expected Name() = %q, got %q", "iam-001", mod.Name())
+		}
+	})
+
+	t.Run("LoadByAlias_OldFormat", func(t *testing.T) {
+		mod, err := modules.LoadModule("exploit/iam_create_policy_version")
+		if err != nil {
+			t.Fatalf("Expected no error loading exploit/iam_create_policy_version, got: %v", err)
+		}
+		if mod.Name() != "iam-001" {
+			t.Errorf("Expected Name() = %q, got %q", "iam-001", mod.Name())
+		}
+	})
+
+	t.Run("PathInfoFields", func(t *testing.T) {
+		info, found := modules.GetPathInfo("iam-001")
+		if !found {
+			t.Fatal("Expected to find PathInfo for iam-001")
+		}
+		if info.ID != "iam-001" {
+			t.Errorf("Expected ID %q, got %q", "iam-001", info.ID)
+		}
+		if info.Category != "self-escalation" {
+			t.Errorf("Expected Category %q, got %q", "self-escalation", info.Category)
+		}
+		if len(info.Services) != 1 || info.Services[0] != "iam" {
+			t.Errorf("Expected services [iam], got %v", info.Services)
+		}
+		if len(info.Permissions.Required) != 1 {
+			t.Errorf("Expected 1 required permission, got %d", len(info.Permissions.Required))
+		}
+		if len(info.Permissions.Additional) != 2 {
+			t.Errorf("Expected 2 additional permissions, got %d", len(info.Permissions.Additional))
+		}
+		if info.MITRE == nil {
+			t.Error("Expected non-nil MITRE mapping")
+		}
+		if len(info.MITRE.Tactics) != 2 {
+			t.Errorf("Expected 2 MITRE tactics, got %d", len(info.MITRE.Tactics))
+		}
+		if len(info.Aliases) != 2 {
+			t.Errorf("Expected 2 aliases, got %d", len(info.Aliases))
+		}
+		if len(info.RelatedPaths) != 2 {
+			t.Errorf("Expected 2 related paths, got %d", len(info.RelatedPaths))
+		}
+		if info.Author != "Seth Art" {
+			t.Errorf("Expected Author %q, got %q", "Seth Art", info.Author)
+		}
+	})
+
+	t.Run("SearchFindsIAM001", func(t *testing.T) {
+		results := modules.SearchModules("CreatePolicyVersion")
+		found := false
+		for _, info := range results {
+			if info.ID == "iam-001" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("Expected iam-001 in search results for 'CreatePolicyVersion'")
+		}
+	})
+
+	t.Run("CategoryFilter", func(t *testing.T) {
+		results := modules.ListModulesByCategory("self-escalation")
+		found := false
+		for _, info := range results {
+			if info.ID == "iam-001" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("Expected iam-001 in self-escalation category")
+		}
+	})
+
+	t.Run("ServiceFilter", func(t *testing.T) {
+		results := modules.ListModulesByService("iam")
+		found := false
+		for _, info := range results {
+			if info.ID == "iam-001" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("Expected iam-001 in iam service results")
+		}
+	})
+
+	t.Run("Options", func(t *testing.T) {
+		mod, err := modules.LoadModule("iam-001")
+		if err != nil {
+			t.Fatalf("Failed to load iam-001: %v", err)
+		}
+		opts := mod.Options()
+		if len(opts) != 4 {
+			t.Errorf("Expected 4 options, got %d", len(opts))
+		}
+		// POLICY_ARN should be required
+		foundRequired := false
+		for _, opt := range opts {
+			if opt.Name == "POLICY_ARN" && opt.Required {
+				foundRequired = true
+			}
+		}
+		if !foundRequired {
+			t.Error("Expected POLICY_ARN to be a required option")
+		}
+	})
+}
+
+func TestIAM002Module(t *testing.T) {
+	t.Run("LoadByPrimaryID", func(t *testing.T) {
+		mod, err := modules.LoadModule("iam-002")
+		if err != nil {
+			t.Fatalf("Expected no error loading iam-002, got: %v", err)
+		}
+		if mod == nil {
+			t.Fatal("Expected non-nil module")
+		}
+		if mod.Name() != "iam-002" {
+			t.Errorf("Expected Name() = %q, got %q", "iam-002", mod.Name())
+		}
+	})
+
+	t.Run("LoadByAlias_ShortForm", func(t *testing.T) {
+		mod, err := modules.LoadModule("iam-createaccesskey")
+		if err != nil {
+			t.Fatalf("Expected no error loading iam-createaccesskey, got: %v", err)
+		}
+		if mod.Name() != "iam-002" {
+			t.Errorf("Expected Name() = %q, got %q", "iam-002", mod.Name())
+		}
+	})
+
+	t.Run("LoadByAlias_OldFormat", func(t *testing.T) {
+		mod, err := modules.LoadModule("exploit/iam_createaccesskey")
+		if err != nil {
+			t.Fatalf("Expected no error loading exploit/iam_createaccesskey, got: %v", err)
+		}
+		if mod.Name() != "iam-002" {
+			t.Errorf("Expected Name() = %q, got %q", "iam-002", mod.Name())
+		}
+	})
+
+	t.Run("PathInfoFields", func(t *testing.T) {
+		info, found := modules.GetPathInfo("iam-002")
+		if !found {
+			t.Fatal("Expected to find PathInfo for iam-002")
+		}
+		if info.ID != "iam-002" {
+			t.Errorf("Expected ID %q, got %q", "iam-002", info.ID)
+		}
+		if info.Category != "principal-access" {
+			t.Errorf("Expected Category %q, got %q", "principal-access", info.Category)
+		}
+		if len(info.Services) != 1 || info.Services[0] != "iam" {
+			t.Errorf("Expected services [iam], got %v", info.Services)
+		}
+		if len(info.Permissions.Required) != 1 {
+			t.Errorf("Expected 1 required permission, got %d", len(info.Permissions.Required))
+		}
+		if len(info.Permissions.Additional) != 3 {
+			t.Errorf("Expected 3 additional permissions, got %d", len(info.Permissions.Additional))
+		}
+		if info.MITRE == nil {
+			t.Error("Expected non-nil MITRE mapping")
+		}
+		if len(info.Aliases) != 2 {
+			t.Errorf("Expected 2 aliases, got %d", len(info.Aliases))
+		}
+		if len(info.RelatedPaths) != 3 {
+			t.Errorf("Expected 3 related paths, got %d", len(info.RelatedPaths))
+		}
+		if info.Author != "Seth Art" {
+			t.Errorf("Expected Author %q, got %q", "Seth Art", info.Author)
+		}
+	})
+
+	t.Run("SearchFindsIAM002", func(t *testing.T) {
+		results := modules.SearchModules("CreateAccessKey")
+		found := false
+		for _, info := range results {
+			if info.ID == "iam-002" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("Expected iam-002 in search results for 'CreateAccessKey'")
+		}
+	})
+
+	t.Run("CategoryFilter", func(t *testing.T) {
+		results := modules.ListModulesByCategory("principal-access")
+		found := false
+		for _, info := range results {
+			if info.ID == "iam-002" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("Expected iam-002 in principal-access category")
+		}
+	})
+
+	t.Run("Options", func(t *testing.T) {
+		mod, err := modules.LoadModule("iam-002")
+		if err != nil {
+			t.Fatalf("Failed to load iam-002: %v", err)
+		}
+		opts := mod.Options()
+		if len(opts) != 3 {
+			t.Errorf("Expected 3 options, got %d", len(opts))
+		}
+		foundRequired := false
+		for _, opt := range opts {
+			if opt.Name == "TARGET_USER" && opt.Required {
+				foundRequired = true
+			}
+		}
+		if !foundRequired {
+			t.Error("Expected TARGET_USER to be a required option")
+		}
+	})
+}
+
+func TestIAM003Module(t *testing.T) {
+	t.Run("LoadByPrimaryID", func(t *testing.T) {
+		mod, err := modules.LoadModule("iam-003")
+		if err != nil {
+			t.Fatalf("Expected no error loading iam-003, got: %v", err)
+		}
+		if mod == nil {
+			t.Fatal("Expected non-nil module")
+		}
+		if mod.Name() != "iam-003" {
+			t.Errorf("Expected Name() = %q, got %q", "iam-003", mod.Name())
+		}
+	})
+
+	t.Run("LoadByAlias_ShortForm", func(t *testing.T) {
+		mod, err := modules.LoadModule("iam-deleteaccesskey-createaccesskey")
+		if err != nil {
+			t.Fatalf("Expected no error loading iam-deleteaccesskey-createaccesskey, got: %v", err)
+		}
+		if mod.Name() != "iam-003" {
+			t.Errorf("Expected Name() = %q, got %q", "iam-003", mod.Name())
+		}
+	})
+
+	t.Run("LoadByAlias_OldFormat", func(t *testing.T) {
+		mod, err := modules.LoadModule("exploit/iam_deleteaccesskey_createaccesskey")
+		if err != nil {
+			t.Fatalf("Expected no error loading exploit/iam_deleteaccesskey_createaccesskey, got: %v", err)
+		}
+		if mod.Name() != "iam-003" {
+			t.Errorf("Expected Name() = %q, got %q", "iam-003", mod.Name())
+		}
+	})
+
+	t.Run("PathInfoFields", func(t *testing.T) {
+		info, found := modules.GetPathInfo("iam-003")
+		if !found {
+			t.Fatal("Expected to find PathInfo for iam-003")
+		}
+		if info.ID != "iam-003" {
+			t.Errorf("Expected ID %q, got %q", "iam-003", info.ID)
+		}
+		if info.Category != "principal-access" {
+			t.Errorf("Expected Category %q, got %q", "principal-access", info.Category)
+		}
+		if len(info.Services) != 1 || info.Services[0] != "iam" {
+			t.Errorf("Expected services [iam], got %v", info.Services)
+		}
+		if len(info.Permissions.Required) != 2 {
+			t.Errorf("Expected 2 required permissions, got %d", len(info.Permissions.Required))
+		}
+		if len(info.Permissions.Additional) != 3 {
+			t.Errorf("Expected 3 additional permissions, got %d", len(info.Permissions.Additional))
+		}
+		if info.MITRE == nil {
+			t.Error("Expected non-nil MITRE mapping")
+		}
+		if len(info.Aliases) != 2 {
+			t.Errorf("Expected 2 aliases, got %d", len(info.Aliases))
+		}
+		if len(info.RelatedPaths) != 1 {
+			t.Errorf("Expected 1 related path, got %d", len(info.RelatedPaths))
+		}
+		if info.Author != "Seth Art" {
+			t.Errorf("Expected Author %q, got %q", "Seth Art", info.Author)
+		}
+	})
+
+	t.Run("SearchFindsIAM003", func(t *testing.T) {
+		results := modules.SearchModules("DeleteAccessKey")
+		found := false
+		for _, info := range results {
+			if info.ID == "iam-003" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("Expected iam-003 in search results for 'DeleteAccessKey'")
+		}
+	})
+
+	t.Run("Options", func(t *testing.T) {
+		mod, err := modules.LoadModule("iam-003")
+		if err != nil {
+			t.Fatalf("Failed to load iam-003: %v", err)
+		}
+		opts := mod.Options()
+		if len(opts) != 4 {
+			t.Errorf("Expected 4 options, got %d", len(opts))
+		}
+	})
+}
+
+func TestIAM004Module(t *testing.T) {
+	t.Run("LoadByPrimaryID", func(t *testing.T) {
+		mod, err := modules.LoadModule("iam-004")
+		if err != nil {
+			t.Fatalf("Expected no error loading iam-004, got: %v", err)
+		}
+		if mod == nil {
+			t.Fatal("Expected non-nil module")
+		}
+		if mod.Name() != "iam-004" {
+			t.Errorf("Expected Name() = %q, got %q", "iam-004", mod.Name())
+		}
+	})
+
+	t.Run("LoadByAlias_ShortForm", func(t *testing.T) {
+		mod, err := modules.LoadModule("iam-createloginprofile")
+		if err != nil {
+			t.Fatalf("Expected no error loading iam-createloginprofile, got: %v", err)
+		}
+		if mod.Name() != "iam-004" {
+			t.Errorf("Expected Name() = %q, got %q", "iam-004", mod.Name())
+		}
+	})
+
+	t.Run("LoadByAlias_OldFormat", func(t *testing.T) {
+		mod, err := modules.LoadModule("exploit/iam_createloginprofile")
+		if err != nil {
+			t.Fatalf("Expected no error loading exploit/iam_createloginprofile, got: %v", err)
+		}
+		if mod.Name() != "iam-004" {
+			t.Errorf("Expected Name() = %q, got %q", "iam-004", mod.Name())
+		}
+	})
+
+	t.Run("PathInfoFields", func(t *testing.T) {
+		info, found := modules.GetPathInfo("iam-004")
+		if !found {
+			t.Fatal("Expected to find PathInfo for iam-004")
+		}
+		if info.ID != "iam-004" {
+			t.Errorf("Expected ID %q, got %q", "iam-004", info.ID)
+		}
+		if info.Category != "principal-access" {
+			t.Errorf("Expected Category %q, got %q", "principal-access", info.Category)
+		}
+		if len(info.Services) != 1 || info.Services[0] != "iam" {
+			t.Errorf("Expected services [iam], got %v", info.Services)
+		}
+		if len(info.Permissions.Required) != 1 {
+			t.Errorf("Expected 1 required permission, got %d", len(info.Permissions.Required))
+		}
+		if len(info.Permissions.Additional) != 3 {
+			t.Errorf("Expected 3 additional permissions, got %d", len(info.Permissions.Additional))
+		}
+		if info.MITRE == nil {
+			t.Error("Expected non-nil MITRE mapping")
+		}
+		if len(info.Aliases) != 2 {
+			t.Errorf("Expected 2 aliases, got %d", len(info.Aliases))
+		}
+		if len(info.RelatedPaths) != 2 {
+			t.Errorf("Expected 2 related paths, got %d", len(info.RelatedPaths))
+		}
+		if info.Author != "Seth Art" {
+			t.Errorf("Expected Author %q, got %q", "Seth Art", info.Author)
+		}
+	})
+
+	t.Run("SearchFindsIAM004", func(t *testing.T) {
+		results := modules.SearchModules("CreateLoginProfile")
+		found := false
+		for _, info := range results {
+			if info.ID == "iam-004" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("Expected iam-004 in search results for 'CreateLoginProfile'")
+		}
+	})
+
+	t.Run("CategoryFilter", func(t *testing.T) {
+		results := modules.ListModulesByCategory("principal-access")
+		found := false
+		for _, info := range results {
+			if info.ID == "iam-004" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("Expected iam-004 in principal-access category")
+		}
+	})
+
+	t.Run("Options", func(t *testing.T) {
+		mod, err := modules.LoadModule("iam-004")
+		if err != nil {
+			t.Fatalf("Failed to load iam-004: %v", err)
+		}
+		opts := mod.Options()
+		if len(opts) != 4 {
+			t.Errorf("Expected 4 options, got %d", len(opts))
+		}
+		foundRequired := false
+		for _, opt := range opts {
+			if opt.Name == "TARGET_USER" && opt.Required {
+				foundRequired = true
+			}
+		}
+		if !foundRequired {
+			t.Error("Expected TARGET_USER to be a required option")
 		}
 	})
 }

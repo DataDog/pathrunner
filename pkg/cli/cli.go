@@ -70,6 +70,7 @@ func (c *CLI) CreateRootCommand() *cobra.Command {
 	rootCmd.AddCommand(c.createDiscoverCmd())
 	rootCmd.AddCommand(c.createInfoCmd())
 	rootCmd.AddCommand(c.createAWSCmd())
+	rootCmd.AddCommand(c.createPmapperCmd())
 	rootCmd.AddCommand(c.createVersionCmd())
 
 	return rootCmd

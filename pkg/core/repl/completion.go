@@ -19,6 +19,7 @@ func (r *REPL) getCompleter() readline.AutoCompleter {
 			readline.PcItem("exploit"),
 			readline.PcItem("whoami"),
 			readline.PcItem("workspace"),
+			readline.PcItem("pmapper"),
 			readline.PcItem("context"),
 			readline.PcItem("search"),
 			readline.PcItem("modules"),
@@ -63,6 +64,7 @@ func (r *REPL) getCompleter() readline.AutoCompleter {
 		readline.PcItem("info",
 			readline.PcItem("help"),
 		),
+		r.buildPmapperCompleter(),
 		readline.PcItem("version"),
 	)
 }
@@ -438,6 +440,24 @@ func (r *REPL) buildDiscoverCompleter() readline.PrefixCompleterInterface {
 	}
 
 	return readline.PcItem("discover", items...)
+}
+
+// buildPmapperCompleter builds completion for the pmapper command
+func (r *REPL) buildPmapperCompleter() readline.PrefixCompleterInterface {
+	return readline.PcItem("pmapper",
+		readline.PcItem("import",
+			readline.PcItem("--path"),
+			readline.PcItem("help"),
+		),
+		readline.PcItem("analyze",
+			readline.PcItem("--all"),
+			readline.PcItem("help"),
+		),
+		readline.PcItem("status",
+			readline.PcItem("help"),
+		),
+		readline.PcItem("help"),
+	)
 }
 
 // buildWorkspacesCompleter builds completion for workspaces command (alias for workspace)

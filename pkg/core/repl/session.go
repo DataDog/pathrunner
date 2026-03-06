@@ -467,7 +467,9 @@ func (r *REPL) sessionReport(args []string) error {
 // isModificationResource returns true for resources that represent modifications
 // to existing AWS resources (e.g., policy attachments) rather than new creations.
 func isModificationResource(res CreatedResource) bool {
-	return res.Type == "iam:attached-policy" || res.Type == "iam:policy-version"
+	return res.Type == "iam:attached-policy" || res.Type == "iam:policy-version" ||
+		res.Type == "iam:inline-policy" || res.Type == "iam:group-membership" ||
+		res.Type == "iam:trust-policy"
 }
 
 // printManualCleanupCommand prints the AWS CLI command to clean up a resource.
@@ -500,11 +502,50 @@ func printManualCleanupCommand(res CreatedResource) {
 		principalType := res.Metadata["principal_type"]
 		principalName := res.Metadata["principal_name"]
 		policyArn := res.Metadata["policy_arn"]
-		if principalType == "role" {
+		switch principalType {
+		case "role":
 			fmt.Printf("    aws iam detach-role-policy --role-name %s --policy-arn %s\n", principalName, policyArn)
-		} else {
+		case "group":
+			fmt.Printf("    aws iam detach-group-policy --group-name %s --policy-arn %s\n", principalName, policyArn)
+		default:
 			fmt.Printf("    aws iam detach-user-policy --user-name %s --policy-arn %s\n", principalName, policyArn)
 		}
+	case "iam:inline-policy":
+		principalType := res.Metadata["principal_type"]
+		principalName := res.Metadata["principal_name"]
+		policyName := res.Metadata["policy_name"]
+		switch principalType {
+		case "role":
+			fmt.Printf("    aws iam delete-role-policy --role-name %s --policy-name %s\n", principalName, policyName)
+		case "group":
+			fmt.Printf("    aws iam delete-group-policy --group-name %s --policy-name %s\n", principalName, policyName)
+		default:
+			fmt.Printf("    aws iam delete-user-policy --user-name %s --policy-name %s\n", principalName, policyName)
+		}
+	case "iam:group-membership":
+		userName := res.Metadata["user_name"]
+		groupName := res.Metadata["group_name"]
+		fmt.Printf("    aws iam remove-user-from-group --user-name %s --group-name %s\n", userName, groupName)
+	case "iam:trust-policy":
+		roleName := res.Metadata["role_name"]
+		fmt.Printf("    aws iam update-assume-role-policy --role-name %s --policy-document '<original-trust-policy>'\n", roleName)
+	case "iam:policy-version":
+		policyArn := res.Metadata["policy_arn"]
+		versionID := res.Metadata["version_id"]
+		fmt.Printf("    aws iam delete-policy-version --policy-arn %s --version-id %s\n", policyArn, versionID)
+	case "iam:access-key":
+		username := res.Metadata["username"]
+		accessKeyID := res.Metadata["access_key_id"]
+		if accessKeyID == "" {
+			accessKeyID = res.Name
+		}
+		fmt.Printf("    aws iam delete-access-key --user-name %s --access-key-id %s\n", username, accessKeyID)
+	case "iam:login-profile":
+		username := res.Metadata["username"]
+		if username == "" {
+			username = res.Name
+		}
+		fmt.Printf("    aws iam delete-login-profile --user-name %s\n", username)
 	case "iam:role":
 		fmt.Printf("    aws iam delete-role --role-name %s\n", res.Name)
 	case "iam:user":
@@ -653,8 +694,18 @@ func (r *REPL) cleanupResource(resource CreatedResource, identity *modules.Ident
 		return r.cleanupIAMUser(ctx, config, resource)
 	case "iam:attached-policy":
 		return r.cleanupIAMAttachedPolicy(ctx, config, resource)
+	case "iam:inline-policy":
+		return r.cleanupIAMInlinePolicy(ctx, config, resource)
+	case "iam:group-membership":
+		return r.cleanupIAMGroupMembership(ctx, config, resource)
+	case "iam:trust-policy":
+		return r.cleanupIAMTrustPolicy(ctx, config, resource)
 	case "iam:policy-version":
 		return r.cleanupIAMPolicyVersion(ctx, config, resource)
+	case "iam:access-key":
+		return r.cleanupIAMAccessKey(ctx, config, resource)
+	case "iam:login-profile":
+		return r.cleanupIAMLoginProfile(ctx, config, resource)
 	case "ecs:service":
 		return r.cleanupECSService(ctx, config, resource)
 	case "ecs:cluster":
@@ -808,6 +859,12 @@ func (r *REPL) cleanupIAMAttachedPolicy(ctx context.Context, config aws.Config, 
 			PolicyArn: aws.String(policyArn),
 		})
 		return err
+	case "group":
+		_, err := client.DetachGroupPolicy(ctx, &iam.DetachGroupPolicyInput{
+			GroupName: aws.String(principalName),
+			PolicyArn: aws.String(policyArn),
+		})
+		return err
 	case "role", "":
 		_, err := client.DetachRolePolicy(ctx, &iam.DetachRolePolicyInput{
 			RoleName:  aws.String(principalName),
@@ -836,6 +893,38 @@ func (r *REPL) cleanupIAMPolicyVersion(ctx context.Context, config aws.Config, r
 	_, err := client.DeletePolicyVersion(ctx, &iam.DeletePolicyVersionInput{
 		PolicyArn: aws.String(policyArn),
 		VersionId: aws.String(versionID),
+	})
+	return err
+}
+
+// cleanupIAMAccessKey deletes an IAM access key
+func (r *REPL) cleanupIAMAccessKey(ctx context.Context, config aws.Config, resource CreatedResource) error {
+	client := iam.NewFromConfig(config)
+
+	username := resource.Metadata["username"]
+	accessKeyID := resource.Metadata["access_key_id"]
+	if accessKeyID == "" {
+		accessKeyID = resource.Name
+	}
+
+	_, err := client.DeleteAccessKey(ctx, &iam.DeleteAccessKeyInput{
+		UserName:    aws.String(username),
+		AccessKeyId: aws.String(accessKeyID),
+	})
+	return err
+}
+
+// cleanupIAMLoginProfile deletes an IAM login profile
+func (r *REPL) cleanupIAMLoginProfile(ctx context.Context, config aws.Config, resource CreatedResource) error {
+	client := iam.NewFromConfig(config)
+
+	username := resource.Metadata["username"]
+	if username == "" {
+		username = resource.Name
+	}
+
+	_, err := client.DeleteLoginProfile(ctx, &iam.DeleteLoginProfileInput{
+		UserName: aws.String(username),
 	})
 	return err
 }
@@ -954,6 +1043,81 @@ func (r *REPL) cleanupIAMUser(ctx context.Context, config aws.Config, resource C
 	// Delete the user
 	_, err = client.DeleteUser(ctx, &iam.DeleteUserInput{
 		UserName: aws.String(resource.Name),
+	})
+	return err
+}
+
+// cleanupIAMInlinePolicy deletes an inline policy from a role, group, or user
+func (r *REPL) cleanupIAMInlinePolicy(ctx context.Context, config aws.Config, resource CreatedResource) error {
+	client := iam.NewFromConfig(config)
+
+	principalType := resource.Metadata["principal_type"]
+	principalName := resource.Metadata["principal_name"]
+	policyName := resource.Metadata["policy_name"]
+
+	if policyName == "" {
+		policyName = resource.Name
+	}
+
+	switch principalType {
+	case "user":
+		_, err := client.DeleteUserPolicy(ctx, &iam.DeleteUserPolicyInput{
+			UserName:   aws.String(principalName),
+			PolicyName: aws.String(policyName),
+		})
+		return err
+	case "group":
+		_, err := client.DeleteGroupPolicy(ctx, &iam.DeleteGroupPolicyInput{
+			GroupName:  aws.String(principalName),
+			PolicyName: aws.String(policyName),
+		})
+		return err
+	case "role", "":
+		_, err := client.DeleteRolePolicy(ctx, &iam.DeleteRolePolicyInput{
+			RoleName:   aws.String(principalName),
+			PolicyName: aws.String(policyName),
+		})
+		return err
+	default:
+		return fmt.Errorf("unsupported principal type for inline policy: %s", principalType)
+	}
+}
+
+// cleanupIAMGroupMembership removes a user from a group
+func (r *REPL) cleanupIAMGroupMembership(ctx context.Context, config aws.Config, resource CreatedResource) error {
+	client := iam.NewFromConfig(config)
+
+	userName := resource.Metadata["user_name"]
+	groupName := resource.Metadata["group_name"]
+
+	if userName == "" || groupName == "" {
+		return fmt.Errorf("missing user_name or group_name in resource metadata")
+	}
+
+	_, err := client.RemoveUserFromGroup(ctx, &iam.RemoveUserFromGroupInput{
+		UserName:  aws.String(userName),
+		GroupName: aws.String(groupName),
+	})
+	return err
+}
+
+// cleanupIAMTrustPolicy restores the original trust policy on a role
+func (r *REPL) cleanupIAMTrustPolicy(ctx context.Context, config aws.Config, resource CreatedResource) error {
+	client := iam.NewFromConfig(config)
+
+	roleName := resource.Metadata["role_name"]
+	originalPolicy := resource.Metadata["original_policy"]
+
+	if roleName == "" {
+		roleName = resource.Name
+	}
+	if originalPolicy == "" {
+		return fmt.Errorf("no original_policy in resource metadata; cannot restore trust policy")
+	}
+
+	_, err := client.UpdateAssumeRolePolicy(ctx, &iam.UpdateAssumeRolePolicyInput{
+		RoleName:       aws.String(roleName),
+		PolicyDocument: aws.String(originalPolicy),
 	})
 	return err
 }

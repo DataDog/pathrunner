@@ -1,0 +1,82 @@
+[
+  {
+    "arn": "arn:aws:iam::111111111111:user/PolicyVersionUser",
+    "id_value": "AIDASE1",
+    "attached_policies": [
+      {"arn": "arn:aws:iam::111111111111:policy/SelfManage", "name": "SelfManage"}
+    ],
+    "group_memberships": [],
+    "trust_policy": null,
+    "instance_profile": null,
+    "active_password": true,
+    "access_keys": 1,
+    "is_admin": true,
+    "permissions_boundary": null,
+    "has_mfa": false,
+    "tags": {}
+  },
+  {
+    "arn": "arn:aws:iam::111111111111:role/AttachPolicyRole",
+    "id_value": "AROASE2",
+    "attached_policies": [
+      {"arn": "arn:aws:iam::111111111111:policy/RoleSelfManage", "name": "RoleSelfManage"}
+    ],
+    "group_memberships": [],
+    "trust_policy": {"Version": "2012-10-17", "Statement": [{"Effect": "Allow", "Principal": {"AWS": "arn:aws:iam::111111111111:root"}, "Action": "sts:AssumeRole"}]},
+    "instance_profile": null,
+    "active_password": false,
+    "access_keys": 0,
+    "is_admin": true,
+    "permissions_boundary": null,
+    "has_mfa": false,
+    "tags": {}
+  },
+  {
+    "arn": "arn:aws:iam::111111111111:user/GroupUser",
+    "id_value": "AIDASE3",
+    "attached_policies": [
+      {"arn": "arn:aws:iam::111111111111:policy/GroupManage", "name": "GroupManage"}
+    ],
+    "group_memberships": ["arn:aws:iam::111111111111:group/DevTeam"],
+    "trust_policy": null,
+    "instance_profile": null,
+    "active_password": true,
+    "access_keys": 1,
+    "is_admin": true,
+    "permissions_boundary": null,
+    "has_mfa": false,
+    "tags": {}
+  },
+  {
+    "arn": "arn:aws:iam::111111111111:user/NormalUser",
+    "id_value": "AIDASE4",
+    "attached_policies": [
+      {"arn": "arn:aws:iam::111111111111:policy/ReadOnly", "name": "ReadOnly"}
+    ],
+    "group_memberships": [],
+    "trust_policy": null,
+    "instance_profile": null,
+    "active_password": true,
+    "access_keys": 1,
+    "is_admin": false,
+    "permissions_boundary": null,
+    "has_mfa": false,
+    "tags": {}
+  },
+  {
+    "arn": "arn:aws:iam::111111111111:user/WildcardUser",
+    "id_value": "AIDASE5",
+    "attached_policies": [
+      {"arn": "arn:aws:iam::111111111111:policy/WildcardIAM", "name": "WildcardIAM"}
+    ],
+    "group_memberships": [],
+    "trust_policy": null,
+    "instance_profile": null,
+    "active_password": true,
+    "access_keys": 1,
+    "is_admin": true,
+    "permissions_boundary": null,
+    "has_mfa": false,
+    "tags": {}
+  }
+]
