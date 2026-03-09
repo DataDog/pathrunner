@@ -25,7 +25,9 @@ Pathrunner currently includes **29 exploit modules** across **4 AWS services** (
 ## Quick Start
 
 ```bash
-# Build
+# Clone and build
+git clone https://github.com/your-org/pathrunner.git
+cd pathrunner
 make build
 
 # Start the interactive shell
@@ -56,18 +58,6 @@ pathrunner> identity list          # New identity appears automatically
 pathrunner> identity switch lambda_AB12
 pathrunner> pmapper import         # Auto-detects PMapper data directory
 pathrunner> pmapper analyze        # See what's next from here
-```
-
-## Installation
-
-```bash
-# Clone and build
-git clone https://github.com/your-org/pathrunner.git
-cd pathrunner
-make build
-
-# Or run directly during development
-make dev
 ```
 
 Requires Go 1.21+ and valid AWS credentials.
