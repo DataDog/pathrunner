@@ -2,11 +2,7 @@
 
 A modular AWS privilege escalation exploitation framework with dual CLI/REPL interfaces.
 
-## Demo
-
 ![pathrunner - demo](https://github.com/user-attachments/assets/1cac76ca-9347-4aa7-b961-0a59bf400b43)
-
-
 
 ## Features
 
