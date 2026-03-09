@@ -894,23 +894,9 @@ func (im *IdentityManager) CheckAdmin(identityName string) error {
 	return nil
 }
 
-// promptForAdminCheck prompts the user to check admin privileges after adding an identity.
+// promptForAdminCheck checks admin privileges only when --check-admin flag is set.
 func (im *IdentityManager) promptForAdminCheck(identityName string) {
 	if im.checkAdmin {
-		im.CheckAdmin(identityName)
-		return
-	}
-
-	// Skip interactive prompt when --switch is set (non-interactive/scripted usage)
-	if im.autoSwitch {
-		return
-	}
-
-	fmt.Printf("Check if '%s' has admin privileges? [y/N]: ", identityName)
-	var response string
-	fmt.Scanln(&response)
-
-	if strings.ToLower(response) == "y" || strings.ToLower(response) == "yes" {
 		im.CheckAdmin(identityName)
 	}
 }
