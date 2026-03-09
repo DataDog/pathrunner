@@ -1,106 +1,112 @@
 # Pathrunner
 
-A modular AWS post-exploitation framework with dual CLI/REPL interfaces for authorized security testing and penetration testing scenarios.
+A modular AWS privilege escalation exploitation framework with dual CLI/REPL interfaces.
+
+## Demo
+
+<!-- TODO: Add demo gif -->
 
 ## Features
 
-- **Dual Interface**: Both CLI and interactive REPL modes sharing the same business logic
-- **Multi-Identity Management**: Manage multiple AWS credential sets with automatic refresh for profiles/SSO
-- **Session Persistence**: JSON-based session storage with command logging and resource tracking
-- **Lambda/PassRole Exploitation**: Privilege escalation through Lambda functions with four payload types:
-  - Credential exfiltration (CloudWatch output)
-  - HTTPS exfiltration to attacker endpoints
-  - Backdoor IAM role creation
-  - Backdoor IAM user creation
-- **Resource Tracking**: Automatic tracking of created AWS resources for cleanup
-- **AWS Integration**: Full SDK v2 support including profiles, environment variables, static keys, and SSO
+- **Dual Interface**: Includes a Metasploit style REPL for interactive use and a non-interactive CLI for automation use cases
+- **Multi-Identity Management**: Import, use, and switch between multiple AWS identities seamlessly
+- **Workspace Persistence**: JSON-based workspace storage with command logging and resource tracking
+- **Resource Tracking**: Automatic tracking of created AWS resources with interactive cleanup when permissions allow
+- **Auto-Discovery**: Modules automatically enumerate valid option values (roles, subnets, instance profiles) via AWS APIs when permissions allow
+- **PMapper Integration**: Import pmapper graph data to see which possible paths you can currently exploit with pathrunner
+- **Credential Auto-Import**: When a payload captures new credentials, they're automatically extracted and added to your identity store for continued escalation
+
+### Coverage
+
+Pathrunner currently includes **29 exploit modules** across **4 AWS services** (EC2, IAM, Lambda, STS) with **8 interchangeable payloads** (credential exfiltration, HTTPS exfiltration, backdoor role/user/policy creation, reverse shells). 
+
+## Quick Start
+
+```bash
+# Build
+make build
+
+# Start the interactive shell
+./pathrunner
+
+# Add your AWS identity
+pathrunner> identity add --profile my-aws-profile
+
+# Browse available modules
+pathrunner> search lambda
+pathrunner> info lambda-001
+
+# Select and configure a module
+pathrunner> use lambda-001
+pathrunner> show options
+pathrunner> set ROLE_ARN arn:aws:iam::123456789012:role/TargetRole
+
+# Choose a payload and execute
+pathrunner> show payloads
+pathrunner> set PAYLOAD exfil/response
+pathrunner> exploit
+```
+
+After a successful exploit that captures credentials, they're auto-extracted and available as a new identity:
+
+```bash
+pathrunner> identity list          # New identity appears automatically
+pathrunner> identity switch lambda_AB12
+pathrunner> pmapper import         # Auto-detects PMapper data directory
+pathrunner> pmapper analyze        # See what's next from here
+```
 
 ## Installation
 
 ```bash
-# Build the executable
-go build -o pathrunner cmd/pathrunner/main.go
+# Clone and build
+git clone https://github.com/your-org/pathrunner.git
+cd pathrunner
+make build
 
-# Or run directly
-go run cmd/pathrunner/main.go
+# Or run directly during development
+make dev
 ```
 
-## Usage
+Requires Go 1.21+ and valid AWS credentials.
 
-### REPL Mode (Interactive)
+## PMapper Integration
+
+Import [Principal Mapper](https://github.com/nccgroup/PMapper) graph data to identify escalation paths and get actionable next steps:
 
 ```bash
-# Start interactive shell
-./pathrunner
-
-# Available commands in REPL
-pathrunner> identity add --profile my-aws-profile
-pathrunner> identity list
-pathrunner> session new test-session
-pathrunner> use lambda_passrole
-pathrunner> show options
-pathrunner> set TargetRole arn:aws:iam::123456789012:role/TargetRole
-pathrunner> run
+pathrunner> pmapper import           # Auto-detects PMapper data directory
+pathrunner> pmapper analyze          # Show escalation paths for current identity
+pathrunner> pmapper analyze --all    # Show paths for all workspace identities
+pathrunner> pmapper status           # Graph metadata and module coverage
 ```
 
-### CLI Mode
-
-```bash
-# Add identity
-./pathrunner identity add --profile my-aws-profile
-
-# Create session
-./pathrunner session new test-session
-
-# Execute module
-./pathrunner use lambda_passrole
-./pathrunner set TargetRole arn:aws:iam::123456789012:role/TargetRole
-./pathrunner run
-```
+For each escalation hop, pathrunner shows the matching module and suggested commands to execute it.
 
 ## Architecture
 
-Pathrunner follows a modular architecture with clear separation of concerns:
+```
+pkg/
+├── core/        # REPL shell, identity management, workspace persistence
+├── cli/         # Cobra CLI wrapper (1:1 with REPL commands)
+├── modules/     # Module system: interfaces, registry, search/filter
+├── payloads/    # Payload registry: tag-based filtering, service subdirectories
+├── exploits/    # Exploit modules (29), each embedding BaseModule
+├── discovery/   # Reusable AWS enumeration (roles, subnets, streams, etc.)
+├── pmapper/     # PMapper graph import, querying, and module mapping
+├── utils/       # Credential extraction from env vars, JSON, Python dicts
+└── config/      # Application configuration
+```
 
-### Core Components
+Key design patterns:
+- **Dual Interface** — CLI and REPL share identical command handlers via adapter pattern
+- **Decoupled Payloads** — Modules query payloads by tags at runtime; payloads self-register via `init()`
+- **Workspace Isolation** — Each workspace maintains isolated identities, history, and tracked resources
+- **Auto-Refresh** — SSO tokens and profile credentials are rebuilt on-demand
 
-- **pkg/core/**: Framework core
-  - `repl.go`: Interactive shell with tab completion and command execution
-  - `identity.go`: Multi-identity AWS credential management
-  - `session.go`: Session persistence with resource tracking
+## Contributing
 
-- **pkg/cli/**: Cobra CLI wrapper that maps 1:1 with REPL commands
-
-- **pkg/modules/**: Module system interfaces and registry
-  - `interface.go`: Core interfaces (Module, Identity, ResourceTracker)
-  - `registry.go`: Dynamic module loading
-
-- **pkg/exploits/**: Exploitation modules
-  - `lambda_passrole/`: Lambda privilege escalation with multiple payload types
-
-### Key Design Patterns
-
-- **Dual Interface**: CLI and REPL share identical command handlers
-- **Identity Refresh**: Auto-refreshes AWS SSO tokens from stored profile names
-- **Resource Tracking**: Modules register created resources for potential cleanup
-- **Module Registry**: Self-registering modules using `init()` functions
-
-## Session Management
-
-Sessions are stored as JSON in `~/.pathrunner/sessions/` containing:
-- AWS identities with credential configurations
-- Command history with timestamps and outputs
-- Created resources with cleanup metadata
-- Current module state and options
-
-## Extending Pathrunner
-
-Add new modules by:
-
-1. Implement the `Module` interface in `pkg/modules/interface.go`
-2. Register in `init()` function: `modules.Register("module_name", &YourModule{})`
-3. Add blank import in `cmd/pathrunner/main.go`
-4. Track resources via `ResourceTracker.TrackResource()`
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, testing requirements, and how to add new modules and payloads.
 
 ## Security Notice
 
