@@ -22,7 +22,7 @@ Pathrunner currently includes **29 exploit modules** across **4 AWS services** (
 
 ```bash
 # Clone and build
-git clone https://github.com/your-org/pathrunner.git
+git clone https://github.com/DataDog/pathrunner.git
 cd pathrunner
 make build
 
