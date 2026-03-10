@@ -2,7 +2,7 @@ module pathrunner
 
 go 1.24.2
 
-toolchain go1.24.5
+toolchain go1.26.1
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.41.2
