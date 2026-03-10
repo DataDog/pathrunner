@@ -15,7 +15,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.77.5
 	github.com/aws/aws-sdk-go-v2/service/sts v1.38.5
 	github.com/charmbracelet/bubbletea v1.3.10
-	github.com/charmbracelet/huh v0.8.0
+	github.com/charmbracelet/huh v1.0.0
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/charmbracelet/x/term v0.2.2
 	github.com/chzyer/readline v1.5.1
