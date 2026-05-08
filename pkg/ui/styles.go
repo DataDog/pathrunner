@@ -9,7 +9,8 @@ import (
 var (
 	// isTTY detects whether stdout is a terminal.
 	// When false, all styling is stripped for pipe-friendly output.
-	isTTY = lipgloss.HasDarkBackground()
+	// Initialized to false; init() sets the real value via Stat().
+	isTTY = false
 
 	// Color palette — cyan-based to match existing brand
 	ColorPrimary   = lipgloss.Color("#00BFFF") // deep sky blue / bright cyan
