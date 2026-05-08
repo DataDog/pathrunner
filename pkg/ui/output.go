@@ -6,7 +6,7 @@ import (
 
 	"pathrunner/pkg/version"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/lucasb-eyer/go-colorful"
 )
 
