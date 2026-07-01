@@ -515,7 +515,12 @@ func (r *REPL) cmdExploit(repl *REPL, args []string) error {
 	fmt.Printf("Using identity: %s\n", identity.Name)
 	fmt.Println()
 
-	result, err := r.currentModule.Execute(identity, r.options, r.sessionManager)
+	result, err := r.currentModule.Execute(modules.ExecutionContext{
+		Identity:         identity,
+		Options:          r.options,
+		Tracker:          r.sessionManager,
+		AttackerIdentity: r.identityManager.GetAttackerIdentity(),
+	})
 	if err != nil {
 		return NewExecutionError(fmt.Sprintf("module execution failed: %v", err), err)
 	}

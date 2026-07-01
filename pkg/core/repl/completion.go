@@ -12,6 +12,7 @@ func (r *REPL) getCompleter() readline.AutoCompleter {
 	return readline.NewPrefixCompleter(
 		readline.PcItem("help",
 			readline.PcItem("identity"),
+			readline.PcItem("attacker"),
 			readline.PcItem("show"),
 			readline.PcItem("use"),
 			readline.PcItem("set"),
@@ -54,6 +55,7 @@ func (r *REPL) getCompleter() readline.AutoCompleter {
 		readline.PcItem("whoami",
 			readline.PcItem("help"),
 		),
+		r.buildAttackerCompleter(),
 		r.buildWorkspaceCompleter(),
 		// Add alias completers
 		r.buildWorkspacesCompleter(),
@@ -398,6 +400,26 @@ func (r *REPL) buildIdsCompleter() readline.PrefixCompleterInterface {
 		readline.PcItem("remove",
 			readline.PcItem("--expired"),
 		),
+		readline.PcItem("help"),
+	)
+}
+
+// buildAttackerCompleter builds completion for the attacker command
+func (r *REPL) buildAttackerCompleter() readline.PrefixCompleterInterface {
+	return readline.PcItem("attacker",
+		readline.PcItem("set",
+			readline.PcItem("profile"),
+			readline.PcItem("keys",
+				readline.PcItem("--access"),
+				readline.PcItem("--secret"),
+				readline.PcItem("--token"),
+				readline.PcItem("--region"),
+			),
+			readline.PcItem("help"),
+		),
+		readline.PcItem("show"),
+		readline.PcItem("validate"),
+		readline.PcItem("clear"),
 		readline.PcItem("help"),
 	)
 }

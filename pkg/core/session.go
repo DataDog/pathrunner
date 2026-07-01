@@ -13,16 +13,17 @@ import (
 )
 
 type Session struct {
-	Name           string                     `json:"name"`
-	Created        time.Time                  `json:"created"`
-	LastAccessed   time.Time                  `json:"last_accessed"`
-	Identities     map[string]*modules.Identity `json:"identities"`
-	CurrentIdentity string                     `json:"current_identity"`
-	CurrentModule  string                     `json:"current_module"`
-	Options        map[string]string          `json:"options"`
-	CommandLog     []CommandLogEntry          `json:"command_log"`
-	CreatedResources []CreatedResource        `json:"created_resources"`
-	LastResult     string                     `json:"last_result"`
+	Name             string                       `json:"name"`
+	Created          time.Time                    `json:"created"`
+	LastAccessed     time.Time                    `json:"last_accessed"`
+	Identities       map[string]*modules.Identity `json:"identities"`
+	CurrentIdentity  string                       `json:"current_identity"`
+	AttackerIdentity *modules.Identity            `json:"attacker_identity,omitempty"`
+	CurrentModule    string                       `json:"current_module"`
+	Options          map[string]string            `json:"options"`
+	CommandLog       []CommandLogEntry            `json:"command_log"`
+	CreatedResources []CreatedResource            `json:"created_resources"`
+	LastResult       string                       `json:"last_result"`
 }
 
 type CommandLogEntry struct {
@@ -34,14 +35,15 @@ type CommandLogEntry struct {
 }
 
 type CreatedResource struct {
-	Type          string            `json:"type"`
-	Name          string            `json:"name"`
-	ARN           string            `json:"arn,omitempty"`
-	Region        string            `json:"region"`
-	Created       time.Time         `json:"created"`
-	CleanupMethod string            `json:"cleanup_method"`
-	ModuleID      string            `json:"module_id,omitempty"`
-	Metadata      map[string]string `json:"metadata,omitempty"`
+	Type           string            `json:"type"`
+	Name           string            `json:"name"`
+	ARN            string            `json:"arn,omitempty"`
+	Region         string            `json:"region"`
+	Created        time.Time         `json:"created"`
+	CleanupMethod  string            `json:"cleanup_method"`
+	ModuleID       string            `json:"module_id,omitempty"`
+	Metadata       map[string]string `json:"metadata,omitempty"`
+	AccountContext string            `json:"account_context,omitempty"`
 }
 
 type SessionManager struct {
@@ -287,14 +289,15 @@ func (sm *SessionManager) TrackResource(resource modules.CreatedResource) {
 
 	// Convert modules.CreatedResource to core.CreatedResource
 	coreResource := CreatedResource{
-		Type:          resource.Type,
-		Name:          resource.Name,
-		ARN:           resource.ARN,
-		Region:        resource.Region,
-		Created:       resource.Created,
-		CleanupMethod: resource.CleanupMethod,
-		ModuleID:      resource.ModuleID,
-		Metadata:      resource.Metadata,
+		Type:           resource.Type,
+		Name:           resource.Name,
+		ARN:            resource.ARN,
+		Region:         resource.Region,
+		Created:        resource.Created,
+		CleanupMethod:  resource.CleanupMethod,
+		ModuleID:       resource.ModuleID,
+		Metadata:       resource.Metadata,
+		AccountContext: resource.AccountContext,
 	}
 
 	sm.currentSession.CreatedResources = append(sm.currentSession.CreatedResources, coreResource)

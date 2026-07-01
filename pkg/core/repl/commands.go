@@ -116,6 +116,11 @@ func (r *REPL) getCommands() map[string]*Command {
 			Description: "Import and analyze PMapper privilege escalation graphs",
 			Handler:     r.cmdPmapper,
 		},
+		"attacker": {
+			Name:        "attacker",
+			Description: "Manage attacker account identity",
+			Handler:     r.cmdAttacker,
+		},
 	}
 }
 
@@ -131,7 +136,7 @@ func (r *REPL) cmdHelp(repl *REPL, args []string) error {
 
 	coreOrder := []string{
 		"modules", "search", "use",
-		"identity", "aws", "whoami",
+		"identity", "attacker", "aws", "whoami",
 		"workspace", "pmapper", "context",
 		"version", "help", "exit",
 	}
@@ -203,6 +208,8 @@ func (r *REPL) showSpecificHelp(command string) error {
 		return r.showInfoHelp()
 	case "pmapper":
 		return r.showPmapperHelp()
+	case "attacker":
+		return r.showAttackerHelp()
 	default:
 		return NewCommandNotFoundError(command)
 	}
@@ -737,6 +744,26 @@ func (r *REPL) cmdContext(repl *REPL, args []string) error {
 		fmt.Println("  Use 'identity add' to configure AWS credentials")
 	}
 	fmt.Println()
+
+	// Attacker account details
+	if attackerIdentity := r.identityManager.GetAttackerIdentity(); attackerIdentity != nil {
+		ui.Section("Attacker Account")
+		attackerKV := []ui.KV{
+			{Key: "Name", Value: attackerIdentity.Name},
+			{Key: "Type", Value: attackerIdentity.Type},
+			{Key: "Region", Value: attackerIdentity.Region},
+		}
+		if attackerIdentity.CallerARN != "" {
+			attackerKV = append(attackerKV, ui.KV{Key: "ARN", Value: attackerIdentity.CallerARN})
+		}
+		if attackerIdentity.IsExpired() {
+			attackerKV = append(attackerKV, ui.KV{Key: "Status", Value: ui.Error.Render("EXPIRED")})
+		} else {
+			attackerKV = append(attackerKV, ui.KV{Key: "Status", Value: "Valid"})
+		}
+		ui.KeyValueTable("", attackerKV)
+		fmt.Println()
+	}
 
 	// Module information
 	if r.currentModule != nil {

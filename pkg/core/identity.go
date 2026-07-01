@@ -23,6 +23,7 @@ import (
 type IdentityManager struct {
 	identities       map[string]*modules.Identity
 	current          *modules.Identity
+	attackerIdentity *modules.Identity
 	getLastResult    func() string
 	updateCompletion func()
 	autoSwitch       bool // when true, skip interactive prompt and auto-switch
@@ -831,6 +832,21 @@ func (im *IdentityManager) SetIdentities(identities map[string]*modules.Identity
 // SetCurrent sets the current identity (used when loading from session)
 func (im *IdentityManager) SetCurrent(identity *modules.Identity) {
 	im.current = identity
+}
+
+// GetAttackerIdentity returns the configured attacker account identity, or nil.
+func (im *IdentityManager) GetAttackerIdentity() *modules.Identity {
+	return im.attackerIdentity
+}
+
+// SetAttackerIdentity sets the attacker account identity.
+func (im *IdentityManager) SetAttackerIdentity(identity *modules.Identity) {
+	im.attackerIdentity = identity
+}
+
+// ClearAttackerIdentity removes the attacker account identity.
+func (im *IdentityManager) ClearAttackerIdentity() {
+	im.attackerIdentity = nil
 }
 
 // CheckAdmin checks whether the named identity (or current if empty) has admin privileges.

@@ -636,6 +636,13 @@ func (r *REPL) loadSessionState() {
 		r.identityManager.SetCurrent(nil)
 	}
 
+	// Load attacker identity
+	if attackerIdentity := session.GetAttackerIdentity(); attackerIdentity != nil {
+		r.identityManager.SetAttackerIdentity(attackerIdentity)
+	} else {
+		r.identityManager.ClearAttackerIdentity()
+	}
+
 	// Load current module
 	if moduleName := session.GetCurrentModule(); moduleName != "" {
 		if module, err := modules.LoadModule(moduleName); err == nil {
@@ -666,6 +673,9 @@ func (r *REPL) saveCurrentState() {
 	if identity := r.identityManager.GetCurrent(); identity != nil {
 		session.SetCurrentIdentity(identity.Name)
 	}
+
+	// Save attacker identity
+	session.SetAttackerIdentity(r.identityManager.GetAttackerIdentity())
 
 	// Save current module
 	if r.currentModule != nil {
