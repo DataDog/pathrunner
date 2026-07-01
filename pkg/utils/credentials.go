@@ -13,6 +13,9 @@ type ExtractedCredentials struct {
 	SessionToken    string
 	Region          string
 	Source          string
+	// ProfileName is set when credentials were parsed from an AWS credentials file stanza.
+	// Used as the suggested identity name instead of the generated one.
+	ProfileName string
 }
 
 // tryEnvVarFormat attempts to parse AWS_* environment variable format

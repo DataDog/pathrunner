@@ -594,3 +594,83 @@ func (c *CLI) createVersionCmd() *cobra.Command {
 		},
 	}
 }
+
+func (c *CLI) createAttackerCmd() *cobra.Command {
+	attackerCmd := &cobra.Command{
+		Use:   "attacker",
+		Short: "Manage attacker account identity",
+		Long:  "Configure an attacker-controlled AWS account for deploying resources used during exploitation",
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("attacker")
+		},
+	}
+
+	// attacker set
+	setCmd := &cobra.Command{
+		Use:   "set",
+		Short: "Configure attacker account credentials",
+	}
+
+	setCmd.AddCommand(&cobra.Command{
+		Use:   "profile [name]",
+		Short: "Configure from AWS profile",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("attacker set profile " + args[0])
+		},
+	})
+
+	keysCmd := &cobra.Command{
+		Use:   "keys",
+		Short: "Configure from access keys",
+		Run: func(cmd *cobra.Command, args []string) {
+			accessKey, _ := cmd.Flags().GetString("access")
+			secretKey, _ := cmd.Flags().GetString("secret")
+			if accessKey == "" || secretKey == "" {
+				fmt.Println("Error: --access and --secret are required")
+				return
+			}
+			replCmd := fmt.Sprintf("attacker set keys --access %s --secret %s", accessKey, secretKey)
+			if token, _ := cmd.Flags().GetString("token"); token != "" {
+				replCmd += " --token " + token
+			}
+			if region, _ := cmd.Flags().GetString("region"); region != "" {
+				replCmd += " --region " + region
+			}
+			c.executeREPLCommand(replCmd)
+		},
+	}
+	keysCmd.Flags().String("access", "", "AWS access key ID")
+	keysCmd.Flags().String("secret", "", "AWS secret access key")
+	keysCmd.Flags().String("token", "", "AWS session token (optional)")
+	keysCmd.Flags().String("region", "", "AWS region (default: us-east-1)")
+	setCmd.AddCommand(keysCmd)
+
+	attackerCmd.AddCommand(setCmd)
+
+	attackerCmd.AddCommand(&cobra.Command{
+		Use:   "show",
+		Short: "Show current attacker identity",
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("attacker show")
+		},
+	})
+
+	attackerCmd.AddCommand(&cobra.Command{
+		Use:   "validate",
+		Short: "Validate attacker credentials",
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("attacker validate")
+		},
+	})
+
+	attackerCmd.AddCommand(&cobra.Command{
+		Use:   "clear",
+		Short: "Remove attacker identity",
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("attacker clear")
+		},
+	})
+
+	return attackerCmd
+}

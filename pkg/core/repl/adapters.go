@@ -214,3 +214,10 @@ func (s *SessionAdapter) SetCurrentIdentity(name string) {
 func (s *SessionAdapter) GetCommandLog() []CommandLogEntry {
 	return make([]CommandLogEntry, 0) // Would need proper implementation
 }
+
+func (s *SessionAdapter) GetAttackerIdentity() *modules.Identity {
+	return nil
+}
+
+func (s *SessionAdapter) SetAttackerIdentity(identity *modules.Identity) {
+}

@@ -163,6 +163,16 @@ func (i *Identity) RefreshConfig() error {
 	}
 }
 
+// ExecutionContext bundles everything a module needs at execution time.
+// Extending this struct (e.g. adding a logger or dry-run flag) does not
+// break the Module interface.
+type ExecutionContext struct {
+	Identity         *Identity
+	Options          map[string]string
+	Tracker          ResourceTracker
+	AttackerIdentity *Identity // nil when no attacker account is configured
+}
+
 type Module interface {
 	PathInfo() PathInfo
 	Name() string
@@ -170,7 +180,7 @@ type Module interface {
 	Options() []Option
 	PayloadOptions(payload string) []Option
 	ListPayloads() []PayloadInfo
-	Execute(identity *Identity, options map[string]string, tracker ResourceTracker) (string, error)
+	Execute(ctx ExecutionContext) (string, error)
 }
 
 // PayloadCompatible is an optional interface that modules can implement
@@ -191,14 +201,15 @@ type PayloadInfo struct {
 }
 
 type CreatedResource struct {
-	Type          string            `json:"type"`
-	Name          string            `json:"name"`
-	ARN           string            `json:"arn,omitempty"`
-	Region        string            `json:"region"`
-	Created       time.Time         `json:"created"`
-	CleanupMethod string            `json:"cleanup_method"`
-	ModuleID      string            `json:"module_id,omitempty"`
-	Metadata      map[string]string `json:"metadata,omitempty"`
+	Type           string            `json:"type"`
+	Name           string            `json:"name"`
+	ARN            string            `json:"arn,omitempty"`
+	Region         string            `json:"region"`
+	Created        time.Time         `json:"created"`
+	CleanupMethod  string            `json:"cleanup_method"`
+	ModuleID       string            `json:"module_id,omitempty"`
+	Metadata       map[string]string `json:"metadata,omitempty"`
+	AccountContext string            `json:"account_context,omitempty"` // "victim" (default) or "attacker"
 }
 
 type ResourceTracker interface {

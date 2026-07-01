@@ -50,28 +50,50 @@ func (c *CLI) CreateRootCommand() *cobra.Command {
 		},
 	}
 
-	// Add all subcommands
-	rootCmd.AddCommand(c.createIdentityCmd())
-	rootCmd.AddCommand(c.createIdentitiesCmd())
-	rootCmd.AddCommand(c.createIdCmd())
-	rootCmd.AddCommand(c.createIdsCmd())
-	rootCmd.AddCommand(c.createWorkspaceCmd())
-	rootCmd.AddCommand(c.createWorkspacesCmd())
-	rootCmd.AddCommand(c.createShowCmd())
-	rootCmd.AddCommand(c.createModulesCmd())
-	rootCmd.AddCommand(c.createPayloadsCmd())
-	rootCmd.AddCommand(c.createUseCmd())
-	rootCmd.AddCommand(c.createSetCmd())
-	rootCmd.AddCommand(c.createUnsetCmd())
-	rootCmd.AddCommand(c.createExploitCmd())
-	rootCmd.AddCommand(c.createContextCmd())
-	rootCmd.AddCommand(c.createWhoamiCmd())
-	rootCmd.AddCommand(c.createSearchCmd())
-	rootCmd.AddCommand(c.createDiscoverCmd())
-	rootCmd.AddCommand(c.createInfoCmd())
-	rootCmd.AddCommand(c.createAWSCmd())
-	rootCmd.AddCommand(c.createPmapperCmd())
-	rootCmd.AddCommand(c.createVersionCmd())
+	// Define command groups matching the REPL help layout
+	rootCmd.AddGroup(
+		&cobra.Group{ID: "core", Title: "Core Commands:"},
+		&cobra.Group{ID: "module", Title: "Module Commands:"},
+	)
+
+	// Core commands
+	addToGroup := func(cmd *cobra.Command, groupID string) *cobra.Command {
+		cmd.GroupID = groupID
+		return cmd
+	}
+
+	rootCmd.AddCommand(addToGroup(c.createModulesCmd(), "core"))
+	rootCmd.AddCommand(addToGroup(c.createSearchCmd(), "core"))
+	rootCmd.AddCommand(addToGroup(c.createUseCmd(), "core"))
+	rootCmd.AddCommand(addToGroup(c.createIdentityCmd(), "core"))
+	rootCmd.AddCommand(addToGroup(c.createAWSCmd(), "core"))
+	rootCmd.AddCommand(addToGroup(c.createWhoamiCmd(), "core"))
+	rootCmd.AddCommand(addToGroup(c.createWorkspaceCmd(), "core"))
+	rootCmd.AddCommand(addToGroup(c.createPmapperCmd(), "core"))
+	rootCmd.AddCommand(addToGroup(c.createAttackerCmd(), "core"))
+	rootCmd.AddCommand(addToGroup(c.createContextCmd(), "core"))
+	rootCmd.AddCommand(addToGroup(c.createVersionCmd(), "core"))
+
+	// Module commands
+	rootCmd.AddCommand(addToGroup(c.createInfoCmd(), "module"))
+	rootCmd.AddCommand(addToGroup(c.createShowCmd(), "module"))
+	rootCmd.AddCommand(addToGroup(c.createSetCmd(), "module"))
+	rootCmd.AddCommand(addToGroup(c.createUnsetCmd(), "module"))
+	rootCmd.AddCommand(addToGroup(c.createPayloadsCmd(), "module"))
+	rootCmd.AddCommand(addToGroup(c.createDiscoverCmd(), "module"))
+	rootCmd.AddCommand(addToGroup(c.createExploitCmd(), "module"))
+
+	// Alias commands (hidden to keep help clean, but still functional)
+	aliases := []*cobra.Command{
+		c.createIdentitiesCmd(),
+		c.createIdCmd(),
+		c.createIdsCmd(),
+		c.createWorkspacesCmd(),
+	}
+	for _, alias := range aliases {
+		alias.Hidden = true
+		rootCmd.AddCommand(alias)
+	}
 
 	return rootCmd
 }

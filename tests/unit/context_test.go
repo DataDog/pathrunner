@@ -57,7 +57,7 @@ func (m *MockModule) ListPayloads() []modules.PayloadInfo {
 	}
 }
 
-func (m *MockModule) Execute(identity *modules.Identity, options map[string]string, tracker modules.ResourceTracker) (string, error) {
+func (m *MockModule) Execute(ctx modules.ExecutionContext) (string, error) {
 	return "test result", nil
 }
 

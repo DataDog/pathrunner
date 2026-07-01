@@ -43,14 +43,15 @@ func (sa *SessionAdapter) SaveSession(session repl.Session) error {
 
 func (sa *SessionAdapter) AddCreatedResource(resource repl.CreatedResource) {
 	sa.SessionManager.AddCreatedResource(CreatedResource{
-		Type:          resource.Type,
-		Name:          resource.Name,
-		ARN:           resource.ARN,
-		Region:        resource.Region,
-		Created:       parseTime(resource.Created),
-		CleanupMethod: resource.CleanupMethod,
-		ModuleID:      resource.ModuleID,
-		Metadata:      resource.Metadata,
+		Type:           resource.Type,
+		Name:           resource.Name,
+		ARN:            resource.ARN,
+		Region:         resource.Region,
+		Created:        parseTime(resource.Created),
+		CleanupMethod:  resource.CleanupMethod,
+		ModuleID:       resource.ModuleID,
+		Metadata:       resource.Metadata,
+		AccountContext: resource.AccountContext,
 	})
 }
 
@@ -59,14 +60,15 @@ func (sa *SessionAdapter) GetCreatedResources() []repl.CreatedResource {
 	result := make([]repl.CreatedResource, len(resources))
 	for i, r := range resources {
 		result[i] = repl.CreatedResource{
-			Type:          r.Type,
-			Name:          r.Name,
-			ARN:           r.ARN,
-			Region:        r.Region,
-			Created:       r.Created.Format(time.RFC3339),
-			CleanupMethod: r.CleanupMethod,
-			ModuleID:      r.ModuleID,
-			Metadata:      r.Metadata,
+			Type:           r.Type,
+			Name:           r.Name,
+			ARN:            r.ARN,
+			Region:         r.Region,
+			Created:        r.Created.Format(time.RFC3339),
+			CleanupMethod:  r.CleanupMethod,
+			ModuleID:       r.ModuleID,
+			Metadata:       r.Metadata,
+			AccountContext: r.AccountContext,
 		}
 	}
 	return result
@@ -129,6 +131,14 @@ func (sia *SessionInterfaceAdapter) SetCurrentIdentity(name string) {
 	sia.Session.CurrentIdentity = name
 }
 
+func (sia *SessionInterfaceAdapter) GetAttackerIdentity() *modules.Identity {
+	return sia.Session.AttackerIdentity
+}
+
+func (sia *SessionInterfaceAdapter) SetAttackerIdentity(identity *modules.Identity) {
+	sia.Session.AttackerIdentity = identity
+}
+
 func (sia *SessionInterfaceAdapter) GetCommandLog() []repl.CommandLogEntry {
 	entries := make([]repl.CommandLogEntry, len(sia.Session.CommandLog))
 	for i, entry := range sia.Session.CommandLog {
@@ -162,6 +172,18 @@ func (ima *IdentityManagerAdapter) SetIdentities(identities map[string]*modules.
 
 func (ima *IdentityManagerAdapter) SetCurrent(identity *modules.Identity) {
 	ima.IdentityManager.SetCurrent(identity)
+}
+
+func (ima *IdentityManagerAdapter) GetAttackerIdentity() *modules.Identity {
+	return ima.IdentityManager.GetAttackerIdentity()
+}
+
+func (ima *IdentityManagerAdapter) SetAttackerIdentity(identity *modules.Identity) {
+	ima.IdentityManager.SetAttackerIdentity(identity)
+}
+
+func (ima *IdentityManagerAdapter) ClearAttackerIdentity() {
+	ima.IdentityManager.ClearAttackerIdentity()
 }
 
 // Helper function to parse time string

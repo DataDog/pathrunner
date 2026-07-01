@@ -41,6 +41,9 @@ type IdentityManager interface {
 	CheckAdmin(identityName string) error
 	SetIdentities(identities map[string]*modules.Identity)
 	SetCurrent(identity *modules.Identity)
+	GetAttackerIdentity() *modules.Identity
+	SetAttackerIdentity(identity *modules.Identity)
+	ClearAttackerIdentity()
 }
 
 // SessionManager interface for dependency injection
@@ -67,6 +70,7 @@ type Session interface {
 	GetResourceCount() int
 	GetIdentities() map[string]*modules.Identity
 	GetCurrentIdentity() string
+	GetAttackerIdentity() *modules.Identity
 	GetCurrentModule() string
 	GetOptions() map[string]string
 	GetCommandLog() []CommandLogEntry
@@ -74,6 +78,7 @@ type Session interface {
 	SetOptions(options map[string]string)
 	SetIdentities(identities map[string]*modules.Identity)
 	SetCurrentIdentity(name string)
+	SetAttackerIdentity(identity *modules.Identity)
 }
 
 // CommandLogEntry represents a logged command
@@ -87,14 +92,15 @@ type CommandLogEntry struct {
 
 // CreatedResource to avoid circular dependency
 type CreatedResource struct {
-	Type          string            `json:"type"`
-	Name          string            `json:"name"`
-	ARN           string            `json:"arn,omitempty"`
-	Region        string            `json:"region"`
-	Created       string            `json:"created"`
-	CleanupMethod string            `json:"cleanup_method"`
-	ModuleID      string            `json:"module_id,omitempty"`
-	Metadata      map[string]string `json:"metadata,omitempty"`
+	Type           string            `json:"type"`
+	Name           string            `json:"name"`
+	ARN            string            `json:"arn,omitempty"`
+	Region         string            `json:"region"`
+	Created        string            `json:"created"`
+	CleanupMethod  string            `json:"cleanup_method"`
+	ModuleID       string            `json:"module_id,omitempty"`
+	Metadata       map[string]string `json:"metadata,omitempty"`
+	AccountContext string            `json:"account_context,omitempty"`
 }
 
 func NewREPL(identityManager IdentityManager, sessionManager SessionManager) *REPL {
