@@ -2,9 +2,7 @@
 
 A modular AWS privilege escalation exploitation framework with dual CLI/REPL interfaces.
 
-## Demo
-
-<!-- TODO: Add demo gif -->
+![pathrunner - demo](https://github.com/user-attachments/assets/1cac76ca-9347-4aa7-b961-0a59bf400b43)
 
 ## Features
 
@@ -23,7 +21,9 @@ Pathrunner currently includes **29 exploit modules** across **4 AWS services** (
 ## Quick Start
 
 ```bash
-# Build
+# Clone and build
+git clone https://github.com/DataDog/pathrunner.git
+cd pathrunner
 make build
 
 # Start the interactive shell
@@ -54,18 +54,6 @@ pathrunner> identity list          # New identity appears automatically
 pathrunner> identity switch lambda_AB12
 pathrunner> pmapper import         # Auto-detects PMapper data directory
 pathrunner> pmapper analyze        # See what's next from here
-```
-
-## Installation
-
-```bash
-# Clone and build
-git clone https://github.com/your-org/pathrunner.git
-cd pathrunner
-make build
-
-# Or run directly during development
-make dev
 ```
 
 Requires Go 1.21+ and valid AWS credentials.
