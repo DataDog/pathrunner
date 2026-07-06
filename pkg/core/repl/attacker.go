@@ -29,6 +29,10 @@ func (r *REPL) cmdAttacker(repl *REPL, args []string) error {
 		return r.attackerClear()
 	case "validate":
 		return r.attackerValidate()
+	case "listener":
+		return r.cmdAttackerListener(args[1:])
+	case "infra":
+		return r.cmdAttackerDeploy(args[1:])
 	case "help":
 		return r.showAttackerHelp()
 	default:
@@ -228,11 +232,26 @@ func (r *REPL) showAttackerHelp() error {
 	fmt.Println("  attacker show                                            - Show current attacker identity")
 	fmt.Println("  attacker validate                                        - Validate attacker credentials")
 	fmt.Println("  attacker clear                                           - Remove attacker identity")
+	fmt.Println()
+	fmt.Println("  attacker listener start [flags]                          - Start credential collector + shell listener")
+	fmt.Println("  attacker listener stop                                   - Stop the listener")
+	fmt.Println("  attacker listener status                                 - Show listener state and stats")
+	fmt.Println()
+	fmt.Println("  attacker infra ec2 [create] [--region <region>]           - Deploy pathrunner to EC2")
+	fmt.Println("  attacker infra ec2 status                                - Show EC2 instance state")
+	fmt.Println("  attacker infra ec2 destroy                               - Tear down EC2 deployment")
+	fmt.Println("  attacker infra status                                    - Show all deployed infrastructure")
+	fmt.Println("  attacker infra destroy                                   - Tear down ALL deployed infrastructure")
+	fmt.Println()
 	fmt.Println("  attacker help                                            - Show this help message")
 	fmt.Println()
 	fmt.Println("The attacker account is used by modules that need to deploy resources in a")
 	fmt.Println("separate AWS account (e.g., S3 buckets for hosting malicious code, ECR repos")
 	fmt.Println("for container images). It is NOT part of the switchable identities list.")
+	fmt.Println()
+	fmt.Println("The listener provides a built-in HTTPS credential collector (POST /collect)")
+	fmt.Println("and a TLS reverse shell listener. Starting the listener auto-configures")
+	fmt.Println("payload options like HTTPS_URL, LHOST, and LPORT.")
 	fmt.Println()
 	fmt.Println("The attacker identity persists across sessions within the current workspace.")
 	return nil

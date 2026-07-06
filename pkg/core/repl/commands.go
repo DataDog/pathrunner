@@ -217,6 +217,11 @@ func (r *REPL) showSpecificHelp(command string) error {
 
 // Exit command implementation
 func (r *REPL) cmdExit(repl *REPL, args []string) error {
+	// Stop listener if running
+	if r.listener != nil {
+		r.listener.Stop()
+	}
+
 	r.saveCurrentState()
 	// Persist session to disk before exiting
 	current := r.sessionManager.GetCurrentSession()
@@ -359,10 +364,14 @@ func (r *REPL) showSearchHelp() error {
 
 func (r *REPL) showModulesHelp() error {
 	fmt.Println("Modules Command:")
-	fmt.Println("  modules               - List all available modules")
-	fmt.Println("  modules list           - List all available modules")
-	fmt.Println("  modules search <query> - Search modules by keyword")
-	fmt.Println("  modules help           - Show this help message")
+	fmt.Println("  modules                              - List all available modules")
+	fmt.Println("  modules list                         - List all available modules")
+	fmt.Println("  modules search <query>               - Search modules by keyword")
+	fmt.Println("  modules status                       - Show test status for all modules")
+	fmt.Println("  modules status <id>                  - Show test status for one module")
+	fmt.Println("  modules mark-tested <id> [lab]       - Mark a module as tested")
+	fmt.Println("  modules mark-status <id> <status>    - Set module status (tested|untested|failing|needs-update)")
+	fmt.Println("  modules help                         - Show this help message")
 	return nil
 }
 

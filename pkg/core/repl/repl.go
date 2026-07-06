@@ -3,6 +3,7 @@ package repl
 import (
 	"io"
 	"os"
+	"pathrunner/pkg/attacker"
 	"pathrunner/pkg/modules"
 	"pathrunner/pkg/pmapper"
 	"pathrunner/pkg/ui"
@@ -20,6 +21,7 @@ type REPL struct {
 	options         map[string]string
 	lastResult      string
 	aliases         map[string]string // command aliases
+	listener        *attacker.UnifiedListener
 }
 
 type Command struct {
@@ -35,6 +37,7 @@ type IdentityManager interface {
 	ListIdentities() error
 	ShowCurrent() error
 	AddIdentity(args []string) error
+	AddIdentityFromCredentials(accessKey, secret, token, region, name string) error
 	SwitchIdentity(name string) error
 	RemoveIdentity(args []string) error
 	RefreshCurrentIdentity() error

