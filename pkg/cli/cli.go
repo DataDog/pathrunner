@@ -71,6 +71,7 @@ func (c *CLI) CreateRootCommand() *cobra.Command {
 	rootCmd.AddCommand(addToGroup(c.createWorkspaceCmd(), "core"))
 	rootCmd.AddCommand(addToGroup(c.createPmapperCmd(), "core"))
 	rootCmd.AddCommand(addToGroup(c.createAttackerCmd(), "core"))
+	rootCmd.AddCommand(addToGroup(c.createSessionsCmd(), "core"))
 	rootCmd.AddCommand(addToGroup(c.createContextCmd(), "core"))
 	rootCmd.AddCommand(addToGroup(c.createVersionCmd(), "core"))
 

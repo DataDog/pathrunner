@@ -885,3 +885,41 @@ func (c *CLI) createAttackerCmd() *cobra.Command {
 
 	return attackerCmd
 }
+
+func (c *CLI) createSessionsCmd() *cobra.Command {
+	sessionsCmd := &cobra.Command{
+		Use:   "sessions",
+		Short: "Manage reverse shell sessions",
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("sessions")
+		},
+	}
+
+	sessionsCmd.AddCommand(&cobra.Command{
+		Use:   "list",
+		Short: "List all shell sessions",
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("sessions list")
+		},
+	})
+
+	sessionsCmd.AddCommand(&cobra.Command{
+		Use:   "interact [id]",
+		Short: "Interact with a session",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand(fmt.Sprintf("sessions interact %s", args[0]))
+		},
+	})
+
+	sessionsCmd.AddCommand(&cobra.Command{
+		Use:   "kill [id]",
+		Short: "Kill a session",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand(fmt.Sprintf("sessions kill %s", args[0]))
+		},
+	})
+
+	return sessionsCmd
+}

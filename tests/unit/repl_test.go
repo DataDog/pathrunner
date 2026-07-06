@@ -198,7 +198,7 @@ func TestREPLCommands(t *testing.T) {
 	commands := replInstance.GetCommands()
 
 	expectedCommands := []string{
-		"help", "exit", "identity", "use", "show", "set", "unset", "exploit", "whoami", "workspace", "context",
+		"help", "exit", "identity", "use", "show", "set", "unset", "exploit", "whoami", "workspace", "context", "sessions",
 	}
 
 	for _, expectedCmd := range expectedCommands {

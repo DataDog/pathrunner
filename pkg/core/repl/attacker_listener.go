@@ -8,6 +8,40 @@ import (
 	"strconv"
 )
 
+// restoreListener checks for a persisted listener config and auto-restarts
+// the listener if one was previously running. Called during REPL startup.
+func (r *REPL) restoreListener() {
+	state, err := attacker.LoadListenerState()
+	if err != nil {
+		fmt.Printf("[!] Warning: could not load listener state: %v\n", err)
+		return
+	}
+	if state == nil || !state.Enabled {
+		return
+	}
+
+	config := state.ToConfig()
+	fmt.Println("[*] Restoring listener from previous session...")
+
+	// Build the args that listenerStart expects and call it directly
+	// to get full callback wiring and option injection
+	var args []string
+	args = append(args, "--https-port", fmt.Sprintf("%d", config.HTTPSPort))
+	args = append(args, "--shell-port", fmt.Sprintf("%d", config.ShellPort))
+	if config.BindAddr != "" {
+		args = append(args, "--host", config.BindAddr)
+	}
+	if config.PublicIP != "" {
+		args = append(args, "--public-ip", config.PublicIP)
+	}
+
+	if err := r.listenerStart(args); err != nil {
+		fmt.Printf("[!] Failed to restore listener: %v\n", err)
+		// Remove the stale state so we don't retry every launch
+		attacker.RemoveListenerState()
+	}
+}
+
 // cmdAttackerListener handles the "attacker listener" subcommand tree.
 func (r *REPL) cmdAttackerListener(args []string) error {
 	if len(args) == 0 {
@@ -117,17 +151,15 @@ func (r *REPL) listenerStart(args []string) error {
 		}
 	}
 
-	// Wire shell connection callback
+	// Wire shell connection callback -- just notify, don't auto-bridge.
+	// Users interact with sessions via the 'sessions' command.
 	listener.OnShellConnected = func(session *attacker.ShellSession) {
-		fmt.Printf("\n[+] Reverse shell connected from %s\n", session.SourceIP())
-		fmt.Println("[*] Bridging to terminal. Press Ctrl+C or close the connection to return to REPL.")
+		fmt.Printf("\n[+] Session %d opened - reverse shell from %s\n", session.ID, session.SourceIP())
+		fmt.Println("[*] Use 'sessions' to list and 'sessions -i <id>' to interact.")
 
-		// Bridge the shell session to terminal I/O
-		session.Bridge()
-
-		fmt.Println("\n[*] Shell session ended.")
+		// Re-display prompt
 		if r.rl != nil {
-			r.UpdatePrompt()
+			r.rl.Refresh()
 		}
 	}
 
@@ -137,6 +169,12 @@ func (r *REPL) listenerStart(args []string) error {
 
 	r.listener = listener
 	resolvedConfig := listener.GetConfig()
+
+	// Persist listener config so it auto-restarts on next pathrunner launch
+	listenerState := attacker.NewListenerStateFromConfig(resolvedConfig)
+	if err := attacker.SaveListenerState(listenerState); err != nil {
+		fmt.Printf("[!] Warning: could not persist listener config: %v\n", err)
+	}
 
 	fmt.Printf("[*] Credential collector listening on %s:%d\n", resolvedConfig.BindAddr, resolvedConfig.HTTPSPort)
 	fmt.Printf("[*] Shell listener on %s:%d (TLS)\n", resolvedConfig.BindAddr, resolvedConfig.ShellPort)
@@ -181,7 +219,8 @@ func (r *REPL) injectListenerOptions(config attacker.ListenerConfig) {
 	}
 }
 
-// listenerStop stops the unified listener.
+// listenerStop stops the unified listener and removes the persisted config
+// so it won't auto-restart on next launch.
 func (r *REPL) listenerStop() error {
 	if r.listener == nil || !r.listener.IsRunning() {
 		fmt.Println("No listener is running.")
@@ -190,6 +229,11 @@ func (r *REPL) listenerStop() error {
 
 	if err := r.listener.Stop(); err != nil {
 		return fmt.Errorf("failed to stop listener: %v", err)
+	}
+
+	// Remove persisted state so the listener doesn't auto-restart
+	if err := attacker.RemoveListenerState(); err != nil {
+		fmt.Printf("[!] Warning: could not remove listener state: %v\n", err)
 	}
 
 	fmt.Println("[*] Listener stopped.")
@@ -206,6 +250,7 @@ func (r *REPL) listenerStatus() error {
 
 	config := r.listener.GetConfig()
 	stats := r.listener.GetStats()
+	activeSessionCount := r.listener.SessionManager.ActiveCount()
 
 	fmt.Println("Listener Status:")
 	fmt.Println()
@@ -213,7 +258,7 @@ func (r *REPL) listenerStatus() error {
 	kvPairs := []ui.KV{
 		{Key: "Status", Value: "running"},
 		{Key: "Creds endpoint", Value: fmt.Sprintf("https://%s:%d/collect  (%d received)", config.PublicIP, config.HTTPSPort, stats.CredsReceived)},
-		{Key: "Shell endpoint", Value: fmt.Sprintf("%s:%d (TLS)  (%d total, %d active)", config.PublicIP, config.ShellPort, stats.ShellSessions, stats.ActiveSessions)},
+		{Key: "Shell endpoint", Value: fmt.Sprintf("%s:%d (TLS)  (%d total, %d active)", config.PublicIP, config.ShellPort, stats.ShellSessions, activeSessionCount)},
 	}
 
 	if config.PublicIP != "" {
@@ -277,7 +322,8 @@ func (r *REPL) showAttackerListenerHelp() error {
 	fmt.Println("~/.pathrunner/listener.log for review with 'attacker listener log'.")
 	fmt.Println()
 	fmt.Println("Received credentials are auto-imported as identities.")
-	fmt.Println("Reverse shell connections are bridged to the terminal.")
+	fmt.Println("Reverse shell connections are collected as sessions.")
+	fmt.Println("Use 'sessions' to list and 'sessions -i <id>' to interact.")
 	return nil
 }
 

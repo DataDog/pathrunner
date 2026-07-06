@@ -28,6 +28,7 @@ func (r *REPL) getCompleter() readline.AutoCompleter {
 			readline.PcItem("discover"),
 			readline.PcItem("version"),
 			readline.PcItem("info"),
+			readline.PcItem("sessions"),
 		),
 		readline.PcItem("exit"),
 		readline.PcItem("quit"),
@@ -56,6 +57,8 @@ func (r *REPL) getCompleter() readline.AutoCompleter {
 			readline.PcItem("help"),
 		),
 		r.buildAttackerCompleter(),
+		r.buildSessionsCompleter(),
+		r.buildSessionCompleter(),
 		r.buildWorkspaceCompleter(),
 		// Add alias completers
 		r.buildWorkspacesCompleter(),
@@ -519,6 +522,30 @@ func (r *REPL) buildPmapperCompleter() readline.PrefixCompleterInterface {
 		readline.PcItem("status",
 			readline.PcItem("help"),
 		),
+		readline.PcItem("help"),
+	)
+}
+
+// buildSessionsCompleter builds completion for the sessions command
+func (r *REPL) buildSessionsCompleter() readline.PrefixCompleterInterface {
+	return readline.PcItem("sessions",
+		readline.PcItem("list"),
+		readline.PcItem("interact"),
+		readline.PcItem("kill"),
+		readline.PcItem("-i"),
+		readline.PcItem("-k"),
+		readline.PcItem("help"),
+	)
+}
+
+// buildSessionCompleter builds completion for session command (alias for sessions)
+func (r *REPL) buildSessionCompleter() readline.PrefixCompleterInterface {
+	return readline.PcItem("session",
+		readline.PcItem("list"),
+		readline.PcItem("interact"),
+		readline.PcItem("kill"),
+		readline.PcItem("-i"),
+		readline.PcItem("-k"),
 		readline.PcItem("help"),
 	)
 }
