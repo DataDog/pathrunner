@@ -1,6 +1,7 @@
 package repl
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"pathrunner/pkg/attacker"
@@ -8,12 +9,14 @@ import (
 	"pathrunner/pkg/pmapper"
 	"pathrunner/pkg/ui"
 	"strings"
+	"sync"
 
 	"github.com/chzyer/readline"
 )
 
 type REPL struct {
 	rl              *readline.Instance
+	rlConfig        *readline.Config
 	identityManager IdentityManager
 	sessionManager  SessionManager
 	pmapperManager  *pmapper.Manager
@@ -22,6 +25,8 @@ type REPL struct {
 	lastResult      string
 	aliases         map[string]string // command aliases
 	listener        *attacker.UnifiedListener
+	shellActive     chan struct{} // closed when a shell session ends; nil when no shell
+	shellMu         sync.Mutex
 }
 
 type Command struct {
@@ -121,6 +126,7 @@ func NewREPL(identityManager IdentityManager, sessionManager SessionManager) *RE
 	r.aliases["ids"] = "identity"
 	r.aliases["workspaces"] = "workspace"
 	r.aliases["quit"] = "exit"
+	r.aliases["session"] = "sessions"
 	// Note: "modules" and "payloads" are now top-level commands with subcommands,
 	// registered directly in getCommands(), so no aliases needed.
 
@@ -138,14 +144,16 @@ func (r *REPL) Start() error {
 	}
 	historyFile := homeDir + "/.pathrunner/history"
 
-	var rlErr error
-	r.rl, rlErr = readline.NewEx(&readline.Config{
+	r.rlConfig = &readline.Config{
 		Prompt:          r.BuildContextualPrompt(),
 		HistoryFile:     historyFile,
 		AutoComplete:    r.getCompleter(),
 		InterruptPrompt: "^C",
 		EOFPrompt:       "exit",
-	})
+	}
+
+	var rlErr error
+	r.rl, rlErr = readline.NewEx(r.rlConfig)
 	if rlErr != nil {
 		return rlErr
 	}
@@ -154,11 +162,31 @@ func (r *REPL) Start() error {
 	ui.ClearScreen()
 	r.PrintStartupBanner()
 
+	// Auto-restart listener if one was running in a previous session
+	r.restoreListener()
+
 	for {
+		// If a shell session is active, wait for it to finish before reading input
+		r.shellMu.Lock()
+		shellDone := r.shellActive
+		r.shellMu.Unlock()
+		if shellDone != nil {
+			<-shellDone
+			continue
+		}
+
 		line, err := r.rl.Readline()
 		if err == readline.ErrInterrupt {
 			continue
 		} else if err == io.EOF {
+			// EOF can be from Close() during shell takeover -- check if shell is active
+			r.shellMu.Lock()
+			shellDone = r.shellActive
+			r.shellMu.Unlock()
+			if shellDone != nil {
+				<-shellDone
+				continue
+			}
 			break
 		}
 
@@ -171,6 +199,34 @@ func (r *REPL) Start() error {
 	}
 
 	return nil
+}
+
+// PauseForShell closes readline so a shell session can take exclusive control
+// of stdin/stdout. Returns a function to call when the shell session ends.
+func (r *REPL) PauseForShell() func() {
+	r.shellMu.Lock()
+	r.shellActive = make(chan struct{})
+	r.shellMu.Unlock()
+
+	// Close readline so it stops reading stdin
+	if r.rl != nil {
+		r.rl.Close()
+	}
+
+	return func() {
+		// Reinitialize readline
+		var err error
+		r.rl, err = readline.NewEx(r.rlConfig)
+		if err != nil {
+			fmt.Printf("[!] Failed to reinitialize readline: %v\n", err)
+		}
+		r.UpdatePrompt()
+
+		r.shellMu.Lock()
+		close(r.shellActive)
+		r.shellActive = nil
+		r.shellMu.Unlock()
+	}
 }
 
 // ExecuteCommand executes a command and handles state management/persistence

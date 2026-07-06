@@ -121,6 +121,11 @@ func (r *REPL) getCommands() map[string]*Command {
 			Description: "Manage attacker account identity",
 			Handler:     r.cmdAttacker,
 		},
+		"sessions": {
+			Name:        "sessions",
+			Description: "Manage reverse shell sessions",
+			Handler:     r.cmdSessions,
+		},
 	}
 }
 
@@ -136,7 +141,7 @@ func (r *REPL) cmdHelp(repl *REPL, args []string) error {
 
 	coreOrder := []string{
 		"modules", "search", "use",
-		"identity", "attacker", "aws", "whoami",
+		"identity", "attacker", "sessions", "aws", "whoami",
 		"workspace", "pmapper", "context",
 		"version", "help", "exit",
 	}
@@ -210,6 +215,8 @@ func (r *REPL) showSpecificHelp(command string) error {
 		return r.showPmapperHelp()
 	case "attacker":
 		return r.showAttackerHelp()
+	case "sessions":
+		return r.showSessionsHelp()
 	default:
 		return NewCommandNotFoundError(command)
 	}
