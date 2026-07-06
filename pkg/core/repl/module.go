@@ -3,6 +3,7 @@ package repl
 import (
 	"fmt"
 	"pathrunner/pkg/modules"
+	"pathrunner/pkg/status"
 	"pathrunner/pkg/ui"
 	"pathrunner/pkg/utils"
 	"strings"
@@ -136,6 +137,25 @@ func (r *REPL) cmdModules(repl *REPL, args []string) error {
 			return NewInvalidArgumentsError("modules search requires a query")
 		}
 		return r.cmdSearch(repl, args[1:])
+	case "status":
+		if len(args) > 1 {
+			return r.showModuleStatus(args[1])
+		}
+		return r.showAllModuleStatuses()
+	case "mark-tested":
+		if len(args) < 2 {
+			return NewInvalidArgumentsError("modules mark-tested requires a module ID")
+		}
+		testedAgainst := ""
+		if len(args) >= 3 {
+			testedAgainst = args[2]
+		}
+		return r.markModuleTested(args[1], testedAgainst)
+	case "mark-status":
+		if len(args) < 3 {
+			return NewInvalidArgumentsError("modules mark-status requires module ID and status. Usage: modules mark-status <id> <tested|untested|failing|needs-update>")
+		}
+		return r.markModuleStatus(args[1], args[2])
 	case "help":
 		return r.showModulesHelp()
 	default:
@@ -1116,5 +1136,154 @@ func (r *REPL) tryAutoImportCredentials(result string) error {
 	fmt.Printf("✓ Identity added successfully!\n")
 	r.UpdatePrompt()
 
+	return nil
+}
+
+// showAllModuleStatuses displays a table of all modules with their test status.
+func (r *REPL) showAllModuleStatuses() error {
+	manifest, err := status.LoadManifest()
+	if err != nil {
+		return NewExecutionError(fmt.Sprintf("failed to load status manifest: %v", err), err)
+	}
+
+	registeredModules := modules.ListPathInfos()
+
+	// Build rows combining registry data with status manifest
+	var rows [][]string
+	for _, info := range registeredModules {
+		statusText := "unknown"
+		lastTested := "-"
+		notes := ""
+
+		if entry, exists := manifest.Modules[info.ID]; exists {
+			statusText = entry.Status
+			if entry.LastTested != nil {
+				lastTested = *entry.LastTested
+			}
+			notes = entry.Notes
+		}
+
+		// Color-code the status
+		styledStatus := statusText
+		switch statusText {
+		case "tested":
+			styledStatus = ui.Success.Render(statusText)
+		case "failing":
+			styledStatus = ui.Error.Render(statusText)
+		case "needs-update":
+			styledStatus = ui.Warning.Render(statusText)
+		case "untested":
+			styledStatus = ui.Muted.Render(statusText)
+		}
+
+		rows = append(rows, []string{info.ID, info.Name, styledStatus, lastTested, notes})
+	}
+
+	// Summary counts
+	summary := manifest.Summary()
+	total := len(registeredModules)
+
+	fmt.Println()
+	fmt.Printf("Module Test Status (%d total", total)
+	if tested := summary["tested"]; tested > 0 {
+		fmt.Printf(", %s tested", ui.Success.Render(fmt.Sprintf("%d", tested)))
+	}
+	if failing := summary["failing"]; failing > 0 {
+		fmt.Printf(", %s failing", ui.Error.Render(fmt.Sprintf("%d", failing)))
+	}
+	if needsUpdate := summary["needs-update"]; needsUpdate > 0 {
+		fmt.Printf(", %s needs update", ui.Warning.Render(fmt.Sprintf("%d", needsUpdate)))
+	}
+	if untested := summary["untested"]; untested > 0 {
+		fmt.Printf(", %s untested", ui.Muted.Render(fmt.Sprintf("%d", untested)))
+	}
+	fmt.Println(")")
+	fmt.Println()
+
+	ui.Table([]string{"ID", "Name", "Status", "Last Tested", "Notes"}, rows)
+	fmt.Println()
+
+	return nil
+}
+
+// showModuleStatus displays detailed status for a single module.
+func (r *REPL) showModuleStatus(moduleID string) error {
+	manifest, err := status.LoadManifest()
+	if err != nil {
+		return NewExecutionError(fmt.Sprintf("failed to load status manifest: %v", err), err)
+	}
+
+	entry, exists := manifest.Modules[moduleID]
+	if !exists {
+		return NewInvalidArgumentsError(fmt.Sprintf("module '%s' not found in status manifest", moduleID))
+	}
+
+	kvPairs := []ui.KV{
+		{Key: "Module", Value: moduleID},
+		{Key: "Status", Value: entry.Status},
+	}
+
+	if entry.LastTested != nil {
+		kvPairs = append(kvPairs, ui.KV{Key: "Last Tested", Value: *entry.LastTested})
+	} else {
+		kvPairs = append(kvPairs, ui.KV{Key: "Last Tested", Value: "-"})
+	}
+
+	if entry.TestedAgainst != nil {
+		kvPairs = append(kvPairs, ui.KV{Key: "Tested Against", Value: *entry.TestedAgainst})
+	}
+
+	if entry.Notes != "" {
+		kvPairs = append(kvPairs, ui.KV{Key: "Notes", Value: entry.Notes})
+	}
+
+	fmt.Println()
+	ui.KeyValueTable("", kvPairs)
+	fmt.Println()
+
+	return nil
+}
+
+// markModuleTested marks a module as tested and saves the manifest.
+func (r *REPL) markModuleTested(moduleID string, testedAgainst string) error {
+	manifest, err := status.LoadManifest()
+	if err != nil {
+		return NewExecutionError(fmt.Sprintf("failed to load status manifest: %v", err), err)
+	}
+
+	if _, exists := manifest.Modules[moduleID]; !exists {
+		return NewInvalidArgumentsError(fmt.Sprintf("module '%s' not found in status manifest", moduleID))
+	}
+
+	manifest.MarkTested(moduleID, testedAgainst)
+
+	if err := status.SaveManifest(manifest); err != nil {
+		return NewExecutionError(fmt.Sprintf("failed to save status manifest: %v", err), err)
+	}
+
+	fmt.Printf("Marked '%s' as tested.\n", moduleID)
+	return nil
+}
+
+// markModuleStatus updates a module's status and saves the manifest.
+func (r *REPL) markModuleStatus(moduleID string, newStatus string) error {
+	manifest, err := status.LoadManifest()
+	if err != nil {
+		return NewExecutionError(fmt.Sprintf("failed to load status manifest: %v", err), err)
+	}
+
+	if _, exists := manifest.Modules[moduleID]; !exists {
+		return NewInvalidArgumentsError(fmt.Sprintf("module '%s' not found in status manifest", moduleID))
+	}
+
+	if err := manifest.MarkStatus(moduleID, newStatus); err != nil {
+		return NewInvalidArgumentsError(err.Error())
+	}
+
+	if err := status.SaveManifest(manifest); err != nil {
+		return NewExecutionError(fmt.Sprintf("failed to save status manifest: %v", err), err)
+	}
+
+	fmt.Printf("Marked '%s' as '%s'.\n", moduleID, newStatus)
 	return nil
 }

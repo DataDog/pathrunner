@@ -33,6 +33,10 @@ func (m *MockIdentityManager) AddIdentity(args []string) error {
 	return nil
 }
 
+func (m *MockIdentityManager) AddIdentityFromCredentials(accessKey, secret, token, region, name string) error {
+	return nil
+}
+
 func (m *MockIdentityManager) SwitchIdentity(name string) error {
 	return nil
 }

@@ -6,10 +6,12 @@ import (
 
 	// Import payloads to register them
 	_ "pathrunner/pkg/payloads/ec2"
+	_ "pathrunner/pkg/payloads/glue"
 	_ "pathrunner/pkg/payloads/lambda"
 
 	// Import modules to register them
 	_ "pathrunner/pkg/exploits/ec2_passrole"
+	_ "pathrunner/pkg/exploits/glue_passrole_job"
 	_ "pathrunner/pkg/exploits/iam_addusertogroup"
 	_ "pathrunner/pkg/exploits/iam_attachgrouppolicy"
 	_ "pathrunner/pkg/exploits/iam_attachrolepolicy"
