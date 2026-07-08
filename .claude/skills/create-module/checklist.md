@@ -23,7 +23,8 @@ Use this checklist after generating a new module to verify everything is complet
 
 ## Registration
 - [ ] `init()` function calls `modules.Register("{service}-{number}", constructor)`
-- [ ] Blank import added to `cmd/pathrunner/main.go`
+- [ ] `pkg/exploits/register.go` regenerated (`make build` or `go generate ./pkg/exploits/`) and now includes the new module's blank import
+- [ ] If a new payload service directory was introduced, blank import added to `cmd/pathrunner/main.go` (exploit modules do NOT need this — payloads still do)
 
 ## Interface Methods
 - [ ] `Options()` returns all module options with correct Required/Default values
@@ -71,6 +72,14 @@ Use this checklist after generating a new module to verify everything is complet
 - [ ] Checked existing payloads in `pkg/payloads/{service}/` before creating new ones
 - [ ] Only created new payloads when the exploitation pattern requires something not already available
 - [ ] If new payload created: registered via `init()`, blank import added if new service directory
+- [ ] Module uses tag-based payload compatibility (`GetCompatibleTags()`) — no hardcoded payload lists
+
+## Attacker Infra Dependencies (if payload uses listener or exfil bucket)
+- [ ] Listener-dependent payloads (`revshell/tls`, `exfil/https`) use standard option names (`LISTENER_IP`, `LISTENER_PORT`, `HTTPS_URL`) so `attacker listener start` auto-injects them
+- [ ] S3-exfil payloads use `EXFIL_BUCKET` so `attacker infra bucket create` auto-populates it
+- [ ] Payload reads runtime values from `os.environ` / shell env (not string-substitution) so the auto-injected values propagate to the deployed code
+- [ ] If the payload posts credentials, it targets the listener's `/collect` endpoint in the shape expected by `pkg/attacker/creds_handler.go` (so auto-import works)
+- [ ] Docs / test-module notes updated if operator must start listener or provision bucket before running this module
 
 ## Tags (if new payload created)
 - [ ] Service tag exists in `pkg/payloads/tags.go` (add if new service)

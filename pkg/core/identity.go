@@ -26,8 +26,16 @@ type IdentityManager struct {
 	attackerIdentity *modules.Identity
 	getLastResult    func() string
 	updateCompletion func()
-	autoSwitch       bool // when true, skip interactive prompt and auto-switch
-	checkAdmin       bool // when true, skip interactive prompt and auto-check admin
+	onIdentityAdded  func(identity *modules.Identity) // called after a new identity is successfully added
+	autoSwitch       bool                             // when true, skip interactive prompt and auto-switch
+	checkAdmin       bool                             // when true, skip interactive prompt and auto-check admin
+}
+
+// SetOnIdentityAdded registers a callback that fires after each successful
+// identity add. Used by the REPL to update attacker bucket policies when a
+// new victim account appears.
+func (im *IdentityManager) SetOnIdentityAdded(callback func(identity *modules.Identity)) {
+	im.onIdentityAdded = callback
 }
 
 func NewIdentityManager(getLastResult func() string, updateCompletion func()) *IdentityManager {
@@ -35,6 +43,21 @@ func NewIdentityManager(getLastResult func() string, updateCompletion func()) *I
 		identities:       make(map[string]*modules.Identity),
 		getLastResult:    getLastResult,
 		updateCompletion: updateCompletion,
+	}
+}
+
+// storeIdentity adds a validated identity to the store, sets it as current if
+// none exists, updates tab completion, and fires the onIdentityAdded callback.
+func (im *IdentityManager) storeIdentity(identity *modules.Identity) {
+	im.identities[identity.Name] = identity
+	if im.current == nil {
+		im.current = identity
+	}
+	if im.updateCompletion != nil {
+		im.updateCompletion()
+	}
+	if im.onIdentityAdded != nil {
+		im.onIdentityAdded(identity)
 	}
 }
 
@@ -318,15 +341,7 @@ func (im *IdentityManager) addFromEnvironment() error {
 		return fmt.Errorf("environment credentials validation failed: %v", err)
 	}
 
-	im.identities[identity.Name] = identity
-	if im.current == nil {
-		im.current = identity
-	}
-
-	// Update completion with new identity
-	if im.updateCompletion != nil {
-		im.updateCompletion()
-	}
+	im.storeIdentity(identity)
 
 	fmt.Printf("Added identity '%s' from environment variables\n", identity.Name)
 
@@ -364,15 +379,7 @@ func (im *IdentityManager) addFromProfile(profileName string) error {
 		return fmt.Errorf("profile credentials validation failed: %v", err)
 	}
 
-	im.identities[identity.Name] = identity
-	if im.current == nil {
-		im.current = identity
-	}
-
-	// Update completion with new identity
-	if im.updateCompletion != nil {
-		im.updateCompletion()
-	}
+	im.storeIdentity(identity)
 
 	fmt.Printf("Added identity '%s' from AWS profile\n", identity.Name)
 	fmt.Printf("Profile credentials will be refreshed automatically on each use\n")
@@ -425,15 +432,7 @@ func (im *IdentityManager) addFromKeys(accessKeyID, secretKey, sessionToken, cus
 		return fmt.Errorf("access key credentials validation failed: %v", err)
 	}
 
-	im.identities[identity.Name] = identity
-	if im.current == nil {
-		im.current = identity
-	}
-
-	// Update completion with new identity
-	if im.updateCompletion != nil {
-		im.updateCompletion()
-	}
+	im.storeIdentity(identity)
 
 	fmt.Printf("Added identity '%s' from access keys\n", identity.Name)
 
@@ -507,18 +506,7 @@ func (im *IdentityManager) addFromLastOutput(customName string) error {
 		return fmt.Errorf("extracted credentials validation failed: %v", err)
 	}
 
-	// Add to identity manager
-	im.identities[identity.Name] = identity
-
-	// Switch to the new identity if no current identity
-	if im.current == nil {
-		im.current = identity
-	}
-
-	// Update completion with new identity
-	if im.updateCompletion != nil {
-		im.updateCompletion()
-	}
+	im.storeIdentity(identity)
 
 	fmt.Printf("Successfully added identity '%s' from exploit output\n", identity.Name)
 	fmt.Printf("Source: %s\n", extractedCreds.Source)
@@ -602,18 +590,7 @@ func (im *IdentityManager) addFromFile(filePath string, customName string) error
 		return fmt.Errorf("extracted credentials validation failed: %v", err)
 	}
 
-	// Add to identity manager
-	im.identities[identity.Name] = identity
-
-	// Switch to the new identity if no current identity
-	if im.current == nil {
-		im.current = identity
-	}
-
-	// Update completion with new identity
-	if im.updateCompletion != nil {
-		im.updateCompletion()
-	}
+	im.storeIdentity(identity)
 
 	fmt.Printf("Successfully added identity '%s' from file\n", identity.Name)
 	fmt.Printf("Source: %s\n", extractedCreds.Source)
@@ -718,18 +695,7 @@ func (im *IdentityManager) addFromClipboard(customName string) error {
 		return fmt.Errorf("extracted credentials validation failed: %v", err)
 	}
 
-	// Add to identity manager
-	im.identities[identity.Name] = identity
-
-	// Switch to the new identity if no current identity
-	if im.current == nil {
-		im.current = identity
-	}
-
-	// Update completion with new identity
-	if im.updateCompletion != nil {
-		im.updateCompletion()
-	}
+	im.storeIdentity(identity)
 
 	fmt.Printf("Successfully added identity '%s' from clipboard\n", identity.Name)
 	fmt.Printf("Source: %s\n", extractedCreds.Source)

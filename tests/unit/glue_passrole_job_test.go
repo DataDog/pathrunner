@@ -1,6 +1,7 @@
 package unit
 
 import (
+	"os"
 	"pathrunner/pkg/exploits/glue_passrole_job"
 	"pathrunner/pkg/modules"
 	_ "pathrunner/pkg/payloads/glue"
@@ -210,6 +211,12 @@ func TestGluePassroleJobExecuteNoIdentity(t *testing.T) {
 }
 
 func TestGluePassroleJobExecuteNoAttackerNoS3(t *testing.T) {
+	// Use temp HOME to ensure no deploy state interferes
+	tempDir := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	os.Setenv("HOME", tempDir)
+	defer os.Setenv("HOME", originalHome)
+
 	mod := glue_passrole_job.NewModule()
 
 	// Execute with valid payload but no attacker identity and no SCRIPT_S3_URI should fail
@@ -220,8 +227,8 @@ func TestGluePassroleJobExecuteNoAttackerNoS3(t *testing.T) {
 			Region: "us-east-1",
 		},
 		Options: map[string]string{
-			"ROLE_ARN":    "arn:aws:iam::123456789012:role/admin",
-			"PAYLOAD":     "exfil/cloudwatch",
+			"ROLE_ARN": "arn:aws:iam::123456789012:role/admin",
+			"PAYLOAD":  "exfil/cloudwatch",
 		},
 		AttackerIdentity: nil,
 	}
@@ -230,8 +237,8 @@ func TestGluePassroleJobExecuteNoAttackerNoS3(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error when executing without attacker identity or SCRIPT_S3_URI")
 	}
-	if err != nil && !contains(err.Error(), "no SCRIPT_S3_URI") {
-		t.Errorf("Expected error about missing SCRIPT_S3_URI, got: %v", err)
+	if err != nil && !contains(err.Error(), "no SCRIPT_S3_URI") && !contains(err.Error(), "no attacker code bucket") {
+		t.Errorf("Expected error about missing SCRIPT_S3_URI or code bucket, got: %v", err)
 	}
 }
 

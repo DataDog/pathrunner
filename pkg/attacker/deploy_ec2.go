@@ -34,6 +34,48 @@ type DeployEC2Result struct {
 	IsUpdate   bool
 }
 
+// UpdateEC2 cross-compiles the pathrunner binary and uploads it to an existing EC2 instance.
+// Returns an error if no instance is currently deployed or running.
+func UpdateEC2(attackerCfg aws.Config) (*DeployEC2Result, error) {
+	state, err := LoadDeployState()
+	if err != nil {
+		return nil, err
+	}
+
+	if state.EC2 == nil {
+		return nil, fmt.Errorf("no EC2 deployment found. Use 'attacker infra ec2 create' first")
+	}
+
+	ec2Client := ec2.NewFromConfig(attackerCfg, func(o *ec2.Options) {
+		o.Region = state.EC2.Region
+	})
+
+	running, err := isInstanceRunning(ec2Client, state.EC2.InstanceID)
+	if err != nil || !running {
+		return nil, fmt.Errorf("instance %s is not running. Use 'attacker infra ec2 create' to deploy a new one", state.EC2.InstanceID)
+	}
+
+	binaryPath, err := crossCompile()
+	if err != nil {
+		return nil, err
+	}
+	defer os.Remove(binaryPath)
+
+	fmt.Printf("[*] Uploading binary to %s (%s)...\n", state.EC2.InstanceID, state.EC2.PublicIP)
+
+	if err := uploadBinary(binaryPath, state.EC2.KeyFilePath, state.EC2.PublicIP); err != nil {
+		return nil, fmt.Errorf("failed to upload binary: %v", err)
+	}
+
+	return &DeployEC2Result{
+		InstanceID: state.EC2.InstanceID,
+		PublicIP:   state.EC2.PublicIP,
+		Region:     state.EC2.Region,
+		KeyFile:    state.EC2.KeyFilePath,
+		IsUpdate:   true,
+	}, nil
+}
+
 // DeployEC2 creates or updates a pathrunner EC2 instance in the attacker account.
 // If an instance already exists, it just uploads the latest binary.
 func DeployEC2(attackerCfg aws.Config, region string, operatorPublicIP string) (*DeployEC2Result, error) {

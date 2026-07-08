@@ -198,7 +198,8 @@ parse_deployed_resources() {
 map_arn_to_option() {
     local arn="$1"
     # Skip starting-user resources (credentials, not module targets)
-    if [[ "$arn" == *"starting"* ]]; then
+    # Skip execution roles (ECS task execution roles, not escalation targets)
+    if [[ "$arn" == *"starting"* || "$arn" == *"execution-role"* ]]; then
         echo ""
         return
     fi
@@ -237,6 +238,24 @@ map_arn_to_option() {
         *:function:*)           echo "FUNCTION_NAME" ;;
         *:instance-profile/*)   echo "INSTANCE_PROFILE" ;;
         *:table/*/stream/*)     echo "STREAM_ARN" ;;
+        *:task-definition/*)
+            if echo "$ALL_OPTIONS" | grep -q "^TASK_DEFINITION$"; then
+                echo "TASK_DEFINITION"
+            else
+                echo ""
+            fi
+            ;;
+        *:cluster/*)
+            if echo "$ALL_OPTIONS" | grep -q "^CLUSTER_ARN$"; then
+                echo "CLUSTER_ARN"
+            elif echo "$ALL_OPTIONS" | grep -q "^CLUSTER_NAME$"; then
+                echo "CLUSTER_NAME"
+            elif echo "$ALL_OPTIONS" | grep -q "^CLUSTER$"; then
+                echo "CLUSTER"
+            else
+                echo ""
+            fi
+            ;;
         *)                      echo "" ;;
     esac
 }
@@ -264,8 +283,8 @@ extract_value_from_arn() {
             # arn:aws:lambda:region:account:function:NAME
             echo "$arn" | rev | cut -d: -f1 | rev
             ;;
-        TARGET_USER|GROUP_NAME)
-            # These always want just the name
+        TARGET_USER|GROUP_NAME|CLUSTER_NAME|TASK_DEFINITION)
+            # These always want just the name (or family:revision for task definitions)
             echo "$arn" | rev | cut -d/ -f1 | rev
             ;;
         TARGET_ROLE)
@@ -683,15 +702,33 @@ do_setup() {
             info "Auto-setting $opt = ${vals[0]}"
             "$PATHRUNNER" set "$opt" "${vals[0]}" 2>&1
         else
-            echo ""
-            warn "Multiple candidates for $opt:"
-            select val in "${vals[@]}"; do
-                if [[ -n "$val" ]]; then
-                    info "Setting $opt = $val"
-                    "$PATHRUNNER" set "$opt" "$val" 2>&1
+            # Try to auto-select: prefer "target" ARN for role options
+            local auto_selected=""
+            for val in "${vals[@]}"; do
+                if [[ "$val" == *"target"* ]]; then
+                    auto_selected="$val"
                     break
                 fi
             done
+
+            if [[ -n "$auto_selected" ]]; then
+                info "Auto-setting $opt = $auto_selected (preferred 'target' candidate)"
+                "$PATHRUNNER" set "$opt" "$auto_selected" 2>&1
+            elif [[ -t 0 ]]; then
+                echo ""
+                warn "Multiple candidates for $opt:"
+                select val in "${vals[@]}"; do
+                    if [[ -n "$val" ]]; then
+                        info "Setting $opt = $val"
+                        "$PATHRUNNER" set "$opt" "$val" 2>&1
+                        break
+                    fi
+                done
+            else
+                # Non-interactive: pick the first candidate
+                info "Auto-setting $opt = ${vals[0]} (first candidate, non-interactive)"
+                "$PATHRUNNER" set "$opt" "${vals[0]}" 2>&1
+            fi
         fi
     done
 
@@ -702,11 +739,78 @@ do_setup() {
     for opt in $required_options; do
         [[ "$opt" == "PAYLOAD" ]] && continue
         if [[ -z "${option_candidates[$opt]:-}" ]]; then
-            echo ""
-            warn "Required option $opt was not auto-mapped from resources"
-            read -rp "  Enter value for $opt (or Enter to skip): " manual_val
-            if [[ -n "$manual_val" ]]; then
-                "$PATHRUNNER" set "$opt" "$manual_val" 2>&1
+            # Try discovery-based auto-fill for known option types
+            local discovered=""
+            case "$opt" in
+                CONTAINER_INSTANCE_ARN)
+                    # Discover container instance from the cluster
+                    local ci_cluster="${option_candidates[CLUSTER_NAME]:-}"
+                    if [[ -z "$ci_cluster" ]]; then
+                        ci_cluster=$("$PATHRUNNER" show options 2>&1 | strip_ansi | awk '$1 == "CLUSTER_NAME" { print $2 }')
+                    fi
+                    if [[ -n "$ci_cluster" ]]; then
+                        info "Discovering container instances in cluster $ci_cluster..."
+                        discovered=$("$PATHRUNNER" aws ecs list-container-instances \
+                            --cluster "$ci_cluster" --region us-east-1 \
+                            --query 'containerInstanceArns[0]' --output text 2>/dev/null) || true
+                        if [[ -n "$discovered" && "$discovered" != "None" && "$discovered" != "null" ]]; then
+                            info "Auto-setting $opt = $discovered (discovered from cluster)"
+                            "$PATHRUNNER" set "$opt" "$discovered" 2>&1
+                        else
+                            discovered=""
+                        fi
+                    fi
+                    ;;
+                CONTAINER_NAME)
+                    # Discover container name from the task definition.
+                    # The starting user typically lacks ecs:DescribeTaskDefinition,
+                    # so we try multiple credential sources.
+                    local td_val=""
+                    td_val=$("$PATHRUNNER" show options 2>&1 | strip_ansi | awk '$1 == "TASK_DEFINITION" { print $2 }')
+                    if [[ -n "$td_val" ]]; then
+                        info "Discovering container name from task definition $td_val..."
+                        # Try via pathrunner first (uses starting user identity)
+                        discovered=$("$PATHRUNNER" aws ecs describe-task-definition \
+                            --task-definition "$td_val" --region us-east-1 \
+                            --query 'taskDefinition.containerDefinitions[0].name' --output text 2>/dev/null) || true
+                        if [[ -z "$discovered" || "$discovered" == "None" || "$discovered" == "null" ]]; then
+                            # Fall back to plabs production profile
+                            local plabs_prod_profile=""
+                            plabs_prod_profile=$("$PLABS" info 2>&1 | grep "Production:" | sed 's/.*profile: //' | tr -d '[:space:]') || true
+                            if [[ -n "$plabs_prod_profile" ]]; then
+                                discovered=$(AWS_PROFILE="$plabs_prod_profile" aws ecs describe-task-definition \
+                                    --task-definition "$td_val" --region us-east-1 \
+                                    --query 'taskDefinition.containerDefinitions[0].name' --output text 2>/dev/null) || true
+                            fi
+                        fi
+                        if [[ -z "$discovered" || "$discovered" == "None" || "$discovered" == "null" ]]; then
+                            # Fall back to default AWS CLI credentials
+                            discovered=$(aws ecs describe-task-definition \
+                                --task-definition "$td_val" --region us-east-1 \
+                                --query 'taskDefinition.containerDefinitions[0].name' --output text 2>/dev/null) || true
+                        fi
+                        if [[ -n "$discovered" && "$discovered" != "None" && "$discovered" != "null" ]]; then
+                            info "Auto-setting $opt = $discovered (discovered from task definition)"
+                            "$PATHRUNNER" set "$opt" "$discovered" 2>&1
+                        else
+                            discovered=""
+                        fi
+                    fi
+                    ;;
+            esac
+
+            if [[ -z "$discovered" ]]; then
+                echo ""
+                warn "Required option $opt was not auto-mapped from resources"
+                if [[ -t 0 ]]; then
+                    read -rp "  Enter value for $opt (or Enter to skip): " manual_val
+                else
+                    warn "Non-interactive mode: skipping $opt"
+                    local manual_val=""
+                fi
+                if [[ -n "$manual_val" ]]; then
+                    "$PATHRUNNER" set "$opt" "$manual_val" 2>&1
+                fi
             fi
         fi
     done
@@ -846,6 +950,20 @@ main() {
             # Summary
             if (( ${#RESULT_PAYLOADS[@]} > 0 )); then
                 print_summary
+            fi
+
+            # Mark module as tested if all payloads passed execution
+            local all_exec_passed=true
+            for i in "${!RESULT_EXECUTION[@]}"; do
+                if [[ "${RESULT_EXECUTION[$i]}" != "PASS" ]]; then
+                    all_exec_passed=false
+                    break
+                fi
+            done
+
+            if [[ "$all_exec_passed" == true ]] && (( ${#RESULT_PAYLOADS[@]} > 0 )); then
+                info "Marking module $MODULE_ID as tested against $SCENARIO_ID..."
+                "$PATHRUNNER" modules mark-tested "$MODULE_ID" "$SCENARIO_ID" 2>&1 || true
             fi
             ;;
         *)

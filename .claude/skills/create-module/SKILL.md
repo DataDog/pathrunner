@@ -20,12 +20,24 @@ Read these files to understand the attack path. Extract the service from the ID 
 
 You MUST read all four files before proceeding to Step 1:
 
-1. **Path definition (source of truth):** Use Glob to find the YAML at `/Users/seth.art/Documents/projects/pathfinding.cloud/data/paths/{service}/{id}.yaml` and Read it
-2. **Lab scenario:** Use Grep to find the matching `scenario.yaml` by searching for the ID in `/Users/seth.art/Documents/projects/pathfinding-labs/modules/scenarios/`, then Read it
+1. **Path definition (source of truth):** Use Glob to find the YAML at `../pathfinding.cloud/data/paths/{service}/{id}.yaml` (relative to the pathrunner repo root) and Read it
+2. **Lab scenario:** Use Grep to find the matching `scenario.yaml` by searching for the ID in `../pathfinding-labs/modules/scenarios/`, then Read it
 3. **Demo attack script:** Read `demo_attack.sh` from the same scenario directory found in step 2
 4. **Cleanup script:** Read `cleanup_attack.sh` from the same scenario directory found in step 2
 
 ## Steps
+
+### Step 0: SSO Preflight
+
+Before any AWS-touching work, verify the SSO profiles you'll need are still alive. Both plabs and pathrunner's attacker identity commonly use short-term SSO profiles that expire silently.
+
+```bash
+./scripts/check-sso.sh plabs
+```
+
+If any profile shows FAIL/EXPIRED, tell the user which and stop — they need to run `aws sso login --profile <name>` interactively before you can proceed. Do NOT try to work around expired SSO by using `SKIP_SSO_CHECK=1` unless the user explicitly asks.
+
+If the module will use attacker infra (any `revshell/*`, `exfil/https`, `exfil/s3`, or a Glue-style module uploading to the attacker code bucket), also verify the attacker profile: `./scripts/check-sso.sh check <attacker-profile-name>`. Discover the profile name via `./pathrunner attacker show`.
 
 ### Step 1: Parse and Validate
 
@@ -73,48 +85,47 @@ You MUST read all four files before proceeding to Step 1:
 
 ### Step 3: Check Existing Payloads and Determine What's Needed
 
+The payload registry is **modular and service-scoped**: payloads live under `pkg/payloads/{service}/` (`ec2/`, `lambda/`, `glue/`), self-register in `init()`, and are queried by tag (`payloads.GetPayloadsByTags`, `payloads.GetPayloadForService`). Same logical name (e.g., `backdoor/attach-policy`) can exist under multiple services — the composite `(service, name)` key disambiguates. Your module doesn't enumerate specific payloads; it declares service tags via `GetCompatibleTags()` and every registered payload for that service becomes selectable.
+
 - Check if `pkg/payloads/{service}/` directory exists
 - If YES: list existing payloads and evaluate which are compatible
 - **Match the payload to what demo_attack.sh does**: If the demo script attaches a policy to a user, don't use a payload that creates a new user. Create a new payload that matches the demo behavior if none exists.
-- For event-triggered modules: exclude `exfil/output` from the recommended payloads since there's no caller to receive the response
+- For event-triggered modules: exclude `exfil/response` from the recommended payloads since there's no caller to receive the response
 - Only create new payloads when the exploitation pattern requires something not already available
 - Not all modules need payloads — self-escalation and principal-access modules typically don't
+- **If the payload depends on attacker infra** (listener callback, exfil bucket): note it now. The module itself does NOT need to know — the payload declares its own options (`LISTENER_IP`, `HTTPS_URL`, `EXFIL_BUCKET`, etc.) and pathrunner auto-populates them from the running listener / deployed bucket. See `payload-patterns.md` for the auto-inject contract.
 
-### Step 4: Create the Module
+### Step 4: Create the Module — Start From a Canonical Example
 
-Read the patterns from the skill supporting files:
-- `.claude/skills/create-module/module-patterns.md` — Go templates by category
-- `.claude/skills/create-module/payload-patterns.md` — Payload templates and reuse guide
+Rather than assembling the module from a list of rules, **copy the canonical module for your category and adapt it**. The canonicals below are known-good, tested, and idiomatic — they demonstrate the current signatures (`modules.ExecutionContext`), the `shared.PayloadHelper` for tag-based payload wiring, resource tracking, side-effect tracking, and (where applicable) attacker-infra integration. Read the canonical end-to-end before writing anything.
 
-Create the module at `pkg/exploits/{service}_{technique}/module.go`:
-- Embed `BaseModule` with full `PathInfo` populated from the YAML
-- Implement `Options()` with appropriate options derived from the demo_attack.sh
-- Implement `Execute()` by translating demo_attack.sh to Go AWS SDK v2 calls
-- If payload-based: implement `PayloadCompatible` interface
-- Track ALL created resources via `tracker.TrackResource()` with:
-  - `ModuleID` set to the path ID
-  - `Metadata` including everything needed for cleanup
-- After execution, check if payload implements `SideEffectReporter` and track any side effects
-- For Lambda payloads: pass payload options via Lambda environment variables (build `envVars` map and set on `CreateFunctionInput.Environment`)
-- Output credentials using `PATHFINDER_IDENTITY_DATA` structured format when applicable
+| Your module's shape | Canonical to copy | Read it because it demonstrates |
+|---|---|---|
+| **new-passrole** — provision a fresh compute resource with a privileged role and run a payload on it | `pkg/exploits/ec2_passrole/module.go` (ec2-001) | `shared.NewPayloadHelper(serviceTag, langTag)` for one-line payload wiring, `Discoverable` for AWS-side option enumeration, auto-detection of infra defaults (AMI, VPC, subnet), tracking the created compute resource, tracking payload `SideEffectReporter` output, `ExecutionContext` signature |
+| **existing-passrole** — modify an existing resource's code/config to inherit its role's permissions | `pkg/exploits/lambda_updatecode_addpermission/module.go` (lambda-005) | Backing up original state before mutating so cleanup can restore it, injecting payload params directly into the generated code when the AWS API can't set env vars, tracking a policy/permission grant separately from the code change, handler-name adaptation, waiting for propagation only when the payload takes IAM action (SideEffectReporter check), CLEANUP defaulting to true because the caller can reverse everything |
+| **new-passrole with attacker code artifacts** — payload must be hosted somewhere the victim service can fetch it from (Glue script, CodeBuild source, etc.) | `pkg/exploits/glue_passrole_job/module.go` (glue-003) | Using `ectx.AttackerIdentity` (separate from victim identity) to upload payload script to `attacker.GetCodeBucketInfo()` bucket, namespacing uploads under a per-run S3 prefix and cleaning them up (but leaving the bucket itself since it's persistent attacker infra), auto-populating `EXFIL_BUCKET` from `attacker.GetExfilBucket()`, auto-resolving `TARGET_USER` from the caller identity, passing payload options via job arguments (Glue `DefaultArguments`), verifying via the payload's `Verifiable` interface |
 
-**Timing and retry logic in Execute()**: Translate the demo script's timing directly:
-- Use the same sleep durations (e.g., if demo sleeps 10s after function creation, do the same)
-- Implement polling loops with the same max attempts and intervals from the demo script
-- If the demo script retries an operation N times with M-second intervals, use those exact values
-- Add progress output during waits so the user knows what's happening
+**For categories not covered by those three canonicals** — `self-escalation`, `principal-access`, `credential-access`, event-triggered `new-passrole` — grep `pkg/exploits/*/module.go` for the closest existing module in the same category and use it as your starting point. `iam_*` directories are all self-escalation or two-step; `sts_assume_role/` is principal-access; `lambda_passrole_esm/` is event-triggered new-passrole. If nothing quite matches, start from the closest canonical above and diverge only where the path genuinely demands it.
+
+Once you've read the canonical, create `pkg/exploits/{service}_{technique}/module.go` by copying its shape and editing:
+- `PathInfo` — populate from the YAML (ID, Name, Category, Services, Description, Permissions, Prerequisites, References, MITRE, Aliases)
+- `Options()` — derive from demo_attack.sh's parameters, mirroring the canonical's naming style
+- `Execute()` — translate demo_attack.sh's API calls, sleeps, retries, and verification into the canonical's flow. Use the demo's exact sleep durations and retry counts (they were calibrated through real testing).
+
+The supporting files (`module-patterns.md`, `payload-patterns.md`, `checklist.md`) are reference material for cross-cutting concerns (registration mechanics, attacker-infra auto-injection contract, payload interface semantics, post-creation checklist) — consult them when a specific concern comes up, but don't try to follow them linearly.
 
 ### Step 5: Create New Payloads (if needed)
 
-Only if Step 3 determined new payloads are needed:
-- Create at `pkg/payloads/{service}/{technique}_{method}.go`
-- Follow the patterns in `payload-patterns.md`
-- Register via `init()` function
-- Add new tag constants to `pkg/payloads/tags.go` if new service
-- **The payload's Python/bash code should mirror what demo_attack.sh injects** — use the same API calls, error handling, and logic
-- **For event-triggered modules**: Implement the `Verifiable` interface so the module can verify the payload executed
-- **For payloads that modify existing resources**: Implement the `SideEffectReporter` interface so modifications are tracked for cleanup
-- **For Lambda payloads**: Use `os.environ.get()` to read parameters from Lambda environment variables instead of hardcoding them in the Python source
+Only if Step 3 determined new payloads are needed. Rather than assembling from a rule list, **copy the closest existing payload in the same service and adapt it**:
+
+- Match by shape, not just service: for a new IAM-modifying backdoor, copy `pkg/payloads/{service}/backdoor_attach_policy.go` and adjust the AWS API call and `SideEffectReporter` output; for a new out-of-band exfil, copy `exfil_https.go` or `exfil_s3.go`; for a new reverse shell, copy `revshell_tls.go`.
+- Payload lives at `pkg/payloads/{service}/{technique}_{method}.go`; `init()` calls `payloads.Register(&MyPayload{})`. No wiring changes needed if the service directory already exists.
+- If your payload is the first under a new service directory (e.g., first `pkg/payloads/ecs/…`), add a blank import to `cmd/pathrunner/main.go` and add the service tag to `pkg/payloads/tags.go`.
+- The payload's Python/bash code should mirror what demo_attack.sh injects — same API calls, same error handling.
+- If the payload takes IAM action (attaches policy, creates user, etc.): implement `SideEffectReporter` so the module can track modifications for cleanup (`pkg/payloads/lambda/backdoor_attach_policy.go` is the reference implementation).
+- If the module is event-triggered (payload runs but its return value isn't captured): implement `Verifiable` so the module can confirm the effect via a follow-up API call (`pkg/payloads/lambda/backdoor_attach_policy.go` also demonstrates this).
+- Lambda/Glue payloads read runtime params from `os.environ` (Python) or job args; EC2 payloads read shell env. Never string-substitute values into the source at code-gen time.
+- If the payload depends on attacker infra (listener callback, exfil bucket), use the standard option names so the auto-inject/auto-populate wiring picks them up — see `payload-patterns.md` for the full contract.
 
 ### Step 6: Add Cleanup Handlers
 
@@ -130,16 +141,18 @@ If the module creates resource types not already handled:
 
 ### Step 7: Wire Up Registration
 
-- Add blank import in `cmd/pathrunner/main.go` for the new module package
-- If new payload service directory, add blank import for that too
-- Verify `init()` function calls `modules.Register()` correctly
+- Verify the module's `init()` function calls `modules.Register("{id}", constructor)` — the primary key must be the pathfinding.cloud ID.
+- **Exploit modules are picked up automatically**: `pkg/exploits/register.go` is generated by `scripts/gen_register.go` (invoked via `//go:generate` in `pkg/exploits/gen.go`). Running `make build` — or `go generate ./pkg/exploits/` — regenerates it and adds a blank import for your new directory. Do NOT edit `cmd/pathrunner/main.go` for a new exploit module.
+- **Payloads are still wired manually**: If you introduced a new payload service directory (e.g., first payload under `pkg/payloads/ecs/`), add a blank import for it in `cmd/pathrunner/main.go` alongside the existing `pkg/payloads/{ec2,lambda,glue}` imports. Payloads within an existing service directory need no wiring changes — `init()` handles it.
 
 ### Step 8: Build and Verify
 
 Run:
 ```bash
-go build ./...
+make build
 ```
+
+`make build` runs `go generate ./pkg/exploits/` before compiling, so it regenerates `register.go` and then builds. If you prefer raw Go commands, run `go generate ./pkg/exploits/ && go build ./...`.
 
 Fix any compilation errors.
 
@@ -164,7 +177,7 @@ Fix any test failures.
 
 ### Step 11: Final Verification
 
-Run through the checklist in `.claude/skills/create-module/checklist.md` and confirm every item passes.
+Run through the sibling `checklist.md` in this skill directory and confirm every item passes.
 
 Report to the user:
 - Module created: `{service}-{number}` at `pkg/exploits/{service}_{technique}/module.go`
@@ -172,4 +185,4 @@ Report to the user:
 - Timing: list key delays and retry parameters extracted from demo_attack.sh
 - Cleanup handlers: list any new ones added
 - Test results: all passing
-- Next step: deploy the lab scenario and run `/test-module` to verify against real AWS
+- Next step: deploy the lab scenario and run `/test-module <id> --iterate 5` to verify against real AWS. `test-module` will iterate up to 5 attempts on pathrunner-side failures (compile errors, wrong ARN parses, missing env vars, timing bugs) with hard-stops on lab-side or environmental failures.

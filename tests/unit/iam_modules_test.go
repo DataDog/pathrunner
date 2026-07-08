@@ -140,7 +140,7 @@ func getIAMModuleTestCases() []iamModuleTestCase {
 			additionalPerms: 2,
 			relatedPaths:    0,
 			discoverOpts:    []string{"TARGET_ROLE"},
-			optionCount:     3,
+			optionCount:     5,
 			requiredOption:  "TARGET_ROLE",
 			services:        []string{"iam"},
 		},

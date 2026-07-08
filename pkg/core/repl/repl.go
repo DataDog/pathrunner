@@ -127,8 +127,9 @@ func NewREPL(identityManager IdentityManager, sessionManager SessionManager) *RE
 	r.aliases["workspaces"] = "workspace"
 	r.aliases["quit"] = "exit"
 	r.aliases["session"] = "sessions"
-	// Note: "modules" and "payloads" are now top-level commands with subcommands,
-	// registered directly in getCommands(), so no aliases needed.
+	r.aliases["listener"] = "attacker listener"
+	r.aliases["infra"] = "attacker infra"
+	r.aliases["run"] = "exploit"
 
 	// Load state from current session
 	r.loadSessionState()

@@ -11,7 +11,7 @@ Clean up AWS resources after testing a pathrunner module. This exercises pathrun
 
 ## Scenario Information
 
-!`cd /Users/seth.art/Documents/projects/pathfinding-labs && ./plabs scenarios show $ARGUMENTS 2>&1`
+!`(cd ../pathfinding-labs && ./plabs scenarios show $ARGUMENTS) 2>&1`
 
 ## Steps
 
@@ -20,9 +20,10 @@ Clean up AWS resources after testing a pathrunner module. This exercises pathrun
 This tests our cleanup code:
 
 ```bash
-cd /Users/seth.art/Documents/projects/pathrunner
 ./pathrunner workspace cleanup --all 2>&1
 ```
+
+If the module deployed attacker infra (EC2 attacker box, exfil S3 bucket), also tear that down with `./pathrunner attacker infra ec2 destroy` and/or `./pathrunner attacker infra bucket destroy` — `workspace cleanup` handles victim-side resources tracked by the module, not attacker-owned deploys, which live in their own per-workspace state.
 
 Record what pathrunner reports as cleaned vs failed.
 
@@ -44,7 +45,7 @@ Check AWS state for any remaining pathrunner-created resources:
 ### Step 3: Run Pathfinding-Labs Cleanup as Safety Net
 
 ```bash
-SCENARIO_DIR=$(grep -rl "pathfinding-cloud-id" /Users/seth.art/Documents/projects/pathfinding-labs/modules/scenarios/*/scenario.yaml 2>/dev/null | xargs grep -l "$ARGUMENTS\|$(echo $ARGUMENTS | sed 's/-to-.*//')" | head -1 | xargs dirname 2>/dev/null)
+SCENARIO_DIR=$(grep -rl "pathfinding-cloud-id" ../pathfinding-labs/modules/scenarios/*/scenario.yaml 2>/dev/null | xargs grep -l "$ARGUMENTS\|$(echo $ARGUMENTS | sed 's/-to-.*//')" | head -1 | xargs dirname 2>/dev/null)
 if [ -n "$SCENARIO_DIR" ] && [ -f "$SCENARIO_DIR/cleanup_attack.sh" ]; then
     bash "$SCENARIO_DIR/cleanup_attack.sh" 2>&1
 else
@@ -55,7 +56,6 @@ fi
 ### Step 4: Remove Test Identity
 
 ```bash
-cd /Users/seth.art/Documents/projects/pathrunner
 ./pathrunner identity clear --expired 2>&1
 ```
 

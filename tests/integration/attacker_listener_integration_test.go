@@ -30,11 +30,11 @@ func TestAttackerListenerStartStopIntegration(t *testing.T) {
 	if options["HTTPS_URL"] != expectedURL {
 		t.Errorf("Expected HTTPS_URL=%s, got %s", expectedURL, options["HTTPS_URL"])
 	}
-	if options["LHOST"] != "127.0.0.1" {
-		t.Errorf("Expected LHOST=127.0.0.1, got %s", options["LHOST"])
+	if options["LISTENER_IP"] != "127.0.0.1" {
+		t.Errorf("Expected LISTENER_IP=127.0.0.1, got %s", options["LISTENER_IP"])
 	}
-	if options["LPORT"] != fmt.Sprintf("%d", shellPort) {
-		t.Errorf("Expected LPORT=%d, got %s", shellPort, options["LPORT"])
+	if options["LISTENER_PORT"] != fmt.Sprintf("%d", shellPort) {
+		t.Errorf("Expected LISTENER_PORT=%d, got %s", shellPort, options["LISTENER_PORT"])
 	}
 
 	// Check status
@@ -107,8 +107,8 @@ func TestAttackerListenerPreservesUserOptions(t *testing.T) {
 	defer cleanup()
 
 	// Pre-set some options
-	r.SetOption("LHOST", "10.0.0.1")
-	r.SetOption("LPORT", "9999")
+	r.SetOption("LISTENER_IP", "10.0.0.1")
+	r.SetOption("LISTENER_PORT", "9999")
 
 	httpsPort := findFreePortIntegration(t)
 	shellPort := findFreePortIntegration(t)
@@ -122,11 +122,11 @@ func TestAttackerListenerPreservesUserOptions(t *testing.T) {
 
 	// User-set values should NOT be overwritten
 	options := r.GetOptions()
-	if options["LHOST"] != "10.0.0.1" {
-		t.Errorf("Expected user-set LHOST=10.0.0.1 to be preserved, got %s", options["LHOST"])
+	if options["LISTENER_IP"] != "10.0.0.1" {
+		t.Errorf("Expected user-set LISTENER_IP=10.0.0.1 to be preserved, got %s", options["LISTENER_IP"])
 	}
-	if options["LPORT"] != "9999" {
-		t.Errorf("Expected user-set LPORT=9999 to be preserved, got %s", options["LPORT"])
+	if options["LISTENER_PORT"] != "9999" {
+		t.Errorf("Expected user-set LISTENER_PORT=9999 to be preserved, got %s", options["LISTENER_PORT"])
 	}
 }
 

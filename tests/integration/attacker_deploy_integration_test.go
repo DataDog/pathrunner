@@ -170,7 +170,7 @@ func TestDeployBucketCreateRequiresAttackerIntegration(t *testing.T) {
 	r, _, _, cleanup := setupTest(t)
 	defer cleanup()
 
-	err := r.ExecuteCommand("attacker infra bucket create --type exfil")
+	err := r.ExecuteCommand("attacker infra bucket create")
 	if err == nil {
 		t.Error("Expected error when no attacker identity for bucket create")
 	}

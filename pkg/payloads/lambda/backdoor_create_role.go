@@ -38,7 +38,7 @@ func (p *BackdoorCreateRolePayload) GetTags() []string {
 func (p *BackdoorCreateRolePayload) GetOptions() []modules.Option {
 	return []modules.Option{
 		{
-			Name:        "TRUSTED_PRINCIPAL",
+			Name:        "TRUST_PRINCIPAL",
 			Description: "Trusted principal ARN (e.g. arn:aws:iam::123456789012:user/name, arn:aws:iam::123456789012:root, or a service like lambda.amazonaws.com)",
 			Required:    true,
 		},
@@ -64,7 +64,7 @@ func (p *BackdoorCreateRolePayload) GetOptions() []modules.Option {
 }
 
 func (p *BackdoorCreateRolePayload) GenerateCode(options map[string]string) (string, error) {
-	trustedPrincipal := options["TRUSTED_PRINCIPAL"]
+	trustPrincipal := options["TRUST_PRINCIPAL"]
 	roleName := options["ROLE_NAME"]
 	externalID := options["EXTERNAL_ID"]
 	rolePath := options["ROLE_PATH"]
@@ -81,7 +81,7 @@ func (p *BackdoorCreateRolePayload) GenerateCode(options map[string]string) (str
 
 	// Determine principal type: Service principals vs IAM/account principals
 	principalKey := "AWS"
-	if strings.HasSuffix(trustedPrincipal, ".amazonaws.com") {
+	if strings.HasSuffix(trustPrincipal, ".amazonaws.com") {
 		principalKey = "Service"
 	}
 
@@ -91,7 +91,7 @@ func (p *BackdoorCreateRolePayload) GenerateCode(options map[string]string) (str
             {
                 "Effect": "Allow",
                 "Principal": {
-                    "` + principalKey + `": "` + trustedPrincipal + `"
+                    "` + principalKey + `": "` + trustPrincipal + `"
                 },
                 "Action": "sts:AssumeRole"`
 
@@ -117,7 +117,7 @@ import string
 import os
 
 def lambda_handler(event, context):
-    trusted_principal = os.environ.get('TRUSTED_PRINCIPAL', '` + trustedPrincipal + `')
+    trusted_principal = os.environ.get('TRUST_PRINCIPAL', '` + trustPrincipal + `')
 
     result = {
         'message': 'Pathrunner backdoor role creation',
@@ -226,8 +226,8 @@ func (p *BackdoorCreateRolePayload) ProcessResult(result string) (string, error)
 				output.WriteString("Role Name: " + roleName + "\n")
 			}
 
-			if trustedPrincipal, ok := parsedBody["trusted_principal"].(string); ok {
-				output.WriteString("Trusted Principal: " + trustedPrincipal + "\n")
+			if trustPrincipal, ok := parsedBody["trusted_principal"].(string); ok {
+				output.WriteString("Trusted Principal: " + trustPrincipal + "\n")
 			}
 
 			if externalID, ok := parsedBody["external_id"].(string); ok {
@@ -258,8 +258,8 @@ func (p *BackdoorCreateRolePayload) ProcessResult(result string) (string, error)
 }
 
 func (p *BackdoorCreateRolePayload) Validate(options map[string]string) error {
-	if options["TRUSTED_PRINCIPAL"] == "" {
-		return fmt.Errorf("TRUSTED_PRINCIPAL is required for backdoor/create-role payload")
+	if options["TRUST_PRINCIPAL"] == "" {
+		return fmt.Errorf("TRUST_PRINCIPAL is required for backdoor/create-role payload")
 	}
 	return nil
 }

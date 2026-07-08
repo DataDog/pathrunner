@@ -2,6 +2,7 @@ package repl
 
 import (
 	"fmt"
+	"pathrunner/pkg/attacker"
 	"pathrunner/pkg/modules"
 	"pathrunner/pkg/status"
 	"pathrunner/pkg/ui"
@@ -229,6 +230,7 @@ func (r *REPL) cmdSet(repl *REPL, args []string) error {
 	// Auto-show payload options and rebuild completions after setting PAYLOAD
 	if strings.ToUpper(option) == "PAYLOAD" {
 		r.updateCompletion()
+		r.autoPopulatePayloadDefaults(value)
 		fmt.Println()
 		if r.currentModule != nil {
 			r.showPayloadOptions(value)
@@ -413,10 +415,26 @@ func (r *REPL) tryResolveMissingOptions(missing []string) bool {
 		}
 	}
 
-	// After PAYLOAD is set, check for payload-specific required options
+	// After PAYLOAD is set, check for payload-specific required options.
+	// Auto-populate well-known options from context before prompting.
 	if payload, exists := r.options["PAYLOAD"]; exists {
 		payloadOpts := r.currentModule.PayloadOptions(payload)
 		for _, opt := range payloadOpts {
+			if opt.Name == "EXFIL_BUCKET" && r.options["EXFIL_BUCKET"] == "" {
+				if bucket := attacker.GetExfilBucket(); bucket != "" {
+					r.options["EXFIL_BUCKET"] = bucket
+					fmt.Printf("  [*] Using attacker exfil bucket: %s\n", bucket)
+					continue
+				}
+			}
+			if opt.Name == "TARGET_ARN" && r.options["TARGET_ARN"] == "" {
+				if identity.CallerARN != "" {
+					r.options["TARGET_ARN"] = identity.CallerARN
+					fmt.Printf("  [*] Defaulting TARGET_ARN to current identity: %s\n", identity.CallerARN)
+					fmt.Printf("      Use 'set TARGET_ARN <arn>' to change before running\n")
+					continue
+				}
+			}
 			if opt.Required && r.options[opt.Name] == "" && opt.Default == "" {
 				if err := r.promptManualOption(opt.Name); err != nil {
 					fmt.Printf("  %v\n", err)
@@ -427,6 +445,38 @@ func (r *REPL) tryResolveMissingOptions(missing []string) bool {
 	}
 
 	return true
+}
+
+// autoPopulatePayloadDefaults fills in well-known payload options from context
+// when they haven't been explicitly set. Called after PAYLOAD is selected so the
+// defaults show up in the options table before the user runs the exploit.
+func (r *REPL) autoPopulatePayloadDefaults(payloadName string) {
+	if r.currentModule == nil {
+		return
+	}
+
+	payloadOpts := r.currentModule.PayloadOptions(payloadName)
+	identity := r.identityManager.GetCurrent()
+
+	for _, opt := range payloadOpts {
+		if r.options[opt.Name] != "" {
+			continue
+		}
+
+		switch opt.Name {
+		case "EXFIL_BUCKET":
+			if bucket := attacker.GetExfilBucket(); bucket != "" {
+				r.options["EXFIL_BUCKET"] = bucket
+				fmt.Printf("[*] Using attacker exfil bucket: %s\n", bucket)
+			}
+		case "TARGET_ARN":
+			if identity != nil && identity.CallerARN != "" {
+				r.options["TARGET_ARN"] = identity.CallerARN
+				fmt.Printf("[*] Defaulting TARGET_ARN to current identity: %s\n", identity.CallerARN)
+				fmt.Printf("    Use 'set TARGET_ARN <arn>' to change before running\n")
+			}
+		}
+	}
 }
 
 // promptPayloadSelection presents an interactive selection of available payloads.
@@ -449,6 +499,8 @@ func (r *REPL) promptPayloadSelection() error {
 	selected := payloadList[selectedIndex]
 	r.options["PAYLOAD"] = selected.Name
 	fmt.Printf("Set PAYLOAD => %s\n", selected.Name)
+
+	r.autoPopulatePayloadDefaults(selected.Name)
 
 	// Show payload options after selection
 	fmt.Println()
@@ -1251,8 +1303,8 @@ func (r *REPL) markModuleTested(moduleID string, testedAgainst string) error {
 		return NewExecutionError(fmt.Sprintf("failed to load status manifest: %v", err), err)
 	}
 
-	if _, exists := manifest.Modules[moduleID]; !exists {
-		return NewInvalidArgumentsError(fmt.Sprintf("module '%s' not found in status manifest", moduleID))
+	if manifest.Modules == nil {
+		manifest.Modules = make(map[string]status.ModuleStatus)
 	}
 
 	manifest.MarkTested(moduleID, testedAgainst)
@@ -1272,8 +1324,8 @@ func (r *REPL) markModuleStatus(moduleID string, newStatus string) error {
 		return NewExecutionError(fmt.Sprintf("failed to load status manifest: %v", err), err)
 	}
 
-	if _, exists := manifest.Modules[moduleID]; !exists {
-		return NewInvalidArgumentsError(fmt.Sprintf("module '%s' not found in status manifest", moduleID))
+	if manifest.Modules == nil {
+		manifest.Modules = make(map[string]status.ModuleStatus)
 	}
 
 	if err := manifest.MarkStatus(moduleID, newStatus); err != nil {

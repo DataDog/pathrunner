@@ -16,12 +16,18 @@ Cross-reference pathfinding-labs scenarios against pathrunner's module registry 
 
 List all scenario.yaml files and extract their pathfinding-cloud-id:
 
+Paths are relative to the pathrunner repo root (siblings `../pathfinding.cloud/` and `../pathfinding-labs/` under a shared `pathfinding/` parent).
+
 ```bash
-for f in /Users/seth.art/Documents/projects/pathfinding-labs/modules/scenarios/*/scenario.yaml; do
+# Note: scenarios/ has multi-level nesting (single-account/, cross-account/, ctf/, etc.)
+# — must use `find` recursively, NOT a single-level glob.
+# The plabs scenario ID is "{pathfinding-cloud-id}-{goal}" where goal is the parent
+# directory name (to-admin, to-bucket, etc.), NOT the scenario directory name.
+find ../pathfinding-labs/modules/scenarios/ -name "scenario.yaml" | while read -r f; do
     ID=$(grep 'pathfinding-cloud-id' "$f" 2>/dev/null | head -1 | sed 's/.*: *//' | tr -d '"' | tr -d "'")
-    DIR=$(dirname "$f" | xargs basename)
+    GOAL=$(basename "$(dirname "$(dirname "$f")")")
     if [ -n "$ID" ]; then
-        echo "$ID|$DIR"
+        echo "$ID|${ID}-${GOAL}"
     fi
 done | sort
 ```
@@ -31,8 +37,10 @@ done | sort
 List registered module IDs:
 
 ```bash
-grep -r 'modules.Register(' /Users/seth.art/Documents/projects/pathrunner/pkg/exploits/*/module.go | sed 's/.*Register("\([^"]*\)".*/\1/' | sort
+grep -r 'modules.Register(' pkg/exploits/*/module.go | sed 's/.*Register("\([^"]*\)".*/\1/' | sort
 ```
+
+Or read `pkg/exploits/register.go` directly — it's the auto-generated fan-out of every registered module directory.
 
 ### Step 3: Cross-Reference
 
@@ -43,7 +51,7 @@ For each scenario ID, check if a pathrunner module exists.
 For scenarios without modules, check if they're deployed (useful for prioritizing):
 
 ```bash
-cd /Users/seth.art/Documents/projects/pathfinding-labs && ./plabs scenarios list 2>&1
+(cd ../pathfinding-labs && ./plabs scenarios list) 2>&1
 ```
 
 ### Step 5: Apply Service Filter
