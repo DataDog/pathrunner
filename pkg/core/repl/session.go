@@ -9,9 +9,12 @@ import (
 	"strings"
 	"time"
 
+	"pathrunner/pkg/attacker"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
+	"github.com/aws/aws-sdk-go-v2/service/glue"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 )
@@ -290,6 +293,9 @@ func (r *REPL) sessionCleanup(args []string) error {
 		}
 	}
 
+	// Separate resources by account context so we use the right identity for each
+	attackerIdentity := r.identityManager.GetAttackerIdentity()
+
 	// Clean up selected resources
 	fmt.Printf("\nCleaning up %d resources...\n", len(resourcesToCleanup))
 	fmt.Println()
@@ -303,7 +309,18 @@ func (r *REPL) sessionCleanup(args []string) error {
 		}
 		fmt.Printf("Cleaning up %s: %s%s...", resource.Type, resource.Name, regionInfo)
 
-		if err := r.cleanupResource(resource, identity); err != nil {
+		// Use the attacker identity for attacker-side resources (e.g., S3 code buckets)
+		cleanupIdentity := identity
+		if resource.AccountContext == "attacker" {
+			if attackerIdentity == nil {
+				fmt.Printf(" FAILED (attacker identity required — use 'attacker set profile <name>' first)\n")
+				failed++
+				continue
+			}
+			cleanupIdentity = attackerIdentity
+		}
+
+		if err := r.cleanupResource(resource, cleanupIdentity); err != nil {
 			fmt.Printf(" FAILED (%v)\n", err)
 			failed++
 			if isPermissionError(err) {
@@ -555,6 +572,11 @@ func printManualCleanupCommand(res CreatedResource) {
 		fmt.Printf("    aws ecs delete-service --cluster %s --service %s --force --region %s\n", cluster, res.Name, region)
 	case "ecs:cluster":
 		fmt.Printf("    aws ecs delete-cluster --cluster %s --region %s\n", res.Name, region)
+	case "s3_bucket":
+		fmt.Printf("    aws s3 rm s3://%s --recursive --region %s\n", res.Name, region)
+		fmt.Printf("    aws s3api delete-bucket --bucket %s --region %s\n", res.Name, region)
+	case "glue:job":
+		fmt.Printf("    aws glue delete-job --job-name %s --region %s\n", res.Name, region)
 	default:
 		fmt.Printf("    # %s: %s (manual cleanup required)\n", res.Type, res.Name)
 	}
@@ -726,6 +748,10 @@ func (r *REPL) cleanupResource(resource CreatedResource, identity *modules.Ident
 		return r.cleanupLambdaPermission(ctx, config, resource)
 	case "ecs:task-definition":
 		return r.cleanupECSTaskDefinition(ctx, config, resource)
+	case "s3_bucket":
+		return r.cleanupS3Bucket(ctx, config, resource)
+	case "glue:job":
+		return r.cleanupGlueJob(ctx, config, resource)
 	default:
 		return fmt.Errorf("unsupported resource type: %s", resource.Type)
 	}
@@ -1128,6 +1154,27 @@ func (r *REPL) cleanupIAMTrustPolicy(ctx context.Context, config aws.Config, res
 	_, err := client.UpdateAssumeRolePolicy(ctx, &iam.UpdateAssumeRolePolicyInput{
 		RoleName:       aws.String(roleName),
 		PolicyDocument: aws.String(originalPolicy),
+	})
+	return err
+}
+
+// cleanupS3Bucket empties and deletes an S3 bucket
+func (r *REPL) cleanupS3Bucket(_ context.Context, config aws.Config, resource CreatedResource) error {
+	region := resource.Region
+	if region == "" {
+		region = config.Region
+	}
+	return attacker.DeleteBucket(config, resource.Name, region)
+}
+
+// cleanupGlueJob deletes a Glue job
+func (r *REPL) cleanupGlueJob(ctx context.Context, config aws.Config, resource CreatedResource) error {
+	if resource.Region != "" {
+		config.Region = resource.Region
+	}
+	client := glue.NewFromConfig(config)
+	_, err := client.DeleteJob(ctx, &glue.DeleteJobInput{
+		JobName: aws.String(resource.Name),
 	})
 	return err
 }

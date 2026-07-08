@@ -1,8 +1,12 @@
 package cli
 
 import (
+	"fmt"
+	"pathrunner/pkg/attacker"
 	"pathrunner/pkg/core"
 	"pathrunner/pkg/core/repl"
+	"pathrunner/pkg/modules"
+	"pathrunner/pkg/utils"
 
 	"github.com/spf13/cobra"
 )
@@ -28,6 +32,27 @@ func NewCLI() *CLI {
 		func() {},                    // updateCompletion placeholder
 	)
 	cli.identityManager = identityManager
+
+	// When a new identity is added, update deployed bucket policies if the
+	// identity comes from a previously-unseen victim account.
+	identityManager.SetOnIdentityAdded(func(identity *modules.Identity) {
+		attackerIdentity := identityManager.GetAttackerIdentity()
+		if attackerIdentity == nil {
+			return
+		}
+		accountID := utils.ExtractAccountIDFromARN(identity.CallerARN)
+		if accountID == "" {
+			return
+		}
+		updated, err := attacker.EnsureBucketAccountAccess(attackerIdentity.GetConfig(), accountID)
+		if err != nil {
+			fmt.Printf("[!] Failed to update bucket policies for account %s: %v\n", accountID, err)
+			return
+		}
+		if updated > 0 {
+			fmt.Printf("[*] Updated %d bucket policy(ies) to include account %s\n", updated, accountID)
+		}
+	})
 
 	// Create adapters
 	sessionAdapter := core.NewSessionAdapter(sessionManager)
@@ -90,6 +115,8 @@ func (c *CLI) CreateRootCommand() *cobra.Command {
 		c.createIdCmd(),
 		c.createIdsCmd(),
 		c.createWorkspacesCmd(),
+		c.createListenerCmd(),
+		c.createInfraCmd(),
 	}
 	for _, alias := range aliases {
 		alias.Hidden = true

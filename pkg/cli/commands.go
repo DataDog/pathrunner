@@ -799,6 +799,14 @@ func (c *CLI) createAttackerCmd() *cobra.Command {
 	infraEC2Cmd.AddCommand(infraEC2CreateCmd)
 
 	infraEC2Cmd.AddCommand(&cobra.Command{
+		Use:   "update",
+		Short: "Update pathrunner binary on existing EC2 instance",
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("attacker infra ec2 update")
+		},
+	})
+
+	infraEC2Cmd.AddCommand(&cobra.Command{
 		Use:   "status",
 		Short: "Show EC2 deployment status",
 		Run: func(cmd *cobra.Command, args []string) {
@@ -922,4 +930,198 @@ func (c *CLI) createSessionsCmd() *cobra.Command {
 	})
 
 	return sessionsCmd
+}
+
+// createListenerCmd creates a top-level "listener" alias for "attacker listener"
+func (c *CLI) createListenerCmd() *cobra.Command {
+	listenerCmd := &cobra.Command{
+		Use:   "listener",
+		Short: "Manage the unified credential collector and shell listener (alias for attacker listener)",
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("attacker listener")
+		},
+	}
+
+	listenerStartCmd := &cobra.Command{
+		Use:   "start",
+		Short: "Start the unified listener (HTTPS creds + TLS shells)",
+		Run: func(cmd *cobra.Command, args []string) {
+			var replArgs []string
+			replArgs = append(replArgs, "attacker", "listener", "start")
+
+			if v, _ := cmd.Flags().GetInt("https-port"); v != 0 {
+				replArgs = append(replArgs, "--https-port", fmt.Sprintf("%d", v))
+			}
+			if v, _ := cmd.Flags().GetInt("shell-port"); v != 0 {
+				replArgs = append(replArgs, "--shell-port", fmt.Sprintf("%d", v))
+			}
+			if v, _ := cmd.Flags().GetString("host"); v != "" {
+				replArgs = append(replArgs, "--host", v)
+			}
+			if v, _ := cmd.Flags().GetString("public-ip"); v != "" {
+				replArgs = append(replArgs, "--public-ip", v)
+			}
+			c.executeREPLCommand(strings.Join(replArgs, " "))
+		},
+	}
+	listenerStartCmd.Flags().Int("https-port", 0, "Credential collection port (default: 8443)")
+	listenerStartCmd.Flags().Int("shell-port", 0, "Reverse shell port (default: 4444)")
+	listenerStartCmd.Flags().String("host", "", "Bind address (default: 0.0.0.0)")
+	listenerStartCmd.Flags().String("public-ip", "", "Override auto-detected public IP")
+	listenerCmd.AddCommand(listenerStartCmd)
+
+	listenerCmd.AddCommand(&cobra.Command{
+		Use:   "stop",
+		Short: "Stop the listener",
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("attacker listener stop")
+		},
+	})
+
+	listenerCmd.AddCommand(&cobra.Command{
+		Use:   "status",
+		Short: "Show listener state and statistics",
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("attacker listener status")
+		},
+	})
+
+	listenerLogCmd := &cobra.Command{
+		Use:   "log",
+		Short: "Show recent listener events",
+		Run: func(cmd *cobra.Command, args []string) {
+			replArgs := []string{"attacker", "listener", "log"}
+			if v, _ := cmd.Flags().GetInt("count"); v != 0 {
+				replArgs = append(replArgs, "--count", fmt.Sprintf("%d", v))
+			}
+			c.executeREPLCommand(strings.Join(replArgs, " "))
+		},
+	}
+	listenerLogCmd.Flags().Int("count", 50, "Number of recent events to show")
+	listenerCmd.AddCommand(listenerLogCmd)
+
+	return listenerCmd
+}
+
+// createInfraCmd creates a top-level "infra" alias for "attacker infra"
+func (c *CLI) createInfraCmd() *cobra.Command {
+	infraCmd := &cobra.Command{
+		Use:   "infra",
+		Short: "Manage attacker infrastructure (alias for attacker infra)",
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("attacker infra")
+		},
+	}
+
+	// infra ec2
+	infraEC2Cmd := &cobra.Command{
+		Use:   "ec2",
+		Short: "Deploy pathrunner to an EC2 instance",
+	}
+
+	infraEC2CreateCmd := &cobra.Command{
+		Use:   "create",
+		Short: "Create or update EC2 deployment",
+		Run: func(cmd *cobra.Command, args []string) {
+			replArgs := []string{"attacker", "infra", "ec2", "create"}
+			if v, _ := cmd.Flags().GetString("region"); v != "" {
+				replArgs = append(replArgs, "--region", v)
+			}
+			c.executeREPLCommand(strings.Join(replArgs, " "))
+		},
+	}
+	infraEC2CreateCmd.Flags().String("region", "", "AWS region for the EC2 instance")
+	infraEC2Cmd.AddCommand(infraEC2CreateCmd)
+
+	infraEC2Cmd.AddCommand(&cobra.Command{
+		Use:   "update",
+		Short: "Update pathrunner binary on existing EC2 instance",
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("attacker infra ec2 update")
+		},
+	})
+
+	infraEC2Cmd.AddCommand(&cobra.Command{
+		Use:   "status",
+		Short: "Show EC2 deployment status",
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("attacker infra ec2 status")
+		},
+	})
+
+	infraEC2Cmd.AddCommand(&cobra.Command{
+		Use:   "destroy",
+		Short: "Tear down EC2 deployment",
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("attacker infra ec2 destroy")
+		},
+	})
+
+	infraCmd.AddCommand(infraEC2Cmd)
+
+	// infra bucket
+	infraBucketCmd := &cobra.Command{
+		Use:   "bucket",
+		Short: "Manage S3 bucket deployments",
+	}
+
+	infraBucketCreateCmd := &cobra.Command{
+		Use:   "create",
+		Short: "Create an S3 bucket for code hosting or exfiltration",
+		Run: func(cmd *cobra.Command, args []string) {
+			replArgs := []string{"attacker", "infra", "bucket", "create"}
+			if bucketType, _ := cmd.Flags().GetString("type"); bucketType != "" {
+				replArgs = append(replArgs, "--type", bucketType)
+			}
+			if region, _ := cmd.Flags().GetString("region"); region != "" {
+				replArgs = append(replArgs, "--region", region)
+			}
+			c.executeREPLCommand(strings.Join(replArgs, " "))
+		},
+	}
+	infraBucketCreateCmd.Flags().String("type", "", "Bucket type: code or exfil (default: exfil)")
+	infraBucketCreateCmd.Flags().String("region", "", "AWS region for the bucket")
+	infraBucketCmd.AddCommand(infraBucketCreateCmd)
+
+	infraBucketCmd.AddCommand(&cobra.Command{
+		Use:   "status",
+		Short: "Show deployed buckets",
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("attacker infra bucket status")
+		},
+	})
+
+	infraBucketDestroyCmd := &cobra.Command{
+		Use:   "destroy",
+		Short: "Destroy deployed bucket(s)",
+		Run: func(cmd *cobra.Command, args []string) {
+			replArgs := []string{"attacker", "infra", "bucket", "destroy"}
+			if name, _ := cmd.Flags().GetString("name"); name != "" {
+				replArgs = append(replArgs, "--name", name)
+			}
+			c.executeREPLCommand(strings.Join(replArgs, " "))
+		},
+	}
+	infraBucketDestroyCmd.Flags().String("name", "", "Specific bucket name to destroy (destroys all if omitted)")
+	infraBucketCmd.AddCommand(infraBucketDestroyCmd)
+
+	infraCmd.AddCommand(infraBucketCmd)
+
+	infraCmd.AddCommand(&cobra.Command{
+		Use:   "status",
+		Short: "Show all deployed infrastructure",
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("attacker infra status")
+		},
+	})
+
+	infraCmd.AddCommand(&cobra.Command{
+		Use:   "destroy",
+		Short: "Tear down ALL deployed infrastructure",
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("attacker infra destroy")
+		},
+	})
+
+	return infraCmd
 }

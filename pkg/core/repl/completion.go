@@ -7,8 +7,19 @@ import (
 	"github.com/chzyer/readline"
 )
 
+// aliasCompleter creates a completer for an alias by reusing the children of an existing completer.
+// This avoids duplicating the entire subtree for each alias (e.g., identities, id, ids all share identity's subtree).
+func aliasCompleter(aliasName string, original readline.PrefixCompleterInterface) readline.PrefixCompleterInterface {
+	return readline.PcItem(aliasName, original.GetChildren()...)
+}
+
 // getCompleter returns the auto-completion system
 func (r *REPL) getCompleter() readline.AutoCompleter {
+	identityTree := r.buildIdentityCompleter()
+	workspaceTree := r.buildWorkspaceCompleter()
+	sessionsTree := r.buildSessionsCompleter()
+	attackerTree := r.buildAttackerCompleter()
+
 	return readline.NewPrefixCompleter(
 		readline.PcItem("help",
 			readline.PcItem("identity"),
@@ -29,14 +40,16 @@ func (r *REPL) getCompleter() readline.AutoCompleter {
 			readline.PcItem("version"),
 			readline.PcItem("info"),
 			readline.PcItem("sessions"),
+			readline.PcItem("listener"),
+			readline.PcItem("infra"),
+			readline.PcItem("run"),
 		),
 		readline.PcItem("exit"),
 		readline.PcItem("quit"),
-		r.buildIdentityCompleter(),
-		// Add alias completers for identity
-		r.buildIdentitiesCompleter(),
-		r.buildIdCompleter(),
-		r.buildIdsCompleter(),
+		identityTree,
+		aliasCompleter("identities", identityTree),
+		aliasCompleter("id", identityTree),
+		aliasCompleter("ids", identityTree),
 		r.buildUseCompleter(),
 		readline.PcItem("show",
 			readline.PcItem("modules"),
@@ -53,15 +66,20 @@ func (r *REPL) getCompleter() readline.AutoCompleter {
 		readline.PcItem("exploit",
 			readline.PcItem("help"),
 		),
+		readline.PcItem("run",
+			readline.PcItem("help"),
+		),
 		readline.PcItem("whoami",
 			readline.PcItem("help"),
 		),
-		r.buildAttackerCompleter(),
-		r.buildSessionsCompleter(),
-		r.buildSessionCompleter(),
-		r.buildWorkspaceCompleter(),
-		// Add alias completers
-		r.buildWorkspacesCompleter(),
+		attackerTree,
+		sessionsTree,
+		aliasCompleter("session", sessionsTree),
+		workspaceTree,
+		aliasCompleter("workspaces", workspaceTree),
+		// Top-level aliases for deeply nested attacker subcommands
+		r.buildListenerCompleter(),
+		r.buildInfraCompleter(),
 		readline.PcItem("context",
 			readline.PcItem("help"),
 		),
@@ -95,10 +113,8 @@ func (r *REPL) buildUseCompleter() readline.PrefixCompleterInterface {
 
 // buildIdentityCompleter builds completion for identity commands
 func (r *REPL) buildIdentityCompleter() readline.PrefixCompleterInterface {
-	// Get list of existing identities for switch/clear commands
 	var identityItems []readline.PrefixCompleterInterface
 
-	// Get identities from identity manager
 	identities := r.identityManager.GetIdentities()
 	for name := range identities {
 		identityItems = append(identityItems, readline.PcItem(name))
@@ -159,7 +175,6 @@ func (r *REPL) buildSetCompleter() readline.PrefixCompleterInterface {
 	items = append(items, readline.PcItem("help"))
 
 	for _, option := range options {
-		// Special handling for PAYLOAD option
 		if strings.ToUpper(option.Name) == "PAYLOAD" {
 			payloads := r.currentModule.ListPayloads()
 			payloadItems := make([]readline.PrefixCompleterInterface, len(payloads))
@@ -172,7 +187,6 @@ func (r *REPL) buildSetCompleter() readline.PrefixCompleterInterface {
 		}
 	}
 
-	// Add payload-specific options when a payload is selected
 	if selectedPayload, ok := r.options["PAYLOAD"]; ok && selectedPayload != "" {
 		payloadOpts := r.currentModule.PayloadOptions(selectedPayload)
 		for _, opt := range payloadOpts {
@@ -196,7 +210,6 @@ func (r *REPL) buildUnsetCompleter() readline.PrefixCompleterInterface {
 		items = append(items, readline.PcItem(option.Name))
 	}
 
-	// Add payload-specific options when a payload is selected
 	if selectedPayload, ok := r.options["PAYLOAD"]; ok && selectedPayload != "" {
 		payloadOpts := r.currentModule.PayloadOptions(selectedPayload)
 		for _, opt := range payloadOpts {
@@ -209,10 +222,8 @@ func (r *REPL) buildUnsetCompleter() readline.PrefixCompleterInterface {
 
 // buildWorkspaceCompleter builds completion for workspace commands
 func (r *REPL) buildWorkspaceCompleter() readline.PrefixCompleterInterface {
-	// Get workspace names for commands that need them
 	var workspaceItems []readline.PrefixCompleterInterface
 
-	// Get workspaces from session manager
 	sessions, err := r.sessionManager.ListSessions()
 	if err == nil {
 		for _, session := range sessions {
@@ -242,169 +253,8 @@ func (r *REPL) buildWorkspaceCompleter() readline.PrefixCompleterInterface {
 func (r *REPL) updateCompletion() {
 	if r.rl != nil {
 		r.rl.Config.AutoComplete = r.getCompleter()
-		r.UpdatePrompt() // Update prompt when completion changes
+		r.UpdatePrompt()
 	}
-}
-
-// buildIdentitiesCompleter builds completion for identities command (alias for identity)
-func (r *REPL) buildIdentitiesCompleter() readline.PrefixCompleterInterface {
-	// Get list of existing identities for switch/clear commands
-	var identityItems []readline.PrefixCompleterInterface
-
-	// Get identities from identity manager
-	identities := r.identityManager.GetIdentities()
-	for name := range identities {
-		identityItems = append(identityItems, readline.PcItem(name))
-	}
-
-	return readline.PcItem("identities",
-		readline.PcItem("add",
-			readline.PcItem("--profile"),
-			readline.PcItem("--access",
-				readline.PcItem("--secret",
-					readline.PcItem("--token"),
-					readline.PcItem("--name"),
-					readline.PcItem("--switch"),
-					readline.PcItem("--check-admin"),
-				),
-			),
-			readline.PcItem("--from-output",
-				readline.PcItem("--name"),
-				readline.PcItem("--switch"),
-				readline.PcItem("--check-admin"),
-			),
-			readline.PcItem("--from-file",
-				readline.PcItem("--name"),
-				readline.PcItem("--switch"),
-				readline.PcItem("--check-admin"),
-			),
-			readline.PcItem("--from-clipboard",
-				readline.PcItem("--name"),
-				readline.PcItem("--switch"),
-				readline.PcItem("--check-admin"),
-			),
-			readline.PcItem("--switch"),
-			readline.PcItem("--check-admin"),
-		),
-		readline.PcItem("list"),
-		readline.PcItem("show"),
-		readline.PcItem("switch", identityItems...),
-		readline.PcItem("check", identityItems...),
-		readline.PcItem("refresh"),
-		readline.PcItem("clear",
-			readline.PcItem("--expired"),
-		),
-		readline.PcItem("remove",
-			readline.PcItem("--expired"),
-		),
-		readline.PcItem("help"),
-	)
-}
-
-// buildIdCompleter builds completion for id command (alias for identity)
-func (r *REPL) buildIdCompleter() readline.PrefixCompleterInterface {
-	var identityItems []readline.PrefixCompleterInterface
-
-	identities := r.identityManager.GetIdentities()
-	for name := range identities {
-		identityItems = append(identityItems, readline.PcItem(name))
-	}
-
-	return readline.PcItem("id",
-		readline.PcItem("add",
-			readline.PcItem("--profile"),
-			readline.PcItem("--access",
-				readline.PcItem("--secret",
-					readline.PcItem("--token"),
-					readline.PcItem("--name"),
-					readline.PcItem("--switch"),
-					readline.PcItem("--check-admin"),
-				),
-			),
-			readline.PcItem("--from-output",
-				readline.PcItem("--name"),
-				readline.PcItem("--switch"),
-				readline.PcItem("--check-admin"),
-			),
-			readline.PcItem("--from-file",
-				readline.PcItem("--name"),
-				readline.PcItem("--switch"),
-				readline.PcItem("--check-admin"),
-			),
-			readline.PcItem("--from-clipboard",
-				readline.PcItem("--name"),
-				readline.PcItem("--switch"),
-				readline.PcItem("--check-admin"),
-			),
-			readline.PcItem("--switch"),
-			readline.PcItem("--check-admin"),
-		),
-		readline.PcItem("list"),
-		readline.PcItem("show"),
-		readline.PcItem("switch", identityItems...),
-		readline.PcItem("check", identityItems...),
-		readline.PcItem("refresh"),
-		readline.PcItem("clear",
-			readline.PcItem("--expired"),
-		),
-		readline.PcItem("remove",
-			readline.PcItem("--expired"),
-		),
-		readline.PcItem("help"),
-	)
-}
-
-// buildIdsCompleter builds completion for ids command (alias for identity)
-func (r *REPL) buildIdsCompleter() readline.PrefixCompleterInterface {
-	var identityItems []readline.PrefixCompleterInterface
-
-	identities := r.identityManager.GetIdentities()
-	for name := range identities {
-		identityItems = append(identityItems, readline.PcItem(name))
-	}
-
-	return readline.PcItem("ids",
-		readline.PcItem("add",
-			readline.PcItem("--profile"),
-			readline.PcItem("--access",
-				readline.PcItem("--secret",
-					readline.PcItem("--token"),
-					readline.PcItem("--name"),
-					readline.PcItem("--switch"),
-					readline.PcItem("--check-admin"),
-				),
-			),
-			readline.PcItem("--from-output",
-				readline.PcItem("--name"),
-				readline.PcItem("--switch"),
-				readline.PcItem("--check-admin"),
-			),
-			readline.PcItem("--from-file",
-				readline.PcItem("--name"),
-				readline.PcItem("--switch"),
-				readline.PcItem("--check-admin"),
-			),
-			readline.PcItem("--from-clipboard",
-				readline.PcItem("--name"),
-				readline.PcItem("--switch"),
-				readline.PcItem("--check-admin"),
-			),
-			readline.PcItem("--switch"),
-			readline.PcItem("--check-admin"),
-		),
-		readline.PcItem("list"),
-		readline.PcItem("show"),
-		readline.PcItem("switch", identityItems...),
-		readline.PcItem("check", identityItems...),
-		readline.PcItem("refresh"),
-		readline.PcItem("clear",
-			readline.PcItem("--expired"),
-		),
-		readline.PcItem("remove",
-			readline.PcItem("--expired"),
-		),
-		readline.PcItem("help"),
-	)
 }
 
 // buildAttackerCompleter builds completion for the attacker command
@@ -423,46 +273,67 @@ func (r *REPL) buildAttackerCompleter() readline.PrefixCompleterInterface {
 		readline.PcItem("show"),
 		readline.PcItem("validate"),
 		readline.PcItem("clear"),
-		readline.PcItem("listener",
-			readline.PcItem("start",
-				readline.PcItem("--https-port"),
-				readline.PcItem("--shell-port"),
-				readline.PcItem("--host"),
-				readline.PcItem("--public-ip"),
-			),
-			readline.PcItem("stop"),
-			readline.PcItem("status"),
-			readline.PcItem("log",
-				readline.PcItem("--count"),
-			),
-			readline.PcItem("help"),
+		r.buildListenerSubtree(),
+		r.buildInfraSubtree(),
+		readline.PcItem("help"),
+	)
+}
+
+// buildListenerSubtree returns the listener subtree for use inside the attacker completer
+func (r *REPL) buildListenerSubtree() readline.PrefixCompleterInterface {
+	return readline.PcItem("listener",
+		readline.PcItem("start",
+			readline.PcItem("--https-port"),
+			readline.PcItem("--shell-port"),
+			readline.PcItem("--host"),
+			readline.PcItem("--public-ip"),
 		),
-		readline.PcItem("infra",
-			readline.PcItem("ec2",
-				readline.PcItem("create",
-					readline.PcItem("--region"),
-				),
-				readline.PcItem("status"),
-				readline.PcItem("destroy"),
-				readline.PcItem("help"),
+		readline.PcItem("stop"),
+		readline.PcItem("status"),
+		readline.PcItem("log",
+			readline.PcItem("--count"),
+		),
+		readline.PcItem("help"),
+	)
+}
+
+// buildInfraSubtree returns the infra subtree for use inside the attacker completer
+func (r *REPL) buildInfraSubtree() readline.PrefixCompleterInterface {
+	return readline.PcItem("infra",
+		readline.PcItem("ec2",
+			readline.PcItem("create",
+				readline.PcItem("--region"),
 			),
-			readline.PcItem("bucket",
-				readline.PcItem("create",
-					readline.PcItem("--type"),
-					readline.PcItem("--region"),
-				),
-				readline.PcItem("status"),
-				readline.PcItem("destroy",
-					readline.PcItem("--name"),
-				),
-				readline.PcItem("help"),
-			),
+			readline.PcItem("update"),
 			readline.PcItem("status"),
 			readline.PcItem("destroy"),
 			readline.PcItem("help"),
 		),
+		readline.PcItem("bucket",
+			readline.PcItem("create",
+				readline.PcItem("--type"),
+				readline.PcItem("--region"),
+			),
+			readline.PcItem("status"),
+			readline.PcItem("destroy",
+				readline.PcItem("--name"),
+			),
+			readline.PcItem("help"),
+		),
+		readline.PcItem("status"),
+		readline.PcItem("destroy"),
 		readline.PcItem("help"),
 	)
+}
+
+// buildListenerCompleter builds the top-level "listener" alias completer
+func (r *REPL) buildListenerCompleter() readline.PrefixCompleterInterface {
+	return r.buildListenerSubtree()
+}
+
+// buildInfraCompleter builds the top-level "infra" alias completer
+func (r *REPL) buildInfraCompleter() readline.PrefixCompleterInterface {
+	return r.buildInfraSubtree()
 }
 
 // buildModulesCompleter builds completion for the top-level modules command
@@ -496,7 +367,6 @@ func (r *REPL) buildSearchCompleter() readline.PrefixCompleterInterface {
 func (r *REPL) buildDiscoverCompleter() readline.PrefixCompleterInterface {
 	items := []readline.PrefixCompleterInterface{readline.PcItem("help")}
 
-	// If module implements Discoverable, include option names
 	if r.currentModule != nil {
 		if discoverable, ok := r.currentModule.(modules.Discoverable); ok {
 			for _, opt := range discoverable.DiscoverableOptions() {
@@ -534,47 +404,6 @@ func (r *REPL) buildSessionsCompleter() readline.PrefixCompleterInterface {
 		readline.PcItem("kill"),
 		readline.PcItem("-i"),
 		readline.PcItem("-k"),
-		readline.PcItem("help"),
-	)
-}
-
-// buildSessionCompleter builds completion for session command (alias for sessions)
-func (r *REPL) buildSessionCompleter() readline.PrefixCompleterInterface {
-	return readline.PcItem("session",
-		readline.PcItem("list"),
-		readline.PcItem("interact"),
-		readline.PcItem("kill"),
-		readline.PcItem("-i"),
-		readline.PcItem("-k"),
-		readline.PcItem("help"),
-	)
-}
-
-// buildWorkspacesCompleter builds completion for workspaces command (alias for workspace)
-func (r *REPL) buildWorkspacesCompleter() readline.PrefixCompleterInterface {
-	var workspaceItems []readline.PrefixCompleterInterface
-
-	sessions, err := r.sessionManager.ListSessions()
-	if err == nil {
-		for _, session := range sessions {
-			workspaceItems = append(workspaceItems, readline.PcItem(session.GetName()))
-		}
-	}
-
-	return readline.PcItem("workspaces",
-		readline.PcItem("create"),
-		readline.PcItem("list"),
-		readline.PcItem("switch", workspaceItems...),
-		readline.PcItem("save"),
-		readline.PcItem("delete", workspaceItems...),
-		readline.PcItem("cleanup",
-			readline.PcItem("--all"),
-			readline.PcItem("--module"),
-		),
-		readline.PcItem("report",
-			readline.PcItem("--module"),
-		),
-		readline.PcItem("history"),
 		readline.PcItem("help"),
 	)
 }

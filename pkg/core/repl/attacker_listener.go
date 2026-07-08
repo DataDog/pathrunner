@@ -195,9 +195,6 @@ func (r *REPL) injectListenerOptions(config attacker.ListenerConfig) {
 
 	optionDefaults := map[string]string{
 		"HTTPS_URL":     fmt.Sprintf("https://%s:%d/collect", config.PublicIP, config.HTTPSPort),
-		"WEBHOOK_URL":   fmt.Sprintf("https://%s:%d/collect", config.PublicIP, config.HTTPSPort),
-		"LHOST":         config.PublicIP,
-		"LPORT":         fmt.Sprintf("%d", config.ShellPort),
 		"LISTENER_IP":   config.PublicIP,
 		"LISTENER_PORT": fmt.Sprintf("%d", config.ShellPort),
 	}

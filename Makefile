@@ -5,9 +5,12 @@ LDFLAGS := -X pathrunner/pkg/version.Version=$(VERSION) \
            -X pathrunner/pkg/version.GitCommit=$(GIT_COMMIT) \
            -X pathrunner/pkg/version.BuildDate=$(BUILD_DATE)
 
-.PHONY: build dev clean test
+.PHONY: build dev clean test generate
 
-build:
+generate:
+	go generate ./pkg/exploits/
+
+build: generate
 	go build -ldflags "$(LDFLAGS)" -o pathrunner cmd/pathrunner/main.go
 
 dev:

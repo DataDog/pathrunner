@@ -29,9 +29,10 @@ type EC2DeployState struct {
 
 // BucketDeployState tracks a deployed attacker S3 bucket.
 type BucketDeployState struct {
-	Name   string `json:"name"`
-	Type   string `json:"type"` // "code" or "exfil"
-	Region string `json:"region"`
+	Name       string   `json:"name"`
+	Type       string   `json:"type"` // "code" or "exfil"
+	Region     string   `json:"region"`
+	AccountIDs []string `json:"account_ids"` // victim account IDs granted access via resource policy
 }
 
 // deployStatePath returns the path to the deploy state file.

@@ -430,6 +430,94 @@ func TestAttackerDeployBucketUnknownAction(t *testing.T) {
 	}
 }
 
+func TestGetCodeBucket(t *testing.T) {
+	tempDir := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	os.Setenv("HOME", tempDir)
+	defer os.Setenv("HOME", originalHome)
+
+	// No state — should return empty
+	if got := attacker.GetCodeBucket(); got != "" {
+		t.Errorf("Expected empty string for no state, got %s", got)
+	}
+
+	// State with only exfil bucket — should return empty
+	state := &attacker.DeployState{
+		Buckets: []attacker.BucketDeployState{
+			{Name: "test-exfil", Type: "exfil", Region: "us-east-1"},
+		},
+	}
+	attacker.SaveDeployState(state)
+
+	if got := attacker.GetCodeBucket(); got != "" {
+		t.Errorf("Expected empty string with only exfil bucket, got %s", got)
+	}
+
+	// State with code bucket — should return it
+	state.Buckets = append(state.Buckets, attacker.BucketDeployState{
+		Name: "test-code", Type: "code", Region: "us-east-1",
+	})
+	attacker.SaveDeployState(state)
+
+	if got := attacker.GetCodeBucket(); got != "test-code" {
+		t.Errorf("Expected test-code, got %s", got)
+	}
+
+	attacker.RemoveDeployState()
+}
+
+func TestGetExfilBucket(t *testing.T) {
+	tempDir := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	os.Setenv("HOME", tempDir)
+	defer os.Setenv("HOME", originalHome)
+
+	// No state — should return empty
+	if got := attacker.GetExfilBucket(); got != "" {
+		t.Errorf("Expected empty string for no state, got %s", got)
+	}
+
+	// State with exfil bucket — should return it
+	state := &attacker.DeployState{
+		Buckets: []attacker.BucketDeployState{
+			{Name: "test-exfil", Type: "exfil", Region: "us-east-1"},
+		},
+	}
+	attacker.SaveDeployState(state)
+
+	if got := attacker.GetExfilBucket(); got != "test-exfil" {
+		t.Errorf("Expected test-exfil, got %s", got)
+	}
+
+	attacker.RemoveDeployState()
+}
+
+func TestHasDeployedBuckets(t *testing.T) {
+	tempDir := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	os.Setenv("HOME", tempDir)
+	defer os.Setenv("HOME", originalHome)
+
+	// No state
+	if attacker.HasDeployedBuckets() {
+		t.Error("Expected false for no state")
+	}
+
+	// With buckets
+	state := &attacker.DeployState{
+		Buckets: []attacker.BucketDeployState{
+			{Name: "test-bucket", Type: "exfil", Region: "us-east-1"},
+		},
+	}
+	attacker.SaveDeployState(state)
+
+	if !attacker.HasDeployedBuckets() {
+		t.Error("Expected true with deployed buckets")
+	}
+
+	attacker.RemoveDeployState()
+}
+
 func TestAttackerDeployBucketStatusWithSavedBuckets(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")

@@ -1,5 +1,31 @@
 # Payload Patterns and Reuse Guide
 
+## Modular, Service-Scoped Registry
+
+Payloads are decoupled from modules. Each payload lives under `pkg/payloads/{service}/` (`ec2/`, `lambda/`, `glue/` — add a new service directory only when introducing that service's first payload), self-registers in `init()` via `payloads.Register(&MyPayload{})`, and declares its context via tags: `TagService{...}`, `TagLanguage{...}`, `TagTechnique{...}`, `TagTransport{...}` (see `pkg/payloads/tags.go`).
+
+The registry uses a composite `(service, name)` key, so `backdoor/attach-policy` can exist independently under `pkg/payloads/ec2/`, `pkg/payloads/lambda/`, and `pkg/payloads/glue/` — each generates language-appropriate code (bash vs Python) for the same logical action. Modules never hardcode a payload list; they declare `GetCompatibleTags()` and the registry surfaces every matching payload at runtime via `GetPayloadsByTags`. This is what makes the payload system **modular**: adding a new payload file (with its `init()`) automatically makes it available to every module whose tags match — no module or REPL changes needed.
+
+## Attacker Infra & Listener-Dependent Payloads
+
+`pkg/attacker/` runs a `UnifiedListener` that combines an HTTPS `/collect` endpoint (for credential exfil) and a TLS reverse-shell listener. The listener can run locally OR on the attacker EC2 box deployed via `attacker infra ec2 create` — payloads dial back to it either way, so from the payload's perspective it's just "reach the listener at `LISTENER_IP:LISTENER_PORT` / `HTTPS_URL`."
+
+When `attacker listener start` runs and resolves a public IP, the REPL auto-injects these payload options into the current session (see `injectListenerOptions` in `pkg/core/repl/attacker_listener.go`), and they'll persist until explicitly unset:
+
+| Option | Auto-injected value | Used by |
+|---|---|---|
+| `LISTENER_IP` | Listener's public IP | `revshell/tls` |
+| `LISTENER_PORT` | Listener's ShellPort (default `4444`) | `revshell/tls` |
+| `HTTPS_URL` | `https://<PublicIP>:<HTTPSPort>/collect` | `exfil/https` |
+
+Separately, `attacker infra bucket create` provisions the exfil S3 bucket and stores its name in workspace state. When a module's payload declares an `EXFIL_BUCKET` option, `pkg/core/repl/module.go` auto-populates it from `attacker.GetExfilBucket()`; same path auto-defaults `TARGET_ARN` to the current identity's ARN.
+
+**Conventions when authoring a new listener-dependent payload:**
+- Reuse the standard option names above so the auto-inject wiring picks them up — don't invent new names like `CALLBACK_HOST` or `SHELL_IP`.
+- Read them via `os.environ.get()` (Lambda/Glue Python) or `${LISTENER_IP}` shell expansion (EC2 bash) rather than string-substituting into the source at code-gen time.
+- If your payload posts JSON to the `/collect` endpoint, follow the shape the listener's `creds_handler` expects (see `pkg/attacker/creds_handler.go`) so credentials auto-import as new identities.
+- Reverse shells register with the listener's `ShellSessionManager` automatically on connect — they're then interactable via `sessions list/interact/kill`. No extra wiring in the payload.
+
 ## When to Reuse vs Create New Payloads
 
 ### Decision Tree
@@ -12,7 +38,7 @@
 
 2. Does `pkg/payloads/{service}/` already exist?
    - If YES: check existing payloads first
-   - If NO: create the directory and at least `exfil/response` payload
+   - If NO: create the directory and the payload(s) needed for this specific module. For direct-invoke modules, `exfil/response` is usually a good starter; for event-triggered modules, `exfil/response` cannot capture output — start with an action-based payload (`backdoor/*`) or an out-of-band exfil (`exfil/https`, `exfil/s3`).
 
 3. For the existing service, does an existing payload match the exploitation pattern?
    - Same code execution context → reuse directly
@@ -29,21 +55,48 @@ existingPayloads := payloads.GetPayloadsByTags([]string{payloads.TagServiceLambd
 
 ### Current Payload Inventory
 
+Always run `grep -rE 'return "(exfil|backdoor|access|revshell)/[a-z-]+"' pkg/payloads/` before adding a new payload — the tables below are a snapshot and may lag actual state.
+
 #### Lambda (Python) — `pkg/payloads/lambda/`
-| Payload | Tags | Description | Optional Interfaces |
-|---------|------|-------------|---------------------|
-| `exfil/response` | lambda, python, exfil, response | Returns credentials via Lambda response | — |
-| `exfil/https` | lambda, python, exfil, https | Sends credentials via HTTPS POST | — |
-| `backdoor/create-role` | lambda, python, backdoor | Creates IAM role with admin trust policy | SideEffectReporter |
-| `backdoor/create-user` | lambda, python, backdoor | Creates IAM user with admin access | — |
-| `backdoor/attach-policy` | lambda, python, backdoor | Attaches AdministratorAccess to an existing IAM user | Verifiable, SideEffectReporter |
+| Payload | Description | Optional Interfaces |
+|---------|-------------|---------------------|
+| `exfil/response` | Returns credentials via Lambda return value (direct-invoke only) | — |
+| `exfil/https` | Sends credentials via HTTPS POST to attacker listener | — |
+| `exfil/s3` | Writes credentials into an attacker-owned S3 bucket | — |
+| `backdoor/attach-policy` | Attaches an admin policy to an existing IAM principal | Verifiable, SideEffectReporter |
+| `backdoor/create-role` | Creates IAM role with admin trust policy | SideEffectReporter |
+| `backdoor/create-user` | Creates IAM user with admin access | SideEffectReporter |
+| `backdoor/create-access-key` | Creates new access key for an existing IAM user | SideEffectReporter |
+| `backdoor/update-role-trust` | Rewrites a target role's trust policy to allow the attacker | SideEffectReporter |
+| `revshell/tls` | Opens a TLS reverse shell to the attacker listener | — |
 
 #### EC2 (Bash) — `pkg/payloads/ec2/`
-| Payload | Tags | Description |
-|---------|------|-------------|
-| `exfil/https` | ec2, bash, exfil, https | Sends instance metadata creds via HTTPS POST |
-| `backdoor/attach-policy` | ec2, bash, backdoor | Attaches admin policy to instance role |
-| `access/reverse-tcp` | ec2, bash, access, tcp | Opens reverse TCP shell to attacker |
+| Payload | Description | Optional Interfaces |
+|---------|-------------|---------------------|
+| `exfil/https` | Sends instance-metadata creds via HTTPS POST | — |
+| `exfil/s3` | Writes instance-metadata creds to an attacker-owned S3 bucket | — |
+| `backdoor/attach-policy` | Attaches admin policy to a target principal | SideEffectReporter |
+| `backdoor/create-role` | Creates IAM role with admin trust policy | SideEffectReporter |
+| `backdoor/create-user` | Creates IAM user with admin access | SideEffectReporter |
+| `backdoor/create-access-key` | Creates access key for an existing IAM user | SideEffectReporter |
+| `backdoor/update-role-trust` | Rewrites a target role's trust policy | SideEffectReporter |
+| `revshell/tls` | Opens a TLS reverse shell (file: `access_reverse_tls.go`, name still `revshell/tls`) | — |
+
+Also under `pkg/payloads/ec2/`: `imds.go` is a shared helper for building IMDSv2 token fetch snippets — not a registered payload.
+
+#### Glue (Python) — `pkg/payloads/glue/`
+| Payload | Description | Optional Interfaces |
+|---------|-------------|---------------------|
+| `exfil/response` | Prints credentials to Glue job output (readable via `GetJobRun`) | — |
+| `exfil/https` | Sends credentials via HTTPS POST | — |
+| `exfil/s3` | Writes credentials into an attacker-owned S3 bucket | — |
+| `exfil/cloudwatch` | Writes credentials into a CloudWatch log stream | — |
+| `backdoor/attach-policy` | Attaches admin policy to target principal | SideEffectReporter |
+| `backdoor/create-role` | Creates IAM role with admin trust policy | SideEffectReporter |
+| `backdoor/create-user` | Creates IAM user with admin access | SideEffectReporter |
+| `backdoor/create-access-key` | Creates access key for an existing IAM user | SideEffectReporter |
+| `backdoor/update-role-trust` | Rewrites a target role's trust policy | SideEffectReporter |
+| `revshell/tls` | Opens a TLS reverse shell | — |
 
 ## Payload Template: Lambda (Python)
 
@@ -336,15 +389,21 @@ Payloads follow `{category}/{action}` naming. No service prefix — same logical
 
 | Category | Purpose | Examples |
 |---|---|---|
-| `backdoor/` | IAM modification — escalating existing principals or creating new ones | `attach-policy`, `create-user`, `create-role` |
-| `exfil/` | Extract credentials/data to the attacker (read-only against AWS) | `response`, `https`, `dns` |
-| `access/` | Interactive access to the compute environment | `reverse-tcp`, `reverse-https`, `webshell` |
+| `backdoor/` | IAM modification — escalating existing principals or creating new ones | `attach-policy`, `create-user`, `create-role`, `create-access-key`, `update-role-trust` |
+| `exfil/` | Extract credentials/data to the attacker (read-only against AWS) | `response`, `https`, `s3`, `cloudwatch` |
+| `revshell/` | Interactive access — reverse shell to the attacker listener | `tls` |
+
+Note on tag alignment: `revshell/*` payload names currently use `TagTechniqueAccess` in their tag list (the `revshell` prefix has no dedicated tag constant in `pkg/payloads/tags.go`). If you introduce a distinct revshell payload family, either reuse `TagTechniqueAccess` for consistency with the existing ones or add a new `TagTechniqueRevshell` constant — but don't invent a new tag inline.
 
 ### Current Names
 
 - `exfil/response` — Return credentials via function/task return value (direct-invoke only)
 - `exfil/https` — Send credentials to attacker endpoint via HTTPS POST
-- `backdoor/attach-policy` — Attach AdministratorAccess to an existing IAM principal
+- `exfil/s3` — Write credentials to attacker-owned S3 bucket
+- `exfil/cloudwatch` — Write credentials to CloudWatch log stream (Glue)
+- `backdoor/attach-policy` — Attach a policy (default: AdministratorAccess) to an existing IAM principal
 - `backdoor/create-role` — Create IAM role with admin trust policy
 - `backdoor/create-user` — Create IAM user with admin access + keys
-- `access/reverse-tcp` — Open raw TCP reverse shell to attacker
+- `backdoor/create-access-key` — Create new access key for an existing IAM user
+- `backdoor/update-role-trust` — Rewrite a target role's trust policy so the attacker can assume it
+- `revshell/tls` — Open a TLS reverse shell to the attacker listener

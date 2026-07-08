@@ -1,0 +1,232 @@
+{
+  "modules": {
+    "ec2-001": {
+      "status": "untested",
+      "last_tested": null,
+      "tested_against": null,
+      "notes": ""
+    },
+    "ecs-001": {
+      "status": "tested",
+      "last_tested": "2026-07-08",
+      "tested_against": "ecs-001-to-admin",
+      "notes": ""
+    },
+    "ecs-002": {
+      "status": "tested",
+      "last_tested": "2026-07-08",
+      "tested_against": "ecs-002-to-admin",
+      "notes": ""
+    },
+    "ecs-003": {
+      "status": "tested",
+      "last_tested": "2026-07-08",
+      "tested_against": "ecs-003-to-admin",
+      "notes": ""
+    },
+    "ecs-004": {
+      "status": "tested",
+      "last_tested": "2026-07-08",
+      "tested_against": "ecs-004-to-admin",
+      "notes": ""
+    },
+    "ecs-005": {
+      "status": "tested",
+      "last_tested": "2026-07-08",
+      "tested_against": "ecs-005-to-admin",
+      "notes": ""
+    },
+    "ecs-006": {
+      "status": "tested",
+      "last_tested": "2026-07-08",
+      "tested_against": "ecs-006-to-admin",
+      "notes": ""
+    },
+    "ecs-008": {
+      "status": "tested",
+      "last_tested": "2026-07-08",
+      "tested_against": "ecs-008-to-admin",
+      "notes": ""
+    },
+    "ecs-009": {
+      "status": "tested",
+      "last_tested": "2026-07-08",
+      "tested_against": "ecs-009-to-admin",
+      "notes": ""
+    },
+    "glue-003": {
+      "status": "untested",
+      "last_tested": null,
+      "tested_against": null,
+      "notes": "first cross-account module, requires attacker identity"
+    },
+    "iam-001": {
+      "status": "untested",
+      "last_tested": null,
+      "tested_against": null,
+      "notes": ""
+    },
+    "iam-002": {
+      "status": "untested",
+      "last_tested": null,
+      "tested_against": null,
+      "notes": ""
+    },
+    "iam-003": {
+      "status": "untested",
+      "last_tested": null,
+      "tested_against": null,
+      "notes": ""
+    },
+    "iam-004": {
+      "status": "untested",
+      "last_tested": null,
+      "tested_against": null,
+      "notes": ""
+    },
+    "iam-005": {
+      "status": "untested",
+      "last_tested": null,
+      "tested_against": null,
+      "notes": ""
+    },
+    "iam-006": {
+      "status": "untested",
+      "last_tested": null,
+      "tested_against": null,
+      "notes": ""
+    },
+    "iam-007": {
+      "status": "untested",
+      "last_tested": null,
+      "tested_against": null,
+      "notes": ""
+    },
+    "iam-008": {
+      "status": "untested",
+      "last_tested": null,
+      "tested_against": null,
+      "notes": ""
+    },
+    "iam-009": {
+      "status": "untested",
+      "last_tested": null,
+      "tested_against": null,
+      "notes": ""
+    },
+    "iam-010": {
+      "status": "untested",
+      "last_tested": null,
+      "tested_against": null,
+      "notes": ""
+    },
+    "iam-011": {
+      "status": "untested",
+      "last_tested": null,
+      "tested_against": null,
+      "notes": ""
+    },
+    "iam-012": {
+      "status": "untested",
+      "last_tested": null,
+      "tested_against": null,
+      "notes": ""
+    },
+    "iam-013": {
+      "status": "untested",
+      "last_tested": null,
+      "tested_against": null,
+      "notes": ""
+    },
+    "iam-014": {
+      "status": "untested",
+      "last_tested": null,
+      "tested_against": null,
+      "notes": ""
+    },
+    "iam-015": {
+      "status": "untested",
+      "last_tested": null,
+      "tested_against": null,
+      "notes": ""
+    },
+    "iam-016": {
+      "status": "untested",
+      "last_tested": null,
+      "tested_against": null,
+      "notes": ""
+    },
+    "iam-017": {
+      "status": "untested",
+      "last_tested": null,
+      "tested_against": null,
+      "notes": ""
+    },
+    "iam-018": {
+      "status": "untested",
+      "last_tested": null,
+      "tested_against": null,
+      "notes": ""
+    },
+    "iam-019": {
+      "status": "untested",
+      "last_tested": null,
+      "tested_against": null,
+      "notes": ""
+    },
+    "iam-020": {
+      "status": "untested",
+      "last_tested": null,
+      "tested_against": null,
+      "notes": ""
+    },
+    "iam-021": {
+      "status": "untested",
+      "last_tested": null,
+      "tested_against": null,
+      "notes": ""
+    },
+    "lambda-001": {
+      "status": "tested",
+      "last_tested": "2026-06-15",
+      "tested_against": "pathfinding-labs/lambda-001",
+      "notes": ""
+    },
+    "lambda-002": {
+      "status": "tested",
+      "last_tested": "2026-06-15",
+      "tested_against": "pathfinding-labs/lambda-002",
+      "notes": ""
+    },
+    "lambda-003": {
+      "status": "untested",
+      "last_tested": null,
+      "tested_against": null,
+      "notes": ""
+    },
+    "lambda-004": {
+      "status": "untested",
+      "last_tested": null,
+      "tested_against": null,
+      "notes": ""
+    },
+    "lambda-005": {
+      "status": "untested",
+      "last_tested": null,
+      "tested_against": null,
+      "notes": ""
+    },
+    "lambda-006": {
+      "status": "untested",
+      "last_tested": null,
+      "tested_against": null,
+      "notes": ""
+    },
+    "sts-001": {
+      "status": "tested",
+      "last_tested": "2026-06-15",
+      "tested_against": "pathfinding-labs/sts-001",
+      "notes": ""
+    }
+  }
+}

