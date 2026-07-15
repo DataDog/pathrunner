@@ -19,6 +19,8 @@ func (r *REPL) cmdAttackerDeploy(args []string) error {
 		return r.cmdDeployEC2(args[1:])
 	case "bucket":
 		return r.cmdDeployBucket(args[1:])
+	case "ecr":
+		return r.cmdDeployECR(args[1:])
 	case "status":
 		return r.deployGlobalStatus()
 	case "destroy":
@@ -315,6 +317,134 @@ func (r *REPL) deployBucketDestroy(args []string) error {
 	return nil
 }
 
+// --- ECR subcommands ---
+
+func (r *REPL) cmdDeployECR(args []string) error {
+	if len(args) == 0 {
+		return r.deployECRCreate(nil)
+	}
+
+	switch args[0] {
+	case "create":
+		return r.deployECRCreate(args[1:])
+	case "status":
+		return r.deployECRStatus()
+	case "destroy":
+		return r.deployECRDestroy(args[1:])
+	case "help":
+		return r.showDeployECRHelp()
+	default:
+		return NewInvalidArgumentsError(fmt.Sprintf("unknown deploy ecr action: %s. Use 'attacker infra ecr help'", args[0]))
+	}
+}
+
+func (r *REPL) deployECRCreate(args []string) error {
+	if len(args) > 0 && args[0] == "help" {
+		return r.showDeployECRHelp()
+	}
+
+	attackerIdentity := r.identityManager.GetAttackerIdentity()
+	if attackerIdentity == nil {
+		return fmt.Errorf("attacker identity required. Use 'attacker set profile <name>' first")
+	}
+
+	victimAccountIDs := r.collectVictimAccountIDs()
+	if len(victimAccountIDs) == 0 {
+		return fmt.Errorf("victim identity required for cross-account ECR pull policy. Use 'identity add' first")
+	}
+
+	if attacker.HasDeployedECRRepos() {
+		return fmt.Errorf("attacker ECR repos already deployed. Use 'attacker infra ecr status' to view or 'attacker infra ecr destroy' to recreate")
+	}
+
+	region := extractFlag(args, "--region")
+	if region == "" {
+		region = attackerIdentity.Region
+	}
+	if region == "" {
+		region = attackerIdentity.GetConfig().Region
+	}
+	if region == "" {
+		region = "us-east-1"
+	}
+
+	accountList := strings.Join(victimAccountIDs, ", ")
+
+	fmt.Printf("[*] Creating attacker ECR repository in %s...\n", region)
+
+	repoName := attacker.DefaultECRRepoName
+	repoURI, err := attacker.DeployECR(attackerIdentity.GetConfig(), repoName, victimAccountIDs, region)
+	if err != nil {
+		return fmt.Errorf("failed to deploy ECR: %v", err)
+	}
+
+	fmt.Println()
+	fmt.Printf("[*] ECR repository deployed successfully.\n")
+	fmt.Printf("    Repository URI: %s\n", repoURI)
+	fmt.Printf("    Pull policy applied for victim account(s): %s\n", accountList)
+	fmt.Println()
+	fmt.Println("Modules that need container images will build and push to this repo automatically.")
+
+	return nil
+}
+
+func (r *REPL) deployECRStatus() error {
+	repos, err := attacker.ListDeployedECRRepos()
+	if err != nil {
+		return fmt.Errorf("failed to load ECR state: %v", err)
+	}
+
+	if len(repos) == 0 {
+		fmt.Println("No deployed ECR repositories.")
+		fmt.Println("Use 'attacker infra ecr create' to create one.")
+		return nil
+	}
+
+	fmt.Println("Deployed ECR Repositories:")
+	fmt.Println()
+
+	rows := make([][]string, 0, len(repos))
+	for _, repo := range repos {
+		accounts := strings.Join(repo.AccountIDs, ", ")
+		if accounts == "" {
+			accounts = "-"
+		}
+		rows = append(rows, []string{repo.RepositoryName, repo.Region, repo.RepositoryURI, accounts})
+	}
+	ui.Table([]string{"Name", "Region", "Repository URI", "Victim Accounts"}, rows)
+	fmt.Println()
+
+	return nil
+}
+
+func (r *REPL) deployECRDestroy(args []string) error {
+	if len(args) > 0 && args[0] == "help" {
+		return r.showDeployECRHelp()
+	}
+
+	attackerIdentity := r.identityManager.GetAttackerIdentity()
+	if attackerIdentity == nil {
+		return fmt.Errorf("attacker identity required. Use 'attacker set profile <name>' first")
+	}
+
+	repos, err := attacker.ListDeployedECRRepos()
+	if err != nil {
+		return err
+	}
+	if len(repos) == 0 {
+		fmt.Println("No deployed ECR repos to destroy.")
+		return nil
+	}
+
+	fmt.Printf("[*] Destroying %d ECR repo(s)...\n", len(repos))
+	if err := attacker.DestroyAllECRRepos(attackerIdentity.GetConfig()); err != nil {
+		return fmt.Errorf("some ECR repos failed to destroy: %v", err)
+	}
+	fmt.Println("[*] All ECR repos destroyed.")
+
+	return nil
+}
+
 // collectVictimAccountIDs returns deduplicated account IDs from all victim
 // identities in the identity store. Used to build bucket policies that cover
 // every known victim account.
@@ -369,6 +499,23 @@ func (r *REPL) deployGlobalStatus() error {
 		fmt.Println()
 	}
 
+	// ECR status
+	if len(state.ECRRepos) > 0 {
+		fmt.Println("ECR Repositories:")
+		fmt.Println()
+
+		rows := make([][]string, 0, len(state.ECRRepos))
+		for _, repo := range state.ECRRepos {
+			accounts := strings.Join(repo.AccountIDs, ", ")
+			if accounts == "" {
+				accounts = "-"
+			}
+			rows = append(rows, []string{repo.RepositoryName, repo.Region, repo.RepositoryURI, accounts})
+		}
+		ui.Table([]string{"Name", "Region", "Repository URI", "Victim Accounts"}, rows)
+		fmt.Println()
+	}
+
 	return nil
 }
 
@@ -402,6 +549,20 @@ func (r *REPL) deployGlobalDestroy() error {
 		attacker.SaveDeployState(state)
 	}
 
+	// Destroy ECR repos
+	if len(state.ECRRepos) > 0 {
+		fmt.Printf("[*] Destroying %d ECR repo(s)...\n", len(state.ECRRepos))
+		cfg := attackerIdentity.GetConfig()
+		for _, r := range state.ECRRepos {
+			fmt.Printf("[*] Deleting ECR repo %s...\n", r.RepositoryName)
+			if err := attacker.DeleteECRRepository(cfg, r.RepositoryName, r.Region); err != nil {
+				fmt.Printf("[!] Failed to delete ECR repo %s: %v\n", r.RepositoryName, err)
+			}
+		}
+		state.ECRRepos = nil
+		attacker.SaveDeployState(state)
+	}
+
 	// Destroy EC2
 	if state.EC2 != nil {
 		if err := attacker.DestroyEC2(attackerIdentity.GetConfig()); err != nil {
@@ -429,6 +590,10 @@ func (r *REPL) showAttackerDeployHelp() error {
 	fmt.Println("  attacker infra bucket [create] [--region <region>] - Create code + exfil buckets")
 	fmt.Println("  attacker infra bucket status                       - Show deployed buckets")
 	fmt.Println("  attacker infra bucket destroy                      - Destroy all buckets")
+	fmt.Println()
+	fmt.Println("  attacker infra ecr [create] [--region <region>]    - Create ECR repo + push container image")
+	fmt.Println("  attacker infra ecr status                          - Show deployed ECR repos")
+	fmt.Println("  attacker infra ecr destroy                         - Destroy all ECR repos")
 	fmt.Println()
 	fmt.Println("Requires an attacker identity ('attacker set profile <name>').")
 	fmt.Println()
@@ -483,5 +648,30 @@ func (r *REPL) showDeployBucketHelp() error {
 	fmt.Println("  attacker infra bucket create --region us-west-2")
 	fmt.Println("  attacker infra bucket status")
 	fmt.Println("  attacker infra bucket destroy")
+	return nil
+}
+
+func (r *REPL) showDeployECRHelp() error {
+	fmt.Println("Deploy ECR Command:")
+	fmt.Println("  attacker infra ecr [create] [--region <region>]  - Create ECR repo with cross-account pull policy")
+	fmt.Println("  attacker infra ecr status                        - Show deployed ECR repos")
+	fmt.Println("  attacker infra ecr destroy                       - Destroy all ECR repos")
+	fmt.Println("  attacker infra ecr help                          - Show this help message")
+	fmt.Println()
+	fmt.Println("Creates an ECR repository with a cross-account pull policy so victim accounts")
+	fmt.Println("can pull container images from the attacker's ECR repo. Modules that need")
+	fmt.Println("container images (e.g. bedrock-003) will automatically build and push their")
+	fmt.Println("images to this repo at exploit time.")
+	fmt.Println()
+	fmt.Println("You can also skip this step entirely — modules auto-create the ECR repo if")
+	fmt.Println("one doesn't exist when CONTAINER_URI is not set.")
+	fmt.Println()
+	fmt.Println("Requires: attacker identity, victim identity (for cross-account policy).")
+	fmt.Println()
+	fmt.Println("Examples:")
+	fmt.Println("  attacker infra ecr")
+	fmt.Println("  attacker infra ecr create --region us-east-1")
+	fmt.Println("  attacker infra ecr status")
+	fmt.Println("  attacker infra ecr destroy")
 	return nil
 }

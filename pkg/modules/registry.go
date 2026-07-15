@@ -28,6 +28,16 @@ func Register(name string, constructor func() Module) {
 	}
 }
 
+// GetModule loads a module by name or alias. Returns nil if not found.
+// Convenience wrapper around LoadModule for callers that prefer a nil check over error handling.
+func GetModule(modulePath string) Module {
+	mod, err := LoadModule(modulePath)
+	if err != nil {
+		return nil
+	}
+	return mod
+}
+
 // LoadModule loads a module by name or alias. Returns the module or an error.
 func LoadModule(modulePath string) (Module, error) {
 	// Direct lookup

@@ -1719,8 +1719,8 @@ func TestIAM004Module(t *testing.T) {
 			t.Fatalf("Failed to load iam-004: %v", err)
 		}
 		opts := mod.Options()
-		if len(opts) != 4 {
-			t.Errorf("Expected 4 options, got %d", len(opts))
+		if len(opts) != 5 {
+			t.Errorf("Expected 5 options, got %d", len(opts))
 		}
 		foundRequired := false
 		for _, opt := range opts {

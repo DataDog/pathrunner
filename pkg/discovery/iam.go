@@ -986,6 +986,226 @@ func DiscoverIAMRoles(ctx context.Context, config aws.Config) ([]modules.Discove
 	return choices, nil
 }
 
+// DiscoverCFNStackSetExecutionRoles lists IAM roles that are CloudFormation StackSet execution
+// role candidates. An execution role is identified by its trust policy containing BOTH:
+//   - cloudformation.amazonaws.com as a service principal
+//   - At least one specific IAM role ARN (not the account root) as an AWS principal
+//
+// This distinguishes execution roles from administration roles, which trust
+// cloudformation.amazonaws.com and the account root (":root") instead of a specific role ARN.
+// Returns role names (not ARNs) since CloudFormation's ExecutionRoleName API field expects names.
+func DiscoverCFNStackSetExecutionRoles(ctx context.Context, config aws.Config) ([]modules.DiscoveryChoice, error) {
+	client := iam.NewFromConfig(config)
+
+	listCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	var allRoles []iamtypes.Role
+	paginator := iam.NewListRolesPaginator(client, &iam.ListRolesInput{})
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(listCtx)
+		if err != nil {
+			if IsAccessDenied(err) {
+				return nil, fmt.Errorf("%s", FormatPermissionError("EXECUTION_ROLE_NAME", "iam:ListRoles", err))
+			}
+			return nil, fmt.Errorf("failed to list roles: %v", err)
+		}
+		allRoles = append(allRoles, page.Roles...)
+	}
+
+	var choices []modules.DiscoveryChoice
+	for _, role := range allRoles {
+		if role.AssumeRolePolicyDocument == nil {
+			continue
+		}
+
+		decoded, err := url.QueryUnescape(aws.ToString(role.AssumeRolePolicyDocument))
+		if err != nil {
+			continue
+		}
+
+		// Must trust cloudformation.amazonaws.com (necessary to be a StackSet execution role).
+		if !trustsService(decoded, "cloudformation.amazonaws.com") {
+			continue
+		}
+
+		// Must also trust a specific IAM role ARN (not account root). This is what
+		// distinguishes the execution role from the administration role.
+		if !trustsNonRootIAMRole(decoded) {
+			continue
+		}
+
+		roleName := aws.ToString(role.RoleName)
+		label := roleName
+		// Best-effort policy enrichment; if it fails we still return the role.
+		policies, pErr := listAttachedPolicies(ctx, client, roleName)
+		if pErr == nil && len(policies) > 0 {
+			hasAdmin := false
+			for _, p := range policies {
+				if strings.Contains(p, "AdministratorAccess") {
+					hasAdmin = true
+					break
+				}
+			}
+			if hasAdmin {
+				label += " [ADMIN]"
+			}
+			label += " (" + strings.Join(policies, ", ") + ")"
+		}
+
+		choices = append(choices, modules.DiscoveryChoice{
+			Value: roleName,
+			Label: label,
+			Metadata: map[string]string{
+				"role_name": roleName,
+				"role_arn":  aws.ToString(role.Arn),
+			},
+		})
+	}
+
+	return choices, nil
+}
+
+// DiscoverCFNExecutionRoleForAdminRole finds the CloudFormation StackSet execution role
+// that trusts a specific administration role ARN. This is the most precise way to locate
+// an execution role when the administration role ARN is already known: the execution role's
+// trust policy must contain the administration role's ARN as an AWS principal.
+// Returns role names (not ARNs) since CloudFormation's ExecutionRoleName API field expects names.
+func DiscoverCFNExecutionRoleForAdminRole(ctx context.Context, config aws.Config, adminRoleARN string) ([]modules.DiscoveryChoice, error) {
+	client := iam.NewFromConfig(config)
+
+	listCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	var allRoles []iamtypes.Role
+	paginator := iam.NewListRolesPaginator(client, &iam.ListRolesInput{})
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(listCtx)
+		if err != nil {
+			if IsAccessDenied(err) {
+				return nil, fmt.Errorf("%s", FormatPermissionError("EXECUTION_ROLE_NAME", "iam:ListRoles", err))
+			}
+			return nil, fmt.Errorf("failed to list roles: %v", err)
+		}
+		allRoles = append(allRoles, page.Roles...)
+	}
+
+	var choices []modules.DiscoveryChoice
+	for _, role := range allRoles {
+		if role.AssumeRolePolicyDocument == nil {
+			continue
+		}
+
+		decoded, err := url.QueryUnescape(aws.ToString(role.AssumeRolePolicyDocument))
+		if err != nil {
+			continue
+		}
+
+		// The execution role must trust the administration role's ARN as a principal.
+		if !trustsSpecificARN(decoded, adminRoleARN) {
+			continue
+		}
+
+		roleName := aws.ToString(role.RoleName)
+		choices = append(choices, modules.DiscoveryChoice{
+			Value: roleName,
+			Label: roleName,
+			Metadata: map[string]string{
+				"role_name": roleName,
+				"role_arn":  aws.ToString(role.Arn),
+			},
+		})
+	}
+
+	return choices, nil
+}
+
+// trustsSpecificARN reports whether the trust policy document contains the given ARN
+// as an AWS principal in any Allow statement.
+func trustsSpecificARN(policyDoc string, targetARN string) bool {
+	var doc trustPolicyDocument
+	if err := json.Unmarshal([]byte(policyDoc), &doc); err != nil {
+		return false
+	}
+
+	for _, stmt := range doc.Statement {
+		if stmt.Effect != "Allow" {
+			continue
+		}
+
+		var principalMap map[string]any
+		if err := json.Unmarshal(stmt.Principal, &principalMap); err != nil {
+			continue
+		}
+
+		awsPrincipals, ok := principalMap["AWS"]
+		if !ok {
+			continue
+		}
+
+		switch v := awsPrincipals.(type) {
+		case string:
+			if v == targetARN {
+				return true
+			}
+		case []any:
+			for _, item := range v {
+				if s, ok := item.(string); ok && s == targetARN {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+}
+
+// trustsNonRootIAMRole reports whether the trust policy document contains an AWS principal
+// that is a specific IAM role ARN (contains ":role/") — as opposed to the account root
+// (ends in ":root") or a wildcard. Administration roles in StackSet self-managed mode
+// trust the account root; execution roles trust the administration role's specific ARN.
+func trustsNonRootIAMRole(policyDoc string) bool {
+	var doc trustPolicyDocument
+	if err := json.Unmarshal([]byte(policyDoc), &doc); err != nil {
+		return false
+	}
+
+	for _, stmt := range doc.Statement {
+		if stmt.Effect != "Allow" {
+			continue
+		}
+
+		var principalMap map[string]any
+		if err := json.Unmarshal(stmt.Principal, &principalMap); err != nil {
+			continue
+		}
+
+		awsPrincipals, ok := principalMap["AWS"]
+		if !ok {
+			continue
+		}
+
+		checkARN := func(arn string) bool {
+			return strings.Contains(arn, ":role/") && !strings.HasSuffix(arn, ":root")
+		}
+
+		switch v := awsPrincipals.(type) {
+		case string:
+			if checkARN(v) {
+				return true
+			}
+		case []any:
+			for _, item := range v {
+				if s, ok := item.(string); ok && checkARN(s) {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+}
+
 // listAttachedGroupPolicies returns the names of managed policies attached to a group.
 func listAttachedGroupPolicies(ctx context.Context, client *iam.Client, groupName string) ([]string, error) {
 	policyCtx, cancel := context.WithTimeout(ctx, 10*time.Second)

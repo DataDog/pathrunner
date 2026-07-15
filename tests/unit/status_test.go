@@ -185,6 +185,165 @@ func TestSortedModuleIDs(t *testing.T) {
 	}
 }
 
+func TestPayloadResultsSerialization(t *testing.T) {
+	manifestJSON := `{
+  "modules": {
+    "lambda-001": {
+      "status": "failing",
+      "last_tested": "2026-07-10",
+      "tested_against": "lambda-001-to-admin",
+      "notes": "",
+      "payload_results": [
+        {"payload": "exfil/response", "execution": "PASS", "creds_obtained": "YES", "verified": "YES"},
+        {"payload": "backdoor/attach-policy", "execution": "FAIL", "creds_obtained": "NO", "verified": "SKIP", "fail_reason": "AccessDenied"}
+      ]
+    }
+  }
+}`
+	dir := t.TempDir()
+	path := writeTestManifest(t, dir, manifestJSON)
+
+	manifest, err := status.LoadManifestFromPath(path)
+	if err != nil {
+		t.Fatalf("Failed to load manifest with payload results: %v", err)
+	}
+
+	entry := manifest.Modules["lambda-001"]
+	if len(entry.PayloadResults) != 2 {
+		t.Fatalf("Expected 2 payload results, got %d", len(entry.PayloadResults))
+	}
+	if entry.PayloadResults[0].Payload != "exfil/response" {
+		t.Errorf("Expected first payload 'exfil/response', got '%s'", entry.PayloadResults[0].Payload)
+	}
+	if entry.PayloadResults[1].FailReason != "AccessDenied" {
+		t.Errorf("Expected fail reason 'AccessDenied', got '%s'", entry.PayloadResults[1].FailReason)
+	}
+
+	// Round-trip: save and reload
+	savePath := filepath.Join(dir, "round-trip.json")
+	if err := status.SaveManifestToPath(manifest, savePath); err != nil {
+		t.Fatalf("Failed to save manifest: %v", err)
+	}
+
+	reloaded, err := status.LoadManifestFromPath(savePath)
+	if err != nil {
+		t.Fatalf("Failed to reload manifest: %v", err)
+	}
+
+	reloadedEntry := reloaded.Modules["lambda-001"]
+	if len(reloadedEntry.PayloadResults) != 2 {
+		t.Fatalf("Expected 2 payload results after round-trip, got %d", len(reloadedEntry.PayloadResults))
+	}
+	if reloadedEntry.PayloadResults[1].FailReason != "AccessDenied" {
+		t.Errorf("Expected fail reason preserved after round-trip")
+	}
+}
+
+func TestBackwardCompatibilityNoPayloadResults(t *testing.T) {
+	// The existing testManifestJSON has no payload_results field — should load cleanly
+	dir := t.TempDir()
+	path := writeTestManifest(t, dir, testManifestJSON)
+
+	manifest, err := status.LoadManifestFromPath(path)
+	if err != nil {
+		t.Fatalf("Failed to load manifest without payload_results: %v", err)
+	}
+
+	entry := manifest.Modules["lambda-001"]
+	if len(entry.PayloadResults) != 0 {
+		t.Errorf("Expected empty payload results for old format, got %d", len(entry.PayloadResults))
+	}
+}
+
+func TestMarkTestedWithResultsAllPassed(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestManifest(t, dir, testManifestJSON)
+
+	manifest, err := status.LoadManifestFromPath(path)
+	if err != nil {
+		t.Fatalf("Failed to load manifest: %v", err)
+	}
+
+	results := []status.PayloadResult{
+		{Payload: "exfil/response", Execution: "PASS", Creds: "YES", Verified: "YES"},
+		{Payload: "backdoor/attach-policy", Execution: "PASS", Creds: "NO", Verified: "YES"},
+	}
+	manifest.MarkTestedWithResults("iam-001", "iam-001-to-admin", results)
+
+	entry := manifest.Modules["iam-001"]
+	if entry.Status != "tested" {
+		t.Errorf("Expected status 'tested' when all passed, got '%s'", entry.Status)
+	}
+	if len(entry.PayloadResults) != 2 {
+		t.Errorf("Expected 2 payload results, got %d", len(entry.PayloadResults))
+	}
+	if entry.LastTested == nil {
+		t.Fatal("Expected last_tested to be set")
+	}
+	if entry.TestedAgainst == nil || *entry.TestedAgainst != "iam-001-to-admin" {
+		t.Error("Expected tested_against to be 'iam-001-to-admin'")
+	}
+}
+
+func TestMarkTestedWithResultsSomeFailing(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestManifest(t, dir, testManifestJSON)
+
+	manifest, err := status.LoadManifestFromPath(path)
+	if err != nil {
+		t.Fatalf("Failed to load manifest: %v", err)
+	}
+
+	results := []status.PayloadResult{
+		{Payload: "exfil/response", Execution: "PASS", Creds: "YES", Verified: "YES"},
+		{Payload: "backdoor/attach-policy", Execution: "FAIL", Creds: "NO", Verified: "SKIP", FailReason: "AccessDenied"},
+	}
+	manifest.MarkTestedWithResults("lambda-001", "lambda-001-to-admin", results)
+
+	entry := manifest.Modules["lambda-001"]
+	if entry.Status != "failing" {
+		t.Errorf("Expected status 'failing' when some failed, got '%s'", entry.Status)
+	}
+}
+
+func TestMarkTestedWithResultsEmptyResults(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestManifest(t, dir, testManifestJSON)
+
+	manifest, err := status.LoadManifestFromPath(path)
+	if err != nil {
+		t.Fatalf("Failed to load manifest: %v", err)
+	}
+
+	manifest.MarkTestedWithResults("lambda-001", "lambda-001-to-admin", []status.PayloadResult{})
+
+	entry := manifest.Modules["lambda-001"]
+	if entry.Status != "failing" {
+		t.Errorf("Expected status 'failing' for empty results, got '%s'", entry.Status)
+	}
+}
+
+func TestMarkTestedWithResultsSkipVerifiedCountsAsPass(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestManifest(t, dir, testManifestJSON)
+
+	manifest, err := status.LoadManifestFromPath(path)
+	if err != nil {
+		t.Fatalf("Failed to load manifest: %v", err)
+	}
+
+	// Modules with no credential output use SKIP for verification — should still count as passed
+	results := []status.PayloadResult{
+		{Payload: "exfil/response", Execution: "PASS", Creds: "YES", Verified: "SKIP"},
+	}
+	manifest.MarkTestedWithResults("iam-001", "iam-001-to-admin", results)
+
+	entry := manifest.Modules["iam-001"]
+	if entry.Status != "tested" {
+		t.Errorf("Expected status 'tested' when SKIP verified, got '%s'", entry.Status)
+	}
+}
+
 func TestMarkTestedSetsDate(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTestManifest(t, dir, testManifestJSON)

@@ -69,6 +69,9 @@ func (m *MockIdentityManager) SetAttackerIdentity(identity *modules.Identity) {
 func (m *MockIdentityManager) ClearAttackerIdentity() {
 }
 
+func (m *MockIdentityManager) ClearIdentity() {
+}
+
 type MockSessionManager struct{}
 
 func (m *MockSessionManager) GetCurrentSession() repl.Session {
@@ -159,13 +162,6 @@ func (m *MockSession) SetIdentities(identities map[string]*modules.Identity) {
 }
 
 func (m *MockSession) SetCurrentIdentity(name string) {
-}
-
-func (m *MockSession) GetAttackerIdentity() *modules.Identity {
-	return nil
-}
-
-func (m *MockSession) SetAttackerIdentity(identity *modules.Identity) {
 }
 
 func (m *MockSession) GetCommandLog() []repl.CommandLogEntry {

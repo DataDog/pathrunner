@@ -131,14 +131,6 @@ func (sia *SessionInterfaceAdapter) SetCurrentIdentity(name string) {
 	sia.Session.CurrentIdentity = name
 }
 
-func (sia *SessionInterfaceAdapter) GetAttackerIdentity() *modules.Identity {
-	return sia.Session.AttackerIdentity
-}
-
-func (sia *SessionInterfaceAdapter) SetAttackerIdentity(identity *modules.Identity) {
-	sia.Session.AttackerIdentity = identity
-}
-
 func (sia *SessionInterfaceAdapter) GetCommandLog() []repl.CommandLogEntry {
 	entries := make([]repl.CommandLogEntry, len(sia.Session.CommandLog))
 	for i, entry := range sia.Session.CommandLog {

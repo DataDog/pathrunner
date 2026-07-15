@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"os"
 	"pathrunner/pkg/attacker"
 	"pathrunner/pkg/core"
 	"pathrunner/pkg/core/repl"
@@ -10,6 +11,11 @@ import (
 
 	"github.com/spf13/cobra"
 )
+
+// exitCode is set to 1 by executeREPLCommand when a command fails. main.go
+// reads it via ExitCode() after Cobra's Execute returns to propagate the
+// correct process exit code even though Cobra Run handlers can't return errors.
+var exitCode int
 
 // CLI wraps the REPL functionality for command-line usage
 type CLI struct {
@@ -51,6 +57,13 @@ func NewCLI() *CLI {
 		}
 		if updated > 0 {
 			fmt.Printf("[*] Updated %d bucket policy(ies) to include account %s\n", updated, accountID)
+		}
+
+		ecrUpdated, ecrErr := attacker.EnsureECRAccountAccess(attackerIdentity.GetConfig(), accountID)
+		if ecrErr != nil {
+			fmt.Printf("[!] Failed to update ECR repo policies for account %s: %v\n", accountID, ecrErr)
+		} else if ecrUpdated > 0 {
+			fmt.Printf("[*] Updated %d ECR repo policy(ies) to include account %s\n", ecrUpdated, accountID)
 		}
 	})
 
@@ -126,8 +139,19 @@ func (c *CLI) CreateRootCommand() *cobra.Command {
 	return rootCmd
 }
 
-// Execute a REPL command and return the result
+// ExitCode returns the process exit code. Call after Cobra's Execute returns.
+func ExitCode() int {
+	return exitCode
+}
+
+// executeREPLCommand runs a REPL command, prints any error to stderr, and sets
+// the process exit code to 1 on failure. Every CLI subcommand delegates to this
+// method, so centralizing the error handling here covers all 90+ call sites.
 func (c *CLI) executeREPLCommand(command string) error {
-	// Use the REPL's handleCommand to ensure proper state management and persistence
-	return c.repl.ExecuteCommand(command)
+	err := c.repl.ExecuteCommand(command)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		exitCode = 1
+	}
+	return err
 }

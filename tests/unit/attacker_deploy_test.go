@@ -543,3 +543,285 @@ func TestAttackerDeployBucketStatusWithSavedBuckets(t *testing.T) {
 		t.Errorf("Expected bucket status to succeed with saved buckets, got: %v", err)
 	}
 }
+
+// --- ECR deploy state tests ---
+
+func TestDeployStateWithECRRepos(t *testing.T) {
+	tempDir := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	os.Setenv("HOME", tempDir)
+	defer os.Setenv("HOME", originalHome)
+
+	state := &attacker.DeployState{
+		ECRRepos: []attacker.ECRRepoDeployState{
+			{
+				RepositoryName: "pathrunner-runtime",
+				RepositoryURI:  "123456789012.dkr.ecr.us-east-1.amazonaws.com/pathrunner-runtime",
+				Region:         "us-east-1",
+				AccountIDs:     []string{"111111111111"},
+			},
+		},
+	}
+
+	if err := attacker.SaveDeployState(state); err != nil {
+		t.Fatalf("Failed to save deploy state with ECR repos: %v", err)
+	}
+
+	loaded, err := attacker.LoadDeployState()
+	if err != nil {
+		t.Fatalf("Failed to load deploy state: %v", err)
+	}
+
+	if len(loaded.ECRRepos) != 1 {
+		t.Fatalf("Expected 1 ECR repo, got %d", len(loaded.ECRRepos))
+	}
+
+	repo := loaded.ECRRepos[0]
+	if repo.RepositoryName != "pathrunner-runtime" {
+		t.Errorf("Expected repo name 'pathrunner-runtime', got '%s'", repo.RepositoryName)
+	}
+	if len(repo.AccountIDs) != 1 || repo.AccountIDs[0] != "111111111111" {
+		t.Errorf("Expected account IDs [111111111111], got %v", repo.AccountIDs)
+	}
+}
+
+func TestDeployStateHasResourcesWithECR(t *testing.T) {
+	tests := []struct {
+		name     string
+		state    attacker.DeployState
+		expected bool
+	}{
+		{
+			name:     "ECR repos only",
+			state:    attacker.DeployState{ECRRepos: []attacker.ECRRepoDeployState{{RepositoryName: "test"}}},
+			expected: true,
+		},
+		{
+			name: "all resource types",
+			state: attacker.DeployState{
+				EC2:      &attacker.EC2DeployState{InstanceID: "i-test"},
+				Buckets:  []attacker.BucketDeployState{{Name: "test"}},
+				ECRRepos: []attacker.ECRRepoDeployState{{RepositoryName: "test"}},
+			},
+			expected: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if result := tc.state.HasAnyDeployedResources(); result != tc.expected {
+				t.Errorf("Expected HasAnyDeployedResources()=%v, got %v", tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestGetECRRepoURI(t *testing.T) {
+	tempDir := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	os.Setenv("HOME", tempDir)
+	defer os.Setenv("HOME", originalHome)
+
+	// No repos deployed — should return empty string
+	if uri := attacker.GetECRRepoURI(); uri != "" {
+		t.Errorf("Expected empty URI with no ECR repos, got '%s'", uri)
+	}
+
+	// Deploy a repo
+	state := &attacker.DeployState{
+		ECRRepos: []attacker.ECRRepoDeployState{
+			{
+				RepositoryName: "pathrunner-runtime",
+				RepositoryURI:  "123456789012.dkr.ecr.us-east-1.amazonaws.com/pathrunner-runtime",
+				Region:         "us-east-1",
+			},
+		},
+	}
+	attacker.SaveDeployState(state)
+
+	expected := "123456789012.dkr.ecr.us-east-1.amazonaws.com/pathrunner-runtime"
+	if uri := attacker.GetECRRepoURI(); uri != expected {
+		t.Errorf("Expected URI '%s', got '%s'", expected, uri)
+	}
+}
+
+func TestHasDeployedECRRepos(t *testing.T) {
+	tempDir := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	os.Setenv("HOME", tempDir)
+	defer os.Setenv("HOME", originalHome)
+
+	if attacker.HasDeployedECRRepos() {
+		t.Error("Expected no ECR repos initially")
+	}
+
+	state := &attacker.DeployState{
+		ECRRepos: []attacker.ECRRepoDeployState{
+			{RepositoryName: "test", Region: "us-east-1"},
+		},
+	}
+	attacker.SaveDeployState(state)
+
+	if !attacker.HasDeployedECRRepos() {
+		t.Error("Expected HasDeployedECRRepos to return true after saving")
+	}
+}
+
+// --- ECR REPL command routing tests ---
+
+func TestAttackerDeployECRHelp(t *testing.T) {
+	identityManager := &MockIdentityManager{}
+	sessionManager := &MockSessionManager{}
+	r := repl.NewREPL(identityManager, sessionManager)
+
+	err := r.ExecuteCommand("attacker infra ecr help")
+	if err != nil {
+		t.Errorf("Expected deploy ecr help to succeed, got: %v", err)
+	}
+}
+
+func TestAttackerDeployECRCreateNoAttacker(t *testing.T) {
+	identityManager := &MockIdentityManager{}
+	sessionManager := &MockSessionManager{}
+	r := repl.NewREPL(identityManager, sessionManager)
+
+	err := r.ExecuteCommand("attacker infra ecr create")
+	if err == nil {
+		t.Error("Expected error when no attacker identity is set")
+	}
+}
+
+func TestAttackerDeployECRDefaultNoAttacker(t *testing.T) {
+	identityManager := &MockIdentityManager{}
+	sessionManager := &MockSessionManager{}
+	r := repl.NewREPL(identityManager, sessionManager)
+
+	// Running 'attacker infra ecr' with no action defaults to create
+	err := r.ExecuteCommand("attacker infra ecr")
+	if err == nil {
+		t.Error("Expected error when no attacker identity is set (default create)")
+	}
+}
+
+func TestAttackerDeployECRStatusNoDeployment(t *testing.T) {
+	tempDir := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	os.Setenv("HOME", tempDir)
+	defer os.Setenv("HOME", originalHome)
+
+	identityManager := &MockIdentityManager{}
+	sessionManager := &MockSessionManager{}
+	r := repl.NewREPL(identityManager, sessionManager)
+
+	err := r.ExecuteCommand("attacker infra ecr status")
+	if err != nil {
+		t.Errorf("Expected ecr status to succeed with no repos, got: %v", err)
+	}
+}
+
+func TestAttackerDeployECRDestroyNoAttacker(t *testing.T) {
+	identityManager := &MockIdentityManager{}
+	sessionManager := &MockSessionManager{}
+	r := repl.NewREPL(identityManager, sessionManager)
+
+	err := r.ExecuteCommand("attacker infra ecr destroy")
+	if err == nil {
+		t.Error("Expected error when no attacker identity for ecr destroy")
+	}
+}
+
+func TestAttackerDeployECRUnknownAction(t *testing.T) {
+	identityManager := &MockIdentityManager{}
+	sessionManager := &MockSessionManager{}
+	r := repl.NewREPL(identityManager, sessionManager)
+
+	err := r.ExecuteCommand("attacker infra ecr bogus")
+	if err == nil {
+		t.Error("Expected error for unknown deploy ecr action")
+	}
+}
+
+func TestAttackerDeployECRStatusWithSavedRepos(t *testing.T) {
+	tempDir := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	os.Setenv("HOME", tempDir)
+	defer os.Setenv("HOME", originalHome)
+
+	state := &attacker.DeployState{
+		ECRRepos: []attacker.ECRRepoDeployState{
+			{
+				RepositoryName: "pathrunner-runtime",
+				RepositoryURI:  "123456789012.dkr.ecr.us-east-1.amazonaws.com/pathrunner-runtime",
+				Region:         "us-east-1",
+				AccountIDs:     []string{"111111111111"},
+			},
+		},
+	}
+	attacker.SaveDeployState(state)
+	defer attacker.RemoveDeployState()
+
+	identityManager := &MockIdentityManager{}
+	sessionManager := &MockSessionManager{}
+	r := repl.NewREPL(identityManager, sessionManager)
+
+	err := r.ExecuteCommand("attacker infra ecr status")
+	if err != nil {
+		t.Errorf("Expected ecr status to succeed with saved repos, got: %v", err)
+	}
+}
+
+// --- Global deploy tests including ECR ---
+
+func TestAttackerDeployGlobalStatusWithECR(t *testing.T) {
+	tempDir := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	os.Setenv("HOME", tempDir)
+	defer os.Setenv("HOME", originalHome)
+
+	state := &attacker.DeployState{
+		ECRRepos: []attacker.ECRRepoDeployState{
+			{
+				RepositoryName: "pathrunner-runtime",
+				RepositoryURI:  "123456789012.dkr.ecr.us-east-1.amazonaws.com/pathrunner-runtime",
+				Region:         "us-east-1",
+			},
+		},
+	}
+	attacker.SaveDeployState(state)
+	defer attacker.RemoveDeployState()
+
+	identityManager := &MockIdentityManager{}
+	sessionManager := &MockSessionManager{}
+	r := repl.NewREPL(identityManager, sessionManager)
+
+	err := r.ExecuteCommand("attacker infra status")
+	if err != nil {
+		t.Errorf("Expected global status to succeed with ECR repos, got: %v", err)
+	}
+}
+
+func TestDeployStateBackwardCompatibility(t *testing.T) {
+	// Verify that a deploy.json without ecr_repos deserializes cleanly
+	tempDir := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	os.Setenv("HOME", tempDir)
+	defer os.Setenv("HOME", originalHome)
+
+	// Write a deploy.json without the ecr_repos field
+	pathrunnerDir := filepath.Join(tempDir, ".pathrunner")
+	os.MkdirAll(pathrunnerDir, 0700)
+	oldJSON := `{"ec2":{"instance_id":"i-old","region":"us-east-1","public_ip":"1.2.3.4","security_group_id":"sg-old","key_pair_name":"old","key_file_path":"/tmp/old.pem"}}`
+	os.WriteFile(filepath.Join(pathrunnerDir, "deploy.json"), []byte(oldJSON), 0600)
+
+	loaded, err := attacker.LoadDeployState()
+	if err != nil {
+		t.Fatalf("Failed to load old-format deploy state: %v", err)
+	}
+
+	if loaded.EC2 == nil || loaded.EC2.InstanceID != "i-old" {
+		t.Error("Expected EC2 state from old format to load correctly")
+	}
+	if len(loaded.ECRRepos) != 0 {
+		t.Errorf("Expected 0 ECR repos from old format, got %d", len(loaded.ECRRepos))
+	}
+}

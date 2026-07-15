@@ -43,6 +43,33 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 PATHRUNNER="$PROJECT_DIR/pathrunner"
 PLABS=""
 
+# === Transcript logging ===
+# Re-exec with tee so every run saves a log to test-results/<module-id>[-<suffix>].log.
+# TEST_MODULE_LOGGING is set before re-exec to prevent an infinite loop.
+if [[ -z "${TEST_MODULE_LOGGING:-}" ]]; then
+    # Derive module ID and scenario suffix from args (mirrors the arg parser below)
+    _log_subcommand="${1:-}"
+    _log_args=("$@")
+    case "$_log_subcommand" in
+        setup|cleanup|full) _log_args=("${@:2}") ;;
+    esac
+    # Strip flags (-i) to find positional args
+    _log_positional=()
+    for _a in "${_log_args[@]}"; do
+        [[ "$_a" == -* ]] || _log_positional+=("$_a")
+    done
+    _log_module="${_log_positional[0]:-unknown}"
+    _log_suffix=""
+    if [[ -n "${_log_positional[1]:-}" ]] && [[ "${_log_positional[1]}" != */* ]]; then
+        _log_suffix="-${_log_positional[1]}"
+    fi
+    _log_dir="$PROJECT_DIR/test-results"
+    mkdir -p "$_log_dir"
+    _log_file="$_log_dir/${_log_module}${_log_suffix}.log"
+    export TEST_MODULE_LOGGING=1
+    exec > >(tee "$_log_file") 2>&1
+fi
+
 # === Temp directory ===
 WORK_DIR=$(mktemp -d)
 trap 'rm -rf "$WORK_DIR"' EXIT
@@ -89,14 +116,27 @@ fi
 [[ -z "$SCENARIO_SUFFIX" ]] && SCENARIO_SUFFIX="to-admin"
 SCENARIO_ID="${MODULE_ID}-${SCENARIO_SUFFIX}"
 
+# Use a module-specific workspace name to prevent concurrent test collisions.
+# Multiple batch-module agents run in parallel and all used "testing" previously,
+# causing workspace state to be overwritten between setup and exploit phases.
+TEST_WORKSPACE="test-${MODULE_ID}"
+
+# Export PATHRUNNER_WORKSPACE so every pathrunner invocation in this script uses
+# the module-specific workspace without touching the shared ~/.pathrunner/config.json.
+# This prevents concurrent agents from overwriting each other's current-workspace pointer.
+export PATHRUNNER_WORKSPACE="$TEST_WORKSPACE"
+
 # === State ===
 STARTING_IDENTITY=""
 STARTING_USERNAME=""
 PLABS_RAW=""
 ALL_OPTIONS=""
+ECR_CONTAINER_URI=""  # Set when CONTAINER_URI is auto-mapped from an ECR repo ARN
+ASSUMED_ROLE_ARN=""   # Set when a starting-role is assumed for self-escalation modules
 declare -a RESULT_PAYLOADS=()
 declare -a RESULT_EXECUTION=()
 declare -a RESULT_CREDS=()
+declare -a RESULT_VERIFIED=()
 declare -a RESULT_CLEANUP=()
 
 # ──────────────────────────────────────────────────────────────
@@ -197,19 +237,57 @@ parse_deployed_resources() {
 
 map_arn_to_option() {
     local arn="$1"
-    # Skip starting-user resources (credentials, not module targets)
-    # Skip execution roles (ECS task execution roles, not escalation targets)
-    if [[ "$arn" == *"starting"* || "$arn" == *"execution-role"* ]]; then
+    # Skip starting-user resources (credentials, not module targets).
+    # Starting-role resources are kept — self-escalation modules need them as ROLE_ARN.
+    if [[ "$arn" == *"starting-user"* ]]; then
         echo ""
         return
     fi
+    # Skip infrastructure ARNs that are never module options
     case "$arn" in
+        *:role/aws-service-role/*)   echo ""; return ;;
+        *:ssm:*:parameter/*)         echo ""; return ;;
+        *:ec2:*:security-group/*)    echo ""; return ;;
+        *:ec2:*:image/*)             echo ""; return ;;
+        *:batch:*:compute-environment/*) echo ""; return ;;
+    esac
+    case "$arn" in
+        *:ec2:*:instance/*)
+            if echo "$ALL_OPTIONS" | grep -q "^INSTANCE_ID$"; then
+                echo "INSTANCE_ID"
+            else
+                echo ""
+            fi
+            ;;
         *:role/*)
-            # Prefer TARGET_ROLE if module has it, else ROLE_ARN
+            local role_name
+            role_name=$(echo "$arn" | rev | cut -d/ -f1 | rev)
+            # Disambiguate by role naming conventions from plabs scenarios
+            if [[ "$role_name" == *"admin"* ]]; then
+                if echo "$ALL_OPTIONS" | grep -q "^ADMIN_ROLE_ARN$"; then
+                    echo "ADMIN_ROLE_ARN"; return
+                fi
+            fi
+            if [[ "$role_name" == *"execution"* ]]; then
+                if echo "$ALL_OPTIONS" | grep -q "^EXECUTION_ROLE_NAME$"; then
+                    echo "EXECUTION_ROLE_NAME"; return
+                fi
+                if echo "$ALL_OPTIONS" | grep -q "^EXECUTION_ROLE_ARN$"; then
+                    echo "EXECUTION_ROLE_ARN"; return
+                fi
+            fi
+            if [[ "$role_name" == *"service"* ]]; then
+                if echo "$ALL_OPTIONS" | grep -q "^SERVICE_ROLE$"; then
+                    echo "SERVICE_ROLE"; return
+                fi
+            fi
+            # Default role mapping (target/generic roles)
             if echo "$ALL_OPTIONS" | grep -q "^TARGET_ROLE$"; then
                 echo "TARGET_ROLE"
             elif echo "$ALL_OPTIONS" | grep -q "^ROLE_ARN$"; then
                 echo "ROLE_ARN"
+            elif echo "$ALL_OPTIONS" | grep -q "^EXECUTION_ROLE_ARN$"; then
+                echo "EXECUTION_ROLE_ARN"
             else
                 echo ""
             fi
@@ -236,7 +314,15 @@ map_arn_to_option() {
             fi
             ;;
         *:function:*)           echo "FUNCTION_NAME" ;;
+        *codebuild*:project/*)  echo "PROJECT_NAME" ;;
         *:instance-profile/*)   echo "INSTANCE_PROFILE" ;;
+        *ecr*:repository/*)
+            if echo "$ALL_OPTIONS" | grep -q "^CONTAINER_URI$"; then
+                echo "CONTAINER_URI"
+            else
+                echo ""
+            fi
+            ;;
         *:table/*/stream/*)     echo "STREAM_ARN" ;;
         *:task-definition/*)
             if echo "$ALL_OPTIONS" | grep -q "^TASK_DEFINITION$"; then
@@ -254,6 +340,107 @@ map_arn_to_option() {
                 echo "CLUSTER"
             else
                 echo ""
+            fi
+            ;;
+        *:stackset/*)
+            if echo "$ALL_OPTIONS" | grep -q "^STACKSET_NAME$"; then
+                echo "STACKSET_NAME"
+            else
+                echo ""
+            fi
+            ;;
+        *:apprunner:*:service/*)
+            if echo "$ALL_OPTIONS" | grep -q "^SERVICE_ARN$"; then
+                echo "SERVICE_ARN"
+            else
+                echo ""
+            fi
+            ;;
+        *:batch:*:job-definition/*)
+            if echo "$ALL_OPTIONS" | grep -q "^JOB_DEFINITION$"; then
+                echo "JOB_DEFINITION"
+            else
+                echo ""
+            fi
+            ;;
+        *:batch:*:job-queue/*)
+            if echo "$ALL_OPTIONS" | grep -q "^JOB_QUEUE$"; then
+                echo "JOB_QUEUE"
+            else
+                echo ""
+            fi
+            ;;
+        *:bedrock-agentcore:*:code-interpreter/*)
+            if echo "$ALL_OPTIONS" | grep -q "^INTERPRETER_ID$"; then
+                echo "INTERPRETER_ID"
+            else
+                echo ""
+            fi
+            ;;
+        *:bedrock-agentcore:*:browser/*)
+            if echo "$ALL_OPTIONS" | grep -q "^BROWSER_ID$"; then
+                echo "BROWSER_ID"
+            else
+                echo ""
+            fi
+            ;;
+        *:bedrock-agentcore:*:agent-runtime/*|*:bedrock-agentcore:*:harness/*)
+            if echo "$ALL_OPTIONS" | grep -q "^TARGET_RUNTIME_ARN$"; then
+                echo "TARGET_RUNTIME_ARN"
+            else
+                echo ""
+            fi
+            ;;
+        *:cloudformation:*:stack/*)
+            if echo "$ALL_OPTIONS" | grep -q "^STACK_NAME$"; then
+                echo "STACK_NAME"
+            else
+                echo ""
+            fi
+            ;;
+        *:glue:*:job/*)
+            if echo "$ALL_OPTIONS" | grep -q "^JOB_NAME$"; then
+                echo "JOB_NAME"
+            else
+                echo ""
+            fi
+            ;;
+        *:codedeploy:*:application:*)
+            if echo "$ALL_OPTIONS" | grep -q "^APP_NAME$"; then
+                echo "APP_NAME"
+            else
+                echo ""
+            fi
+            ;;
+        *:codedeploy:*:deploymentgroup:*)
+            if echo "$ALL_OPTIONS" | grep -q "^DEPLOYMENT_GROUP$"; then
+                echo "DEPLOYMENT_GROUP"
+            else
+                echo ""
+            fi
+            ;;
+        arn:aws:s3:::*)
+            # S3 ARN: bucket (no slash) or object (has slash).
+            if [[ "$arn" != *"/"* ]]; then
+                # Bucket ARN: map to BUCKET, CODE_BUCKET, or EXFIL_BUCKET
+                if echo "$ALL_OPTIONS" | grep -q "^BUCKET$"; then
+                    echo "BUCKET"
+                elif echo "$ALL_OPTIONS" | grep -q "^CODE_BUCKET$"; then
+                    echo "CODE_BUCKET"
+                elif echo "$ALL_OPTIONS" | grep -q "^EXFIL_BUCKET$"; then
+                    # Used for modules (e.g. omics-001) where the lab provides a
+                    # dedicated in-region S3 bucket for both run output and exfil.
+                    echo "EXFIL_BUCKET"
+                else
+                    echo ""
+                fi
+            else
+                # Object ARN: map to CODE_KEY if the module has that option
+                if echo "$ALL_OPTIONS" | grep -q "^CODE_KEY$"; then
+                    echo "CODE_KEY"
+                else
+                    echo ""
+                fi
             fi
             ;;
         *)                      echo "" ;;
@@ -279,13 +466,49 @@ get_option_description() {
 extract_value_from_arn() {
     local arn="$1" option="$2"
     case "$option" in
+        INSTANCE_ID)
+            # arn:aws:ec2:REGION:ACCOUNT:instance/i-XXXXX — extract just the instance ID
+            echo "$arn" | rev | cut -d/ -f1 | rev
+            ;;
         FUNCTION_NAME)
             # arn:aws:lambda:region:account:function:NAME
             echo "$arn" | rev | cut -d: -f1 | rev
             ;;
-        TARGET_USER|GROUP_NAME|CLUSTER_NAME|TASK_DEFINITION)
+        TARGET_USER|GROUP_NAME|CLUSTER_NAME|TASK_DEFINITION|PROJECT_NAME)
             # These always want just the name (or family:revision for task definitions)
             echo "$arn" | rev | cut -d/ -f1 | rev
+            ;;
+        EXECUTION_ROLE_NAME)
+            # Just the role name, not the full ARN
+            echo "$arn" | rev | cut -d/ -f1 | rev
+            ;;
+        JOB_DEFINITION)
+            # arn:aws:batch:REGION:ACCOUNT:job-definition/NAME:REV — extract NAME:REV
+            echo "$arn" | rev | cut -d/ -f1 | rev
+            ;;
+        JOB_QUEUE)
+            # arn:aws:batch:REGION:ACCOUNT:job-queue/NAME — extract NAME
+            echo "$arn" | rev | cut -d/ -f1 | rev
+            ;;
+        INTERPRETER_ID)
+            # arn:aws:bedrock-agentcore:REGION:ACCOUNT:code-interpreter/ID — extract ID
+            echo "$arn" | rev | cut -d/ -f1 | rev
+            ;;
+        BROWSER_ID)
+            # arn:aws:bedrock-agentcore:REGION:ACCOUNT:browser/ID — extract ID
+            echo "$arn" | rev | cut -d/ -f1 | rev
+            ;;
+        STACK_NAME)
+            # arn:aws:cloudformation:REGION:ACCOUNT:stack/NAME/UUID — extract just NAME
+            echo "$arn" | sed 's|.*:stack/||' | cut -d/ -f1
+            ;;
+        JOB_NAME)
+            # arn:aws:glue:REGION:ACCOUNT:job/NAME — extract just the job name
+            echo "$arn" | rev | cut -d/ -f1 | rev
+            ;;
+        STACKSET_NAME)
+            # arn:aws:cloudformation:region:account:stackset/NAME:UUID — extract just the NAME
+            echo "$arn" | sed 's/:[a-f0-9-]*$//' | rev | cut -d/ -f1 | rev
             ;;
         TARGET_ROLE)
             # Some modules want ARN, others want name — check description
@@ -297,11 +520,160 @@ extract_value_from_arn() {
                 echo "$arn" | rev | cut -d/ -f1 | rev
             fi
             ;;
+        CONTAINER_URI)
+            # Convert ECR repository ARN to docker pull URI with :latest tag.
+            # Input:  arn:aws:ecr:REGION:ACCOUNT:repository/NAME
+            # Output: ACCOUNT.dkr.ecr.REGION.amazonaws.com/NAME:latest
+            local ecr_account ecr_region ecr_repo_name
+            ecr_account=$(echo "$arn" | cut -d: -f5)
+            ecr_region=$(echo "$arn" | cut -d: -f4)
+            ecr_repo_name=$(echo "$arn" | sed 's|.*:repository/||')
+            echo "${ecr_account}.dkr.ecr.${ecr_region}.amazonaws.com/${ecr_repo_name}:latest"
+            ;;
+        APP_NAME)
+            # arn:aws:codedeploy:REGION:ACCOUNT:application:NAME — extract just the app name
+            echo "$arn" | rev | cut -d: -f1 | rev
+            ;;
+        DEPLOYMENT_GROUP)
+            # arn:aws:codedeploy:REGION:ACCOUNT:deploymentgroup:APP/GROUP — extract just the group name
+            echo "$arn" | rev | cut -d/ -f1 | rev
+            ;;
+        BUCKET|CODE_BUCKET|EXFIL_BUCKET)
+            # arn:aws:s3:::BUCKET-NAME — extract just the bucket name
+            echo "$arn" | rev | cut -d: -f1 | rev
+            ;;
+        CODE_KEY)
+            # arn:aws:s3:::BUCKET-NAME/object/key — extract just the object key
+            echo "$arn" | sed 's|arn:aws:s3:::[^/]*/||'
+            ;;
         *)
-            # ROLE_ARN, POLICY_ARN, STREAM_ARN, INSTANCE_PROFILE — full ARN
+            # ROLE_ARN, POLICY_ARN, STREAM_ARN, INSTANCE_PROFILE, EXECUTION_ROLE_ARN,
+            # SERVICE_ARN, TARGET_RUNTIME_ARN, ADMIN_ROLE_ARN — full ARN
             echo "$arn"
             ;;
     esac
+}
+
+# ──────────────────────────────────────────────────────────────
+# Build and push a container image to an ECR repository.
+# Called when the test script auto-maps an ECR repo ARN to
+# CONTAINER_URI — the repo exists (Terraform created it) but
+# has no image pushed yet (demo_attack.sh normally does this).
+#
+# For repos whose name contains "aws-cli", pulls the public
+# public.ecr.aws/aws-cli/aws-cli:latest image and re-tags+pushes
+# it rather than building from the local bedrock-runtime source.
+# ──────────────────────────────────────────────────────────────
+
+build_and_push_container_image() {
+    local container_uri="$1"
+
+    # Extract registry and region from the URI.
+    # Format: ACCOUNT.dkr.ecr.REGION.amazonaws.com/NAME:TAG
+    local ecr_registry ecr_region
+    ecr_registry=$(echo "$container_uri" | cut -d'/' -f1)
+    ecr_region=$(echo "$ecr_registry" | sed -E 's/[^.]+\.dkr\.ecr\.([^.]+)\.amazonaws\.com/\1/')
+
+    if [[ -z "$ecr_region" || "$ecr_region" == "$ecr_registry" ]]; then
+        fail "Could not extract region from container URI: $container_uri"
+        return 1
+    fi
+
+    # Check docker is available
+    if ! command -v docker &>/dev/null; then
+        fail "docker not found — cannot build/push container image"
+        return 1
+    fi
+
+    # Authenticate to ECR using the plabs production profile
+    local plabs_prod_profile
+    plabs_prod_profile=$("$PLABS" info 2>&1 | grep "Production:" | sed 's/.*profile: //' | tr -d '[:space:]') || true
+
+    # Extract the repo name (strip registry prefix and tag suffix) to decide
+    # whether to build from local source or pull-and-push a public image.
+    local repo_name
+    repo_name=$(echo "$container_uri" | sed 's|[^/]*/||; s|:.*||')
+
+    if [[ "$repo_name" == *"aws-cli"* ]]; then
+        # The omics-001 scenario uses a plain aws-cli image sourced from the
+        # public ECR gallery. Pull it and re-tag+push it to the private repo.
+        # The private ECR repo is in the attacker account, so use the attacker
+        # profile rather than the production (victim) profile.
+        local plabs_attacker_profile
+        plabs_attacker_profile=$("$PLABS" info 2>&1 | grep "Attacker:" | sed 's/.*profile: //' | tr -d '[:space:]') || true
+
+        local public_image="public.ecr.aws/aws-cli/aws-cli:latest"
+        info "Pulling public aws-cli image and pushing to private ECR: $container_uri ..."
+        set +e
+        (
+            unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
+            if [[ -n "$plabs_attacker_profile" ]]; then
+                export AWS_PROFILE="$plabs_attacker_profile"
+            fi
+
+            # Log in to the public ECR gallery (us-east-1 is the only valid region)
+            aws ecr-public get-login-password --region us-east-1 \
+            | docker login --username AWS --password-stdin public.ecr.aws
+
+            # Pull the linux/amd64 variant explicitly: HealthOmics runs on x86_64 and
+            # will return "exec format error" if given an arm64 image.
+            docker pull --platform linux/amd64 "$public_image"
+            docker tag "$public_image" "$container_uri"
+
+            aws ecr get-login-password --region "$ecr_region" \
+            | docker login --username AWS --password-stdin "$ecr_registry"
+
+            docker push "$container_uri"
+        )
+        local push_exit=$?
+        set -e
+
+        if [[ $push_exit -ne 0 ]]; then
+            fail "Failed to pull and push aws-cli container image"
+            return 1
+        fi
+    else
+        # Default: build from the local bedrock-runtime source directory.
+        local container_dir
+        container_dir="$PROJECT_DIR/pkg/attacker/containers/bedrock-runtime"
+        if [[ ! -d "$container_dir" ]]; then
+            fail "Container directory not found: $container_dir"
+            return 1
+        fi
+
+        # Run login + build in a single subshell with the attacker account's
+        # AWS profile. We unset key/secret/token env vars AND set AWS_PROFILE
+        # explicitly so that all credential resolution (docker login, buildx
+        # push, ECR credential helpers) uses the attacker account -- not the
+        # victim identity or the operator's default profile.
+        info "Authenticating to ECR and building container image: $container_uri ..."
+        set +e
+        (
+            unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
+            if [[ -n "$plabs_prod_profile" ]]; then
+                export AWS_PROFILE="$plabs_prod_profile"
+            fi
+
+            aws ecr get-login-password --region "$ecr_region" \
+            | docker login --username AWS --password-stdin "$ecr_registry"
+
+            docker buildx build \
+                --platform linux/arm64 \
+                --provenance=false \
+                --push \
+                --tag "$container_uri" \
+                "$container_dir"
+        )
+        local build_exit=$?
+        set -e
+
+        if [[ $build_exit -ne 0 ]]; then
+            fail "Failed to build and push container image"
+            return 1
+        fi
+    fi
+
+    success "Container image pushed: $container_uri"
 }
 
 # ──────────────────────────────────────────────────────────────
@@ -359,9 +731,13 @@ run_payload_test() {
                     ;; # already handled
                 *)
                     warn "Payload option $opt is required but unset"
-                    read -rp "  Enter value for $opt (or Enter to skip): " manual_val
-                    if [[ -n "$manual_val" ]]; then
-                        "$PATHRUNNER" set "$opt" "$manual_val" 2>&1
+                    if [[ -t 0 ]]; then
+                        read -rp "  Enter value for $opt (or Enter to skip): " manual_val
+                        if [[ -n "$manual_val" ]]; then
+                            "$PATHRUNNER" set "$opt" "$manual_val" 2>&1
+                        fi
+                    else
+                        warn "Non-interactive mode: skipping $opt"
                     fi
                     ;;
             esac
@@ -383,13 +759,30 @@ run_payload_test() {
     # Determine results
     local execution="FAIL"
     local creds="NO"
-
-    if [[ $exit_code -eq 0 ]]; then
-        execution="PASS"
-    fi
+    local exploit_error=""
 
     local clean_output
     clean_output=$(strip_ansi < "$output_file")
+
+    # Strip noise lines before error detection:
+    # - "[harness stderr]" and "[runtime stderr]" are container log pass-through, not errors.
+    # - "Warning:" prefixed lines are non-fatal module advisories (e.g., cleanup restore
+    #   failures when the starting user lacks PassRole on the original role). These should
+    #   not trigger a FAIL when the exploit itself succeeded (exit code 0).
+    local error_check_output
+    error_check_output=$(echo "$clean_output" \
+        | grep -vE "^\[(harness|runtime) stderr\]" \
+        | grep -vE "^Warning:")
+
+    # Check for explicit error indicators in the exploit output, even if exit code was 0.
+    # Pathrunner sometimes exits 0 when it hits a soft failure (missing options, resolution errors).
+    if echo "$error_check_output" | grep -qiE "no value provided for|Error:.*missing required|could not resolve|failed to|error occurred|AccessDenied|UnauthorizedAccess|is not authorized|InvalidParameter|ValidationException"; then
+        exploit_error=$(echo "$error_check_output" | grep -iE "no value provided for|Error:.*missing required|could not resolve|failed to|error occurred|AccessDenied|UnauthorizedAccess|is not authorized|InvalidParameter|ValidationException" | head -5)
+        execution="FAIL"
+    elif [[ $exit_code -eq 0 ]]; then
+        execution="PASS"
+    fi
+
     if echo "$clean_output" | grep -qE "PATHFINDER_IDENTITY_DATA|AccessKeyId|access_key_id|AWS_ACCESS_KEY_ID"; then
         creds="YES"
         execution="PASS"
@@ -402,63 +795,77 @@ run_payload_test() {
     if [[ "$execution" == "PASS" ]]; then
         success "Exploit succeeded (creds: $creds)"
     else
-        fail "Exploit failed"
+        fail "Exploit failed (exit code: $exit_code)"
+        if [[ -n "$exploit_error" ]]; then
+            echo ""
+            fail "Error details from exploit output:"
+            echo "$exploit_error" | while IFS= read -r line; do
+                echo -e "  ${RED}${line}${NC}"
+            done
+        fi
     fi
 
     # Verify escalation by calling iam:ListUsers from the escalated principal.
     # For exfil payloads: the auto-imported identity has the escalated role creds.
     # For backdoor payloads: the starting user itself was elevated.
     echo ""
-    local escalated_identity=""
-    escalated_identity=$(strip_ansi < "$output_file" | sed -n "s/.*Added identity '\([^']*\)'.*/\1/p" | head -1)
 
-    if [[ -n "$escalated_identity" ]]; then
-        info "Switching to escalated identity ($escalated_identity) for verification..."
-        "$PATHRUNNER" identity switch "$escalated_identity" 2>&1 || true
-    fi
-
-    info "Verifying escalated privileges (iam:ListUsers)..."
-    local verify_output
-    set +e
-    verify_output=$("$PATHRUNNER" aws iam list-users --max-items 5 --output table 2>&1)
-    local verify_exit=$?
-    set -e
-
-    if [[ $verify_exit -eq 0 ]] && echo "$verify_output" | grep -q "UserName\|UserId"; then
-        success "Privilege escalation confirmed - iam:ListUsers succeeded"
-        echo "$verify_output"
+    # Skip verification entirely if the exploit itself failed — no point waiting 20s
+    if [[ "$execution" == "FAIL" ]]; then
+        warn "Skipping privilege verification — exploit did not succeed"
+        RESULT_VERIFIED+=("SKIP")
     else
-        warn "iam:ListUsers failed (escalation may not have taken effect yet)"
-        echo "$verify_output" | head -5
-    fi
+        local escalated_identity=""
+        escalated_identity=$(strip_ansi < "$output_file" | sed -n "s/.*Added identity '\([^']*\)'.*/\1/p" | head -1)
 
-    # Switch back to starting identity before cleanup
-    echo ""
-    info "Switching back to starting identity..."
-    "$PATHRUNNER" identity switch "$STARTING_IDENTITY" 2>&1 || true
+        if [[ -n "$escalated_identity" ]]; then
+            info "Switching to escalated identity ($escalated_identity) for verification..."
+            "$PATHRUNNER" identity switch "$escalated_identity" 2>&1 || true
+        fi
 
-    # Interactive mode: pause before cleanup
-    if [[ "$INTERACTIVE" == true ]]; then
-        echo ""
-        read -rp "Run cleanup for this payload? [Y/n]: " cleanup_response
-        if [[ "$cleanup_response" =~ ^[Nn] ]]; then
-            warn "Skipping cleanup (resources left in place)"
-            RESULT_CLEANUP+=("SKIP")
-            return
+        info "Verifying escalated privileges (iam:ListUsers)..."
+        local verify_output verify_exit verified="NO"
+
+        for attempt in 1 2 3; do
+            set +e
+            verify_output=$(AWS_PAGER="" "$PATHRUNNER" aws iam list-users --max-items 5 --output json 2>&1)
+            verify_exit=$?
+            set -e
+
+            if [[ $verify_exit -eq 0 ]] && echo "$verify_output" | grep -q '"UserName"'; then
+                verified="YES"
+                break
+            fi
+
+            if (( attempt < 3 )); then
+                info "Verification attempt $attempt failed, retrying in 10s (IAM propagation)..."
+                echo "$verify_output" | strip_ansi | grep -iE "error|denied|unauthorized" || true
+                sleep 10
+            fi
+        done
+
+        RESULT_VERIFIED+=("$verified")
+
+        if [[ "$verified" == "YES" ]]; then
+            success "Privilege escalation confirmed - iam:ListUsers succeeded"
+            echo "$verify_output" | head -n 10
+        else
+            fail "Privilege escalation verification FAILED - iam:ListUsers did not succeed"
+            echo "$verify_output"
+            RESULT_EXECUTION[$((${#RESULT_EXECUTION[@]} - 1))]="FAIL"
         fi
     fi
 
-    # Run cleanup for this module
-    info "Running cleanup..."
-    local cleanup_output
-    cleanup_output=$("$PATHRUNNER" workspace cleanup --module "$MODULE_ID" --all 2>&1) || true
-    echo "$cleanup_output"
-
-    local cleanup_result="PASS"
-    if echo "$cleanup_output" | strip_ansi | grep -qE "FAILED|[1-9][0-9]* failed|could not|permission"; then
-        cleanup_result="WARN"
+    # Switch back to the exploit identity before next payload.
+    # If we assumed a starting-role, switch to that (not the user).
+    echo ""
+    if [[ -n "$ASSUMED_ROLE_ARN" ]]; then
+        info "Switching back to assumed role identity..."
+        "$PATHRUNNER" identity switch "${SCENARIO_ID}-role" 2>&1 || true
+    else
+        info "Switching back to starting identity..."
+        "$PATHRUNNER" identity switch "$STARTING_IDENTITY" 2>&1 || true
     fi
-    RESULT_CLEANUP+=("$cleanup_result")
 }
 
 # ──────────────────────────────────────────────────────────────
@@ -543,30 +950,29 @@ print_summary() {
     bp=$(printf '=%.0s' $(seq 1 $((pw + 2))))
 
     # Borders
-    echo -e "${BOLD}+${bp}+===========+================+=========+${NC}"
+    echo -e "${BOLD}+${bp}+===========+================+==========+${NC}"
     local ph
     ph=$(printf "%-${pw}s" "Payload")
-    echo -e "${BOLD}| ${ph} | Execution | Creds Obtained | Cleanup |${NC}"
-    echo -e "${BOLD}+${bp}+===========+================+=========+${NC}"
+    echo -e "${BOLD}| ${ph} | Execution | Creds Obtained | Verified |${NC}"
+    echo -e "${BOLD}+${bp}+===========+================+==========+${NC}"
 
     for i in "${!RESULT_PAYLOADS[@]}"; do
-        local exec_color="$RED" creds_color="$RED" clean_color="$GREEN"
+        local exec_color="$RED" creds_color="$RED" ver_color="$RED"
         [[ "${RESULT_EXECUTION[$i]}" == "PASS" ]] && exec_color="$GREEN"
         [[ "${RESULT_CREDS[$i]}" == "YES" ]] && creds_color="$GREEN"
-        [[ "${RESULT_CLEANUP[$i]}" == "WARN" ]] && clean_color="$YELLOW"
-        [[ "${RESULT_CLEANUP[$i]}" == "FAIL" ]] && clean_color="$RED"
-        [[ "${RESULT_CLEANUP[$i]}" == "SKIP" ]] && clean_color="$YELLOW"
+        [[ "${RESULT_VERIFIED[$i]}" == "YES" ]] && ver_color="$GREEN"
+        [[ "${RESULT_VERIFIED[$i]}" == "SKIP" ]] && ver_color="$YELLOW"
 
-        local ps es cs ls
+        local ps es cs vs
         ps=$(printf "%-${pw}s" "${RESULT_PAYLOADS[$i]}")
         es=$(printf "%-9s" "${RESULT_EXECUTION[$i]}")
         cs=$(printf "%-14s" "${RESULT_CREDS[$i]}")
-        ls=$(printf "%-7s" "${RESULT_CLEANUP[$i]}")
+        vs=$(printf "%-8s" "${RESULT_VERIFIED[$i]}")
 
-        echo -e "| ${ps} | ${exec_color}${es}${NC} | ${creds_color}${cs}${NC} | ${clean_color}${ls}${NC} |"
+        echo -e "| ${ps} | ${exec_color}${es}${NC} | ${creds_color}${cs}${NC} | ${ver_color}${vs}${NC} |"
     done
 
-    echo -e "${BOLD}+${bp}+===========+================+=========+${NC}"
+    echo -e "${BOLD}+${bp}+===========+================+==========+${NC}"
 }
 
 # ──────────────────────────────────────────────────────────────
@@ -585,13 +991,14 @@ do_setup() {
     (cd "$PROJECT_DIR" && go build -o pathrunner cmd/pathrunner/main.go)
     success "Built pathrunner"
 
-    # Switch to (or create) the testing workspace
-    info "Switching to 'testing' workspace..."
-    if "$PATHRUNNER" workspace switch testing 2>&1 | grep -q "Switched"; then
-        success "Using existing 'testing' workspace"
+    # Switch to (or create) the module-specific test workspace.
+    # Each module gets its own workspace to prevent concurrent agent collisions.
+    info "Switching to '${TEST_WORKSPACE}' workspace..."
+    if "$PATHRUNNER" workspace switch "$TEST_WORKSPACE" 2>&1 | grep -q "Switched"; then
+        success "Using existing '${TEST_WORKSPACE}' workspace"
     else
-        "$PATHRUNNER" workspace create testing 2>&1
-        success "Created 'testing' workspace"
+        "$PATHRUNNER" workspace create "$TEST_WORKSPACE" 2>&1
+        success "Created '${TEST_WORKSPACE}' workspace"
     fi
 
     info "Getting scenario info (pseudo-TTY for full ARNs)..."
@@ -647,19 +1054,21 @@ do_setup() {
     fi
     success "Got credentials (${access_key:0:12}...)"
 
-    # Use scenario ID as the identity name for consistency across runs.
-    # Try switching to existing identity first (may exist from previous run).
+    # Always add fresh credentials under the scenario ID name (overwrites stale creds
+    # from previous runs — storeIdentity does im.identities[name] = identity, no error
+    # on duplicate). Never skip this in favour of a pre-existing identity switch, because
+    # the scenario may have been re-deployed with new keys since the last run.
     STARTING_IDENTITY="$SCENARIO_ID"
-
-    if "$PATHRUNNER" identity switch "$STARTING_IDENTITY" 2>&1 | grep -q "Switched"; then
-        success "Switched to existing identity: $STARTING_IDENTITY"
-    else
-        info "Adding new identity: $STARTING_IDENTITY"
-        "$PATHRUNNER" identity add \
-            --access "$access_key" --secret "$secret_key" \
-            --name "$STARTING_IDENTITY" --switch 2>&1 || true
-        success "Active identity: $STARTING_IDENTITY"
+    info "Adding/refreshing identity: $STARTING_IDENTITY"
+    local add_output
+    add_output=$("$PATHRUNNER" identity add \
+        --access "$access_key" --secret "$secret_key" \
+        --name "$STARTING_IDENTITY" --switch 2>&1)
+    echo "$add_output"
+    if ! echo "$add_output" | grep -qiE "added|switched|active|success"; then
+        fail "identity add may have failed — check output above before continuing"
     fi
+    success "Active identity: $STARTING_IDENTITY"
 
     # ── Phase 3: Module Configuration ──────────────────────────
     header "Phase 3: Module Configuration"
@@ -685,6 +1094,12 @@ do_setup() {
 
         local val
         val=$(extract_value_from_arn "$arn" "$opt")
+
+        # Track when CONTAINER_URI is mapped from an ECR repo — we'll need to
+        # build and push the container image after options are set.
+        if [[ "$opt" == "CONTAINER_URI" ]]; then
+            ECR_CONTAINER_URI="$val"
+        fi
 
         if [[ -n "${option_candidates[$opt]:-}" ]]; then
             option_candidates[$opt]="${option_candidates[$opt]}|$val"
@@ -815,6 +1230,95 @@ do_setup() {
         fi
     done
 
+    # Attempt discovery for CONTAINER_NAME if the module has it and it's not already set.
+    # This runs after the required-options loop because CONTAINER_NAME is optional — the
+    # module auto-discovers it at execute time, but pre-setting it here avoids a
+    # DescribeTaskDefinition call under the starting-user identity (which may lack that permission).
+    if echo "$ALL_OPTIONS" | grep -q "^CONTAINER_NAME$"; then
+        local current_cn
+        current_cn=$("$PATHRUNNER" show options 2>&1 | strip_ansi | awk '$1 == "CONTAINER_NAME" { print $2 }')
+        if [[ -z "$current_cn" || "$current_cn" == "<not" ]]; then
+            local td_for_cn
+            td_for_cn=$("$PATHRUNNER" show options 2>&1 | strip_ansi | awk '$1 == "TASK_DEFINITION" { print $2 }')
+            if [[ -n "$td_for_cn" ]]; then
+                local cn_discovered=""
+                # Try starting user first
+                cn_discovered=$("$PATHRUNNER" aws ecs describe-task-definition \
+                    --task-definition "$td_for_cn" --region us-east-1 \
+                    --query 'taskDefinition.containerDefinitions[0].name' --output text 2>/dev/null) || true
+                # Fall back to plabs production profile
+                if [[ -z "$cn_discovered" || "$cn_discovered" == "None" || "$cn_discovered" == "null" ]]; then
+                    local plabs_prod_profile_cn
+                    plabs_prod_profile_cn=$("$PLABS" info 2>&1 | grep "Production:" | sed 's/.*profile: //' | tr -d '[:space:]') || true
+                    if [[ -n "$plabs_prod_profile_cn" ]]; then
+                        cn_discovered=$(AWS_PROFILE="$plabs_prod_profile_cn" aws ecs describe-task-definition \
+                            --task-definition "$td_for_cn" --region us-east-1 \
+                            --query 'taskDefinition.containerDefinitions[0].name' --output text 2>/dev/null) || true
+                    fi
+                fi
+                # Fall back to default AWS CLI credentials
+                if [[ -z "$cn_discovered" || "$cn_discovered" == "None" || "$cn_discovered" == "null" ]]; then
+                    cn_discovered=$(aws ecs describe-task-definition \
+                        --task-definition "$td_for_cn" --region us-east-1 \
+                        --query 'taskDefinition.containerDefinitions[0].name' --output text 2>/dev/null) || true
+                fi
+                if [[ -n "$cn_discovered" && "$cn_discovered" != "None" && "$cn_discovered" != "null" ]]; then
+                    info "Auto-setting CONTAINER_NAME = $cn_discovered (discovered from task definition)"
+                    "$PATHRUNNER" set CONTAINER_NAME "$cn_discovered" 2>&1
+                else
+                    warn "Could not auto-discover CONTAINER_NAME from task definition $td_for_cn — module will attempt auto-discovery at execute time"
+                fi
+            fi
+        fi
+    fi
+
+    # If CONTAINER_URI was auto-mapped from an ECR repo ARN, build and push the
+    # container image. The lab's Terraform creates the repo but demo_attack.sh
+    # (not Terraform) builds the image — so we need to do it here too.
+    if [[ -n "$ECR_CONTAINER_URI" ]]; then
+        echo ""
+        header "Container Image Build"
+        build_and_push_container_image "$ECR_CONTAINER_URI"
+    fi
+
+    # Self-escalation role assumption: if the starting identity is a user and ROLE_ARN
+    # was auto-mapped from a "starting-role" resource, assume that role so the module
+    # executes as the role principal. This handles self-escalation paths (e.g., iam-005)
+    # where PutRolePolicy/AttachRolePolicy only work when the caller IS the role.
+    if [[ -n "$STARTING_USERNAME" ]]; then
+        local role_arn_value
+        role_arn_value=$("$PATHRUNNER" show options 2>&1 | strip_ansi | awk '$1 == "ROLE_ARN" && $2 != "<not" { print $2 }')
+        if [[ -n "$role_arn_value" && "$role_arn_value" == *"starting"*"role"* ]]; then
+            echo ""
+            info "Self-escalation detected: starting identity is a user but ROLE_ARN points to a starting-role"
+            info "Assuming role $role_arn_value before exploit..."
+
+            local assume_output
+            assume_output=$("$PATHRUNNER" aws sts assume-role \
+                --role-arn "$role_arn_value" \
+                --role-session-name "pathrunner-test-setup" \
+                --output json 2>&1) || true
+
+            if echo "$assume_output" | grep -q "AccessKeyId"; then
+                local role_access_key role_secret_key role_session_token
+                role_access_key=$(echo "$assume_output" | jq -r '.Credentials.AccessKeyId')
+                role_secret_key=$(echo "$assume_output" | jq -r '.Credentials.SecretAccessKey')
+                role_session_token=$(echo "$assume_output" | jq -r '.Credentials.SessionToken')
+
+                local role_identity_name="${SCENARIO_ID}-role"
+                "$PATHRUNNER" identity add \
+                    --access "$role_access_key" --secret "$role_secret_key" --token "$role_session_token" \
+                    --name "$role_identity_name" --switch 2>&1
+
+                ASSUMED_ROLE_ARN="$role_arn_value"
+                success "Assumed starting-role and switched to identity: $role_identity_name"
+            else
+                warn "Could not assume starting-role — module will run as the starting user"
+                echo "$assume_output" | head -3
+            fi
+        fi
+    fi
+
     # Show final configuration
     echo ""
     info "Current configuration:"
@@ -827,11 +1331,36 @@ do_exploit() {
 
     local -a payloads=()
     if [[ -n "$PAYLOAD_FILTER" ]]; then
+        # Explicit payload(s) on command line — always respected, no menu.
         IFS=',' read -ra payloads <<< "$PAYLOAD_FILTER"
     else
         while IFS= read -r p; do
             [[ -n "$p" ]] && payloads+=("$p")
         done < <(get_available_payloads)
+
+        # Interactive payload picker: only when -i is set, stdin is a TTY,
+        # and there are multiple payloads to choose from.
+        if [[ "$INTERACTIVE" == true && -t 0 && ${#payloads[@]} -gt 1 ]]; then
+            echo ""
+            echo -e "${BOLD}Available payloads:${NC}"
+            local i
+            for i in "${!payloads[@]}"; do
+                echo -e "  $((i+1))) ${payloads[$i]}"
+            done
+            echo -e "  a) Run all (sequential, cleanup between each)"
+            echo ""
+            local choice
+            read -rp "Select payload [1-${#payloads[@]}/a, default=a]: " choice || true
+
+            if [[ -z "$choice" || "$choice" == "a" ]]; then
+                : # keep full payloads array — run all
+            elif [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#payloads[@]} )); then
+                payloads=("${payloads[$((choice-1))]}")
+            else
+                warn "Invalid selection '$choice' — running all payloads"
+            fi
+            echo ""
+        fi
     fi
 
     if (( ${#payloads[@]} == 0 )); then
@@ -849,10 +1378,10 @@ do_exploit() {
 
             run_payload_test "$payload"
 
-            # Pause between payloads (not after the last one)
-            if (( n < ${#payloads[@]} )); then
+            # Pause between payloads (not after the last one, interactive mode only)
+            if (( n < ${#payloads[@]} )) && [[ -t 0 ]]; then
                 echo ""
-                read -rp "Press Enter for next payload (or 'q' to quit): " response
+                read -rp "Press Enter for next payload (or 'q' to quit): " response || true
                 if [[ "$response" == "q" ]]; then
                     warn "Stopped by user"
                     break
@@ -865,8 +1394,8 @@ do_exploit() {
 
 # Phase 5: Cleanup and verify
 do_cleanup() {
-    # Ensure we're in the testing workspace
-    "$PATHRUNNER" workspace switch testing 2>&1 || true
+    # Ensure we're in the module-specific test workspace
+    "$PATHRUNNER" workspace switch "$TEST_WORKSPACE" 2>&1 || true
 
     # Ensure identity is active for cleanup commands
     STARTING_IDENTITY="$SCENARIO_ID"
@@ -932,9 +1461,9 @@ main() {
         setup)
             do_setup
             echo ""
-            success "Setup complete. Module is configured in the 'testing' workspace."
-            echo -e "  Open pathrunner and switch to the testing workspace:"
-            echo -e "  ${BOLD}./pathrunner${NC}  then  ${BOLD}workspace switch testing${NC}"
+            success "Setup complete. Module is configured in the '${TEST_WORKSPACE}' workspace."
+            echo -e "  Open pathrunner and switch to the test workspace:"
+            echo -e "  ${BOLD}./pathrunner${NC}  then  ${BOLD}workspace switch ${TEST_WORKSPACE}${NC}"
             echo -e "  Or run directly: ${BOLD}./pathrunner exploit${NC}"
             ;;
         cleanup)
@@ -944,26 +1473,77 @@ main() {
             do_setup
             do_exploit
 
-            # Cleanup verification
-            verify_cleanup
-
-            # Summary
+            # Summary first — show results before asking about cleanup
             if (( ${#RESULT_PAYLOADS[@]} > 0 )); then
                 print_summary
             fi
 
-            # Mark module as tested if all payloads passed execution
-            local all_exec_passed=true
-            for i in "${!RESULT_EXECUTION[@]}"; do
-                if [[ "${RESULT_EXECUTION[$i]}" != "PASS" ]]; then
-                    all_exec_passed=false
-                    break
+            # Interactive mode: prompt before cleanup
+            local skip_cleanup=false
+            if [[ "$INTERACTIVE" == true ]]; then
+                echo ""
+                read -rp "Run cleanup? [Y/n]: " cleanup_response
+                if [[ "$cleanup_response" =~ ^[Nn] ]]; then
+                    warn "Skipping cleanup (resources left in place)"
+                    skip_cleanup=true
                 fi
-            done
+            fi
 
-            if [[ "$all_exec_passed" == true ]] && (( ${#RESULT_PAYLOADS[@]} > 0 )); then
-                info "Marking module $MODULE_ID as tested against $SCENARIO_ID..."
-                "$PATHRUNNER" modules mark-tested "$MODULE_ID" "$SCENARIO_ID" 2>&1 || true
+            if [[ "$skip_cleanup" == false ]]; then
+                # Switch back to the starting user for cleanup
+                "$PATHRUNNER" identity switch "$STARTING_IDENTITY" 2>&1 || true
+
+                # Run cleanup for all payloads
+                header "Cleanup"
+                info "Running workspace cleanup for module $MODULE_ID..."
+                local cleanup_output
+                cleanup_output=$("$PATHRUNNER" workspace cleanup --module "$MODULE_ID" --all 2>&1) || true
+                echo "$cleanup_output"
+
+                if echo "$cleanup_output" | strip_ansi | grep -qE "FAILED|[1-9][0-9]* failed|could not|permission"; then
+                    warn "Some cleanup operations had issues"
+                else
+                    success "Cleanup completed"
+                fi
+
+                verify_cleanup
+            fi
+
+            # Record per-payload test results
+            if (( ${#RESULT_PAYLOADS[@]} > 0 )); then
+                local results_file="$WORK_DIR/test-results.json"
+                local results_json="["
+                for i in "${!RESULT_PAYLOADS[@]}"; do
+                    local fail_reason=""
+                    if [[ "${RESULT_EXECUTION[$i]}" == "FAIL" ]]; then
+                        local output_file="$WORK_DIR/exploit_${RESULT_PAYLOADS[$i]//\//_}.txt"
+                        if [[ -f "$output_file" ]]; then
+                            fail_reason=$(strip_ansi < "$output_file" \
+                                | grep -vE "^\[(harness|runtime) stderr\]" \
+                                | grep -iE "AccessDenied|error occurred|failed to|is not authorized|ValidationException|no value provided|missing required|could not resolve" \
+                                | head -1 \
+                                | sed 's/"/\\"/g' \
+                                | cut -c1-200)
+                        fi
+                    elif [[ "${RESULT_VERIFIED[$i]}" == "NO" ]]; then
+                        fail_reason="privilege verification failed: iam:ListUsers did not succeed"
+                    fi
+
+                    (( i > 0 )) && results_json+=","
+                    results_json+="{\"payload\":\"${RESULT_PAYLOADS[$i]}\""
+                    results_json+=",\"execution\":\"${RESULT_EXECUTION[$i]}\""
+                    results_json+=",\"creds_obtained\":\"${RESULT_CREDS[$i]}\""
+                    results_json+=",\"verified\":\"${RESULT_VERIFIED[$i]}\""
+                    if [[ -n "$fail_reason" ]]; then
+                        results_json+=",\"fail_reason\":\"${fail_reason}\""
+                    fi
+                    results_json+="}"
+                done
+                results_json+="]"
+
+                echo "$results_json" > "$results_file"
+                info "Recording test results for $MODULE_ID..."
+                "$PATHRUNNER" modules mark-results "$MODULE_ID" "$SCENARIO_ID" "$results_file" 2>&1 || true
             fi
             ;;
         *)

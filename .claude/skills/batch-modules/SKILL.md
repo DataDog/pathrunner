@@ -1,7 +1,7 @@
 ---
 name: batch-modules
 description: Batch-create pathrunner exploit modules from a list of pathfinding-labs coverage gaps, using a rolling pool of concurrent sub-agents that enable → build → test → disable each lab. Verify stage iteratively fixes pathrunner-side failures (default budget 5 per module). Uses multi-agent orchestration.
-argument-hint: "[count] [--iterate N] (e.g., 5 --iterate 5) — count of gaps to process; iteration budget defaults to 5"
+argument-hint: "[count] [--iterate N] [--verify-only] (e.g., 5 --iterate 5) — count of gaps to process; iteration budget defaults to 5; --verify-only skips module creation"
 ---
 
 # Batch Module Creation
@@ -28,23 +28,34 @@ If any of these fail, stop and surface the problem — don't proceed and leak ha
 The user's `$ARGUMENTS` may contain:
 - A count (integer, e.g. `5` or `10`), or empty (default `5`), or the word `all` (process every gap the list-gaps skill finds).
 - `--iterate N` — Verify-stage fix-and-retry budget per module. Default `5`. Set `1` to disable iteration and fail on first error; higher values give sub-agents more slack to chase down harder bugs.
+- `--verify-only` — Skip the Build stage entirely. Modules must already exist. The workflow still enables labs, runs verify (with fix iteration), and disables. Useful for re-testing existing modules after changes or running regression checks.
+- Explicit module IDs (e.g., `iam-005 iam-007 bedrock-001`) — When `--verify-only` is set, you can pass module IDs directly instead of discovering gaps. Build the gaps array from the IDs using `{scenarioId}-to-admin` as the default scenario.
 
 Examples:
 - `/batch-modules 5` → 5 gaps, iteration budget 5
 - `/batch-modules 10 --iterate 3` → 10 gaps, iteration budget 3 per module
 - `/batch-modules all --iterate 1` → every gap, no iteration (fail fast)
+- `/batch-modules --verify-only iam-005 iam-007` → verify existing modules iam-005 and iam-007
+- `/batch-modules --verify-only all` → verify all existing modules that have labs
 
 ## Steps
 
-### Step 1: Discover gaps
+### Step 1: Discover targets
 
-Invoke the `list-gaps` skill to produce the coverage-gap table. The output is a markdown table with columns: `Path ID | Scenario | Module Exists | Category | Services`.
+**Normal mode (creating new modules):** Invoke the `list-gaps` skill to produce the coverage-gap table. The output is a markdown table with columns: `Path ID | Scenario | Module Exists | Category | Services`.
 
 Parse the table into a JSON array of `{ pathId, scenarioId, category, services }` records. Filter to rows where `Module Exists = No`. If a `service` filter argument was provided, restrict further.
 
 **IMPORTANT**: The `scenarioId` must be the plabs-registered ID (e.g., `ecs-001-to-admin`), NOT the directory name (e.g., `ecs-001-iam-passrole+ecs-createcluster+...`). The Scenario column from list-gaps already uses the correct format: `{pathfinding-cloud-id}-{goal}` where goal is typically `to-admin`.
 
 If the resulting list is empty, tell the user "no gaps remaining" and stop.
+
+**Verify-only mode (`--verify-only`):** If the user passed explicit module IDs (e.g., `--verify-only iam-005 iam-007`), build the gaps array directly from those IDs:
+```
+{ pathId: "iam-005", scenarioId: "iam-005-to-admin", category: "", services: "" }
+```
+
+If the user passed `--verify-only all`, invoke `list-gaps` and filter to rows where `Module Exists = Yes` (opposite of normal mode). If the user passed `--verify-only N` (a count), take the first N modules from the status manifest that have existing modules.
 
 ### Step 2: Trim to the requested count
 
@@ -53,6 +64,8 @@ Take the first N entries from the gap list, where N is the parsed count (default
 **Show the user the exact list you're about to work on**, one line per gap: `pathId — scenarioId — category — services`. Ask for confirmation before proceeding unless the user's original message clearly authorized the specific batch (e.g., "batch these five: X, Y, Z, ..."). This is a heavyweight operation — the deploy phase alone can take minutes and costs money.
 
 ### Step 3: Bootstrap payload service directories
+
+**Skip this step in verify-only mode** — modules already exist.
 
 Multiple sub-agents will work on modules concurrently. If two agents both try to create `pkg/payloads/{service}/` and add its blank import to `main.go` at the same time, they'll collide. Pre-create any missing service directories before the workflow starts.
 
@@ -66,7 +79,7 @@ This is idempotent — it skips services that already have a `pkg/payloads/{serv
 
 ### Step 4: Invoke the workflow
 
-Call the Workflow tool with `name: "batch-modules"` and `args` set to the structured gap list plus the iteration budget:
+Call the Workflow tool with `name: "batch-modules"` and `args` set to the structured gap list plus the iteration budget. Add `verifyOnly: true` when in verify-only mode:
 
 ```
 Workflow({
@@ -77,12 +90,13 @@ Workflow({
       { pathId: "sqs-001", scenarioId: "sqs-001-to-admin", category: "new-passrole", services: "iam,sqs" },
       ...
     ],
-    iterationBudget: 5   // omit or pass 5 for default; 1 = single-shot, no fix loop
+    iterationBudget: 5,  // omit or pass 5 for default; 1 = single-shot, no fix loop
+    verifyOnly: true,    // omit for normal mode; true skips Build stage
   }
 })
 ```
 
-The workflow runs a single up-front **Preflight** phase (SSO profile freshness), then pipelines each gap through Enable → Build → Verify → Disable. Sub-agents run concurrently, capped by the workflow runtime (min(16, cpu-cores-2)). The `plabs-lifecycle` script's file lock ensures at most one `plabs apply` is in flight at any moment; other items block on lock acquisition and continue as it releases. The Enable stage auto-imports each scenario's starting credentials into pathrunner's identity store, so Verify sub-agents just switch to `<scenario-id>` and start testing.
+The workflow runs a single up-front **Preflight** phase (SSO profile freshness), then pipelines each gap through Enable → Build → Verify → Disable. In verify-only mode, Build is a no-op passthrough. Sub-agents run concurrently, capped by the workflow runtime (min(16, cpu-cores-2)). The `plabs-lifecycle` script's file lock ensures at most one `plabs apply` is in flight at any moment; other items block on lock acquisition and continue as it releases. The Enable stage auto-imports each scenario's starting credentials into pathrunner's identity store, so Verify sub-agents just switch to `<scenario-id>` and start testing.
 
 The **Verify** stage runs up to `iterationBudget` attempts per module. Each attempt: run go tests + `test-module.sh full <id>`, and if either fails, classify the failure. Pathrunner-side bugs (compile errors, wrong SDK calls, wrong ARN parsing, missing env vars in payloads, timing constants, etc.) get a minimal Edit-based fix; lab-side or environmental failures (missing scenario, SSO expired, drift) trigger a **hard-stop** with no code changes. Sub-agents never touch `../pathfinding-labs/**` or `../pathfinding.cloud/**`, never git-commit, never call `plabs enable/disable`. If the budget is exhausted without passing, the sub-agent returns `success: false` with the full fix history — Disable still runs, so labs aren't leaked.
 

@@ -94,7 +94,7 @@ The listener is deploy-agnostic: it can run locally on the operator's machine (p
 **Auto-injection of payload options**: When `attacker listener start` runs and resolves a public IP, it populates the REPL's `HTTPS_URL`, `LISTENER_IP`, and `LISTENER_PORT` options if they aren't already set (see `injectListenerOptions` in `pkg/core/repl/attacker_listener.go`). This means payloads like `revshell/tls`, `exfil/https`, and `exfil/s3` don't require the operator to manually copy the listener's IP into module options — starting the listener wires them up.
 
 REPL surface:
-- `attacker set profile|keys` / `attacker show|clear|validate` — attacker AWS identity used by deploy commands (separate from the victim identity)
+- `attacker identity show|add|remove|validate` — attacker AWS identity used by deploy commands (separate from the victim identity). Persisted globally to `~/.pathrunner/attacker_identity.json`, shared across workspaces (like deploy state and listener state). Legacy aliases `attacker set/show/clear/validate` still work.
 - `attacker listener start|stop|status|log` — the unified listener (local or on the deployed attacker EC2 box)
 - `attacker infra ec2 create|update|status|destroy` — deploy/update/destroy the attacker EC2 box
 - `attacker infra bucket create|status|destroy` — deploy the exfil S3 bucket used by `exfil/s3` payloads
@@ -147,7 +147,7 @@ Common test setup uses `setupTest(t)` in `tests/integration/setup_test.go` which
 
 ## Session Data Storage
 
-Workspaces persist as JSON in `~/.pathrunner/sessions/`: identities map (aws.Config rebuilt on load), current identity, command log, created resources, current module, options.
+Workspaces persist as JSON in `~/.pathrunner/sessions/`: identities map (aws.Config rebuilt on load), current identity, command log, created resources, current module, options. The attacker identity is stored globally at `~/.pathrunner/attacker_identity.json` (shared across all workspaces), alongside deploy state (`deploy.json`) and listener state (`listener.json`).
 
 ## Common Gotchas
 
