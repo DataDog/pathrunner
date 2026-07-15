@@ -10,12 +10,22 @@ import (
 	"time"
 )
 
+// PayloadResult captures the test outcome for a single payload.
+type PayloadResult struct {
+	Payload    string `json:"payload"`
+	Execution  string `json:"execution"`
+	Creds      string `json:"creds_obtained"`
+	Verified   string `json:"verified"`
+	FailReason string `json:"fail_reason,omitempty"`
+}
+
 // ModuleStatus represents the test status of a single module.
 type ModuleStatus struct {
-	Status       string  `json:"status"`
-	LastTested   *string `json:"last_tested"`
-	TestedAgainst *string `json:"tested_against"`
-	Notes        string  `json:"notes"`
+	Status         string          `json:"status"`
+	LastTested     *string         `json:"last_tested"`
+	TestedAgainst  *string         `json:"tested_against"`
+	Notes          string          `json:"notes"`
+	PayloadResults []PayloadResult `json:"payload_results,omitempty"`
 }
 
 // StatusManifest holds the complete module status data.
@@ -84,6 +94,32 @@ func (m *StatusManifest) MarkTested(moduleID string, testedAgainst string) {
 	entry.LastTested = &now
 	if testedAgainst != "" {
 		entry.TestedAgainst = &testedAgainst
+	}
+	m.Modules[moduleID] = entry
+}
+
+// MarkTestedWithResults updates a module's status based on per-payload test results.
+// Status is "tested" if all payloads passed, "failing" otherwise.
+func (m *StatusManifest) MarkTestedWithResults(moduleID string, testedAgainst string, results []PayloadResult) {
+	now := time.Now().Format("2006-01-02")
+	entry := m.Modules[moduleID]
+	entry.LastTested = &now
+	if testedAgainst != "" {
+		entry.TestedAgainst = &testedAgainst
+	}
+	entry.PayloadResults = results
+
+	allPassed := len(results) > 0
+	for _, r := range results {
+		if r.Execution != "PASS" || (r.Verified != "YES" && r.Verified != "SKIP") {
+			allPassed = false
+			break
+		}
+	}
+	if allPassed {
+		entry.Status = "tested"
+	} else {
+		entry.Status = "failing"
 	}
 	m.Modules[moduleID] = entry
 }

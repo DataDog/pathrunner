@@ -31,9 +31,9 @@ func QualifiedName(service, name string) string {
 func extractServiceTag(tags []string) string {
 	serviceTags := []string{
 		TagServiceLambda, TagServiceEC2, TagServiceECS,
-		TagServiceAppRunner, TagServiceCodeBuild, TagServiceGlue,
+		TagServiceAppRunner, TagServiceBatch, TagServiceCodeBuild, TagServiceGlue,
 		TagServiceSageMaker, TagServiceCloudFormation, TagServiceSSM,
-		TagServiceBedrock,
+		TagServiceBedrock, TagServiceBraket, TagServiceImageBuilder, TagServiceGameLift, TagServiceEMR,
 	}
 	for _, tag := range tags {
 		for _, st := range serviceTags {

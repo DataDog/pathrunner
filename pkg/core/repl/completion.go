@@ -52,7 +52,9 @@ func (r *REPL) getCompleter() readline.AutoCompleter {
 		aliasCompleter("ids", identityTree),
 		r.buildUseCompleter(),
 		readline.PcItem("show",
-			readline.PcItem("modules"),
+			readline.PcItem("modules",
+				readline.PcItem("--wide"),
+			),
 			readline.PcItem("payloads"),
 			readline.PcItem("options"),
 			readline.PcItem("info"),
@@ -199,21 +201,23 @@ func (r *REPL) buildSetCompleter() readline.PrefixCompleterInterface {
 
 // buildUnsetCompleter builds completion for the unset command
 func (r *REPL) buildUnsetCompleter() readline.PrefixCompleterInterface {
-	if r.currentModule == nil {
-		return readline.PcItem("unset", readline.PcItem("help"))
+	items := []readline.PrefixCompleterInterface{
+		readline.PcItem("help"),
+		readline.PcItem("module"),
+		readline.PcItem("identity"),
 	}
 
-	options := r.currentModule.Options()
-	items := make([]readline.PrefixCompleterInterface, 0, len(options)+1)
-	items = append(items, readline.PcItem("help"))
-	for _, option := range options {
-		items = append(items, readline.PcItem(option.Name))
-	}
+	if r.currentModule != nil {
+		options := r.currentModule.Options()
+		for _, option := range options {
+			items = append(items, readline.PcItem(option.Name))
+		}
 
-	if selectedPayload, ok := r.options["PAYLOAD"]; ok && selectedPayload != "" {
-		payloadOpts := r.currentModule.PayloadOptions(selectedPayload)
-		for _, opt := range payloadOpts {
-			items = append(items, readline.PcItem(opt.Name))
+		if selectedPayload, ok := r.options["PAYLOAD"]; ok && selectedPayload != "" {
+			payloadOpts := r.currentModule.PayloadOptions(selectedPayload)
+			for _, opt := range payloadOpts {
+				items = append(items, readline.PcItem(opt.Name))
+			}
 		}
 	}
 
@@ -260,6 +264,8 @@ func (r *REPL) updateCompletion() {
 // buildAttackerCompleter builds completion for the attacker command
 func (r *REPL) buildAttackerCompleter() readline.PrefixCompleterInterface {
 	return readline.PcItem("attacker",
+		r.buildAttackerIdentitySubtree(),
+		// Legacy aliases
 		readline.PcItem("set",
 			readline.PcItem("profile"),
 			readline.PcItem("keys",
@@ -275,6 +281,26 @@ func (r *REPL) buildAttackerCompleter() readline.PrefixCompleterInterface {
 		readline.PcItem("clear"),
 		r.buildListenerSubtree(),
 		r.buildInfraSubtree(),
+		readline.PcItem("help"),
+	)
+}
+
+// buildAttackerIdentitySubtree returns the identity subtree for the attacker completer
+func (r *REPL) buildAttackerIdentitySubtree() readline.PrefixCompleterInterface {
+	return readline.PcItem("identity",
+		readline.PcItem("show"),
+		readline.PcItem("add",
+			readline.PcItem("profile"),
+			readline.PcItem("keys",
+				readline.PcItem("--access"),
+				readline.PcItem("--secret"),
+				readline.PcItem("--token"),
+				readline.PcItem("--region"),
+			),
+			readline.PcItem("help"),
+		),
+		readline.PcItem("remove"),
+		readline.PcItem("validate"),
 		readline.PcItem("help"),
 	)
 }
@@ -320,6 +346,14 @@ func (r *REPL) buildInfraSubtree() readline.PrefixCompleterInterface {
 			),
 			readline.PcItem("help"),
 		),
+		readline.PcItem("ecr",
+			readline.PcItem("create",
+				readline.PcItem("--region"),
+			),
+			readline.PcItem("status"),
+			readline.PcItem("destroy"),
+			readline.PcItem("help"),
+		),
 		readline.PcItem("status"),
 		readline.PcItem("destroy"),
 		readline.PcItem("help"),
@@ -339,10 +373,13 @@ func (r *REPL) buildInfraCompleter() readline.PrefixCompleterInterface {
 // buildModulesCompleter builds completion for the top-level modules command
 func (r *REPL) buildModulesCompleter() readline.PrefixCompleterInterface {
 	return readline.PcItem("modules",
-		readline.PcItem("list"),
+		readline.PcItem("list",
+			readline.PcItem("--wide"),
+		),
 		readline.PcItem("search"),
 		readline.PcItem("status"),
 		readline.PcItem("mark-tested"),
+		readline.PcItem("mark-results"),
 		readline.PcItem("mark-status"),
 		readline.PcItem("help"),
 	)
@@ -351,7 +388,9 @@ func (r *REPL) buildModulesCompleter() readline.PrefixCompleterInterface {
 // buildPayloadsCompleter builds completion for the top-level payloads command
 func (r *REPL) buildPayloadsCompleter() readline.PrefixCompleterInterface {
 	return readline.PcItem("payloads",
-		readline.PcItem("list"),
+		readline.PcItem("list",
+			readline.PcItem("--all"),
+		),
 		readline.PcItem("help"),
 	)
 }

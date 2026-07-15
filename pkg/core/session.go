@@ -67,18 +67,30 @@ func NewSessionManager() *SessionManager {
 		configManager: configManager,
 	}
 
-	// Load the last active workspace from config
-	currentWorkspace := configManager.GetCurrentWorkspace()
+	// PATHRUNNER_WORKSPACE env var overrides the shared config.json workspace pointer.
+	// This lets concurrent test agents each use their own isolated workspace without
+	// overwriting each other's "current workspace" entry in the shared config file.
+	// When the env var is set, workspace switch commands still switch within the
+	// process but do not persist the change to config.json.
+	forcedWorkspace := os.Getenv("PATHRUNNER_WORKSPACE")
+
+	var currentWorkspace string
+	if forcedWorkspace != "" {
+		currentWorkspace = forcedWorkspace
+	} else {
+		// Load the last active workspace from config
+		currentWorkspace = configManager.GetCurrentWorkspace()
+	}
 
 	// Try to load the last active session
 	session, err := sm.LoadSession(currentWorkspace)
 	if err != nil {
-		// If the configured workspace doesn't exist, fall back to default
-		session, err = sm.LoadSession("default")
-		if err != nil {
-			// Create default session if it doesn't exist
+		if forcedWorkspace != "" {
+			// PATHRUNNER_WORKSPACE is set but the workspace file doesn't exist yet.
+			// Create it automatically so the first pathrunner invocation bootstraps
+			// the workspace without needing a separate 'workspace create' call.
 			session = &Session{
-				Name:             "default",
+				Name:             forcedWorkspace,
 				Created:          time.Now(),
 				LastAccessed:     time.Now(),
 				Identities:       make(map[string]*modules.Identity),
@@ -87,9 +99,25 @@ func NewSessionManager() *SessionManager {
 				CreatedResources: make([]CreatedResource, 0),
 			}
 			sm.SaveSession(session)
+		} else {
+			// If the configured workspace doesn't exist, fall back to default
+			session, err = sm.LoadSession("default")
+			if err != nil {
+				// Create default session if it doesn't exist
+				session = &Session{
+					Name:             "default",
+					Created:          time.Now(),
+					LastAccessed:     time.Now(),
+					Identities:       make(map[string]*modules.Identity),
+					Options:          make(map[string]string),
+					CommandLog:       make([]CommandLogEntry, 0),
+					CreatedResources: make([]CreatedResource, 0),
+				}
+				sm.SaveSession(session)
+			}
+			// Update config to default since the configured one didn't exist
+			configManager.SetCurrentWorkspace("default")
 		}
-		// Update config to default since the configured one didn't exist
-		configManager.SetCurrentWorkspace("default")
 	}
 
 	sm.currentSession = session
@@ -144,8 +172,10 @@ func (sm *SessionManager) SwitchSession(name string) error {
 	sm.currentSession.LastAccessed = time.Now()
 	sm.SaveSession(sm.currentSession)
 
-	// Update config to remember this workspace
-	if sm.configManager != nil {
+	// Only update config.json when not using an env-var-forced workspace.
+	// When PATHRUNNER_WORKSPACE is set, we skip config.json writes so that
+	// concurrent agents don't overwrite each other's workspace pointer.
+	if sm.configManager != nil && os.Getenv("PATHRUNNER_WORKSPACE") == "" {
 		sm.configManager.SetCurrentWorkspace(name)
 	}
 

@@ -3,9 +3,11 @@ package core
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"pathrunner/pkg/discovery"
 	"pathrunner/pkg/modules"
 	"pathrunner/pkg/ui"
@@ -39,11 +41,14 @@ func (im *IdentityManager) SetOnIdentityAdded(callback func(identity *modules.Id
 }
 
 func NewIdentityManager(getLastResult func() string, updateCompletion func()) *IdentityManager {
-	return &IdentityManager{
+	im := &IdentityManager{
 		identities:       make(map[string]*modules.Identity),
 		getLastResult:    getLastResult,
 		updateCompletion: updateCompletion,
 	}
+	// Load global attacker identity from ~/.pathrunner/attacker_identity.json
+	im.loadAttackerIdentity()
+	return im
 }
 
 // storeIdentity adds a validated identity to the store, sets it as current if
@@ -728,6 +733,14 @@ func (im *IdentityManager) SwitchIdentity(name string) error {
 	return nil
 }
 
+// ClearIdentity deselects the current identity without removing it from the store.
+func (im *IdentityManager) ClearIdentity() {
+	im.current = nil
+	if im.updateCompletion != nil {
+		im.updateCompletion()
+	}
+}
+
 func (im *IdentityManager) RemoveIdentity(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("identity clear requires identity name or --expired flag")
@@ -823,14 +836,100 @@ func (im *IdentityManager) GetAttackerIdentity() *modules.Identity {
 	return im.attackerIdentity
 }
 
-// SetAttackerIdentity sets the attacker account identity.
+// SetAttackerIdentity sets the attacker account identity and persists it
+// globally to ~/.pathrunner/attacker_identity.json.
 func (im *IdentityManager) SetAttackerIdentity(identity *modules.Identity) {
 	im.attackerIdentity = identity
+	im.saveAttackerIdentity()
 }
 
-// ClearAttackerIdentity removes the attacker account identity.
+// ClearAttackerIdentity removes the attacker account identity and deletes the
+// global persistence file.
 func (im *IdentityManager) ClearAttackerIdentity() {
 	im.attackerIdentity = nil
+	im.removeAttackerIdentityFile()
+}
+
+// attackerIdentityPath returns the path to the global attacker identity file.
+func attackerIdentityPath() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get home directory: %v", err)
+	}
+	return filepath.Join(homeDir, ".pathrunner", "attacker_identity.json"), nil
+}
+
+// loadAttackerIdentity reads the attacker identity from the global file.
+// Called once at startup. Silently does nothing if the file doesn't exist.
+func (im *IdentityManager) loadAttackerIdentity() {
+	path, err := attackerIdentityPath()
+	if err != nil {
+		return
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return
+	}
+
+	var identity modules.Identity
+	if err := json.Unmarshal(data, &identity); err != nil {
+		return
+	}
+
+	// Rebuild AWS config from persisted fields
+	if identity.Profile != "" {
+		cfg, err := config.LoadDefaultConfig(context.Background(),
+			config.WithSharedConfigProfile(identity.Profile),
+		)
+		if err == nil {
+			identity.SetConfig(cfg)
+		}
+	} else if identity.AccessKeyID != "" && identity.SecretKey != "" {
+		creds := credentials.NewStaticCredentialsProvider(identity.AccessKeyID, identity.SecretKey, identity.SessionToken)
+		cfg, err := config.LoadDefaultConfig(context.Background(),
+			config.WithCredentialsProvider(creds),
+			config.WithRegion(identity.Region),
+		)
+		if err == nil {
+			identity.SetConfig(cfg)
+		}
+	}
+
+	im.attackerIdentity = &identity
+}
+
+// saveAttackerIdentity writes the attacker identity to the global file.
+func (im *IdentityManager) saveAttackerIdentity() {
+	if im.attackerIdentity == nil {
+		return
+	}
+
+	path, err := attackerIdentityPath()
+	if err != nil {
+		return
+	}
+
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return
+	}
+
+	data, err := json.MarshalIndent(im.attackerIdentity, "", "  ")
+	if err != nil {
+		return
+	}
+
+	os.WriteFile(path, data, 0600)
+}
+
+// removeAttackerIdentityFile deletes the global attacker identity file.
+func (im *IdentityManager) removeAttackerIdentityFile() {
+	path, err := attackerIdentityPath()
+	if err != nil {
+		return
+	}
+	os.Remove(path)
 }
 
 // CheckAdmin checks whether the named identity (or current if empty) has admin privileges.

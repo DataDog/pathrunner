@@ -13,6 +13,22 @@ import (
 	_ "pathrunner/pkg/payloads/glue"
 	_ "pathrunner/pkg/payloads/ecs"
 	_ "pathrunner/pkg/payloads/lambda"
+	_ "pathrunner/pkg/payloads/amplify"
+	_ "pathrunner/pkg/payloads/apprunner"
+	_ "pathrunner/pkg/payloads/batch"
+	_ "pathrunner/pkg/payloads/bedrock"
+	_ "pathrunner/pkg/payloads/braket"
+	_ "pathrunner/pkg/payloads/cloudformation"
+	_ "pathrunner/pkg/payloads/codebuild"
+	_ "pathrunner/pkg/payloads/codedeploy"
+	_ "pathrunner/pkg/payloads/ssm"
+	_ "pathrunner/pkg/payloads/cognitoidentity"
+	_ "pathrunner/pkg/payloads/emr"
+	_ "pathrunner/pkg/payloads/emrserverless"
+	_ "pathrunner/pkg/payloads/gamelift"
+	_ "pathrunner/pkg/payloads/imagebuilder"
+	_ "pathrunner/pkg/payloads/kinesisanalytics"
+	_ "pathrunner/pkg/payloads/omics"
 )
 
 func main() {
@@ -21,5 +37,8 @@ func main() {
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
+	}
+	if code := cli.ExitCode(); code != 0 {
+		os.Exit(code)
 	}
 }

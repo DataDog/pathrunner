@@ -396,6 +396,102 @@ func TestSubcommandHelp(t *testing.T) {
 	}
 }
 
+// TestUnsetModule tests that 'unset module' clears the current module and its options
+func TestUnsetModule(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	// Unset with no module selected should succeed gracefully
+	err := r.ExecuteCommand("unset module")
+	if err != nil {
+		t.Errorf("Expected no error unsetting module when none selected, got: %v", err)
+	}
+
+	// Select a module and set an option
+	if err := r.ExecuteCommand("use lambda-001"); err != nil {
+		t.Fatalf("Failed to use lambda-001: %v", err)
+	}
+	if err := r.ExecuteCommand("set ROLE_ARN arn:aws:iam::123:role/test"); err != nil {
+		t.Fatalf("Failed to set ROLE_ARN: %v", err)
+	}
+
+	// Verify module and option are set
+	if r.GetCurrentModule() == nil {
+		t.Fatal("Expected module to be set")
+	}
+	if r.GetOptions()["ROLE_ARN"] == "" {
+		t.Fatal("Expected ROLE_ARN to be set")
+	}
+
+	// Unset the module
+	if err := r.ExecuteCommand("unset module"); err != nil {
+		t.Errorf("Expected no error unsetting module, got: %v", err)
+	}
+
+	// Verify module and options are cleared
+	if r.GetCurrentModule() != nil {
+		t.Error("Expected current module to be nil after unset module")
+	}
+	if len(r.GetOptions()) != 0 {
+		t.Errorf("Expected options to be cleared after unset module, got: %v", r.GetOptions())
+	}
+}
+
+// TestUnsetIdentity tests that 'unset identity' deselects the current identity
+func TestUnsetIdentity(t *testing.T) {
+	r, _, identityManager, cleanup := setupTest(t)
+	defer cleanup()
+
+	// Unset with no identity selected should succeed gracefully
+	err := r.ExecuteCommand("unset identity")
+	if err != nil {
+		t.Errorf("Expected no error unsetting identity when none selected, got: %v", err)
+	}
+
+	// Inject an identity directly to avoid AWS credential validation
+	testIdentity := &modules.Identity{
+		Name:   "test-id",
+		Type:   "keys",
+		Region: "us-east-1",
+	}
+	identityManager.SetCurrent(testIdentity)
+
+	// Verify identity is current
+	if identityManager.GetCurrent() == nil {
+		t.Fatal("Expected identity to be set")
+	}
+
+	// Unset the identity
+	if err := r.ExecuteCommand("unset identity"); err != nil {
+		t.Errorf("Expected no error unsetting identity, got: %v", err)
+	}
+
+	// Verify identity is cleared
+	if identityManager.GetCurrent() != nil {
+		t.Error("Expected current identity to be nil after unset identity")
+	}
+}
+
+// TestPayloadsListAll tests that 'payloads list --all' shows all payloads regardless of current module
+func TestPayloadsListAll(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	// Works without a module selected
+	if err := r.ExecuteCommand("payloads list --all"); err != nil {
+		t.Errorf("Expected no error with payloads list --all, got: %v", err)
+	}
+
+	// Select a module, then confirm --all still works
+	if err := r.ExecuteCommand("use lambda-001"); err != nil {
+		t.Fatalf("Failed to use lambda-001: %v", err)
+	}
+
+	if err := r.ExecuteCommand("payloads list --all"); err != nil {
+		t.Errorf("Expected no error with payloads list --all when module selected, got: %v", err)
+	}
+}
+
 // TestInfoCommand tests the top-level info command
 func TestInfoCommand(t *testing.T) {
 	r, _, _, cleanup := setupTest(t)

@@ -52,6 +52,7 @@ type IdentityManager interface {
 	GetAttackerIdentity() *modules.Identity
 	SetAttackerIdentity(identity *modules.Identity)
 	ClearAttackerIdentity()
+	ClearIdentity()
 }
 
 // SessionManager interface for dependency injection
@@ -78,7 +79,6 @@ type Session interface {
 	GetResourceCount() int
 	GetIdentities() map[string]*modules.Identity
 	GetCurrentIdentity() string
-	GetAttackerIdentity() *modules.Identity
 	GetCurrentModule() string
 	GetOptions() map[string]string
 	GetCommandLog() []CommandLogEntry
@@ -86,7 +86,6 @@ type Session interface {
 	SetOptions(options map[string]string)
 	SetIdentities(identities map[string]*modules.Identity)
 	SetCurrentIdentity(name string)
-	SetAttackerIdentity(identity *modules.Identity)
 }
 
 // CommandLogEntry represents a logged command

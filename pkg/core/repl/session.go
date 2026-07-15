@@ -15,8 +15,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	"github.com/aws/aws-sdk-go-v2/service/glue"
+	gluetypes "github.com/aws/aws-sdk-go-v2/service/glue/types"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
+	"github.com/aws/aws-sdk-go-v2/service/omics"
+	omicstypes "github.com/aws/aws-sdk-go-v2/service/omics/types"
 )
 
 // cmdWorkspace handles workspace management commands
@@ -515,6 +518,12 @@ func printManualCleanupCommand(res CreatedResource) {
 			instanceID = res.Name
 		}
 		fmt.Printf("    aws ec2 terminate-instances --instance-ids %s --region %s\n", instanceID, region)
+	case "ec2:spot-instance-request":
+		spotRequestID := res.Metadata["spot_request_id"]
+		if spotRequestID == "" {
+			spotRequestID = res.Name
+		}
+		fmt.Printf("    aws ec2 cancel-spot-instance-requests --spot-instance-request-ids %s --region %s\n", spotRequestID, region)
 	case "iam:attached-policy":
 		principalType := res.Metadata["principal_type"]
 		principalName := res.Metadata["principal_name"]
@@ -577,6 +586,42 @@ func printManualCleanupCommand(res CreatedResource) {
 		fmt.Printf("    aws s3api delete-bucket --bucket %s --region %s\n", res.Name, region)
 	case "glue:job":
 		fmt.Printf("    aws glue delete-job --job-name %s --region %s\n", res.Name, region)
+	case "glue:session":
+		fmt.Printf("    aws glue stop-session --id %s --region %s\n", res.Name, region)
+		fmt.Printf("    aws glue delete-session --id %s --region %s\n", res.Name, region)
+	case "glue:trigger":
+		fmt.Printf("    aws glue stop-trigger --name %s --region %s\n", res.Name, region)
+		fmt.Printf("    aws glue delete-trigger --name %s --region %s\n", res.Name, region)
+	case "imagebuilder:component":
+		componentArn := res.Metadata["component_arn"]
+		if componentArn == "" {
+			componentArn = res.ARN
+		}
+		fmt.Printf("    aws imagebuilder delete-component --component-build-version-arn %s --region %s\n", componentArn, region)
+	case "imagebuilder:recipe":
+		recipeArn := res.Metadata["recipe_arn"]
+		if recipeArn == "" {
+			recipeArn = res.ARN
+		}
+		fmt.Printf("    aws imagebuilder delete-image-recipe --image-recipe-arn %s --region %s\n", recipeArn, region)
+	case "imagebuilder:infra-config":
+		infraArn := res.Metadata["infra_config_arn"]
+		if infraArn == "" {
+			infraArn = res.ARN
+		}
+		fmt.Printf("    aws imagebuilder delete-infrastructure-configuration --infrastructure-configuration-arn %s --region %s\n", infraArn, region)
+	case "imagebuilder:image":
+		imageArn := res.Metadata["image_build_arn"]
+		if imageArn == "" {
+			imageArn = res.ARN
+		}
+		fmt.Printf("    aws imagebuilder cancel-image-creation --image-build-version-arn %s --region %s 2>/dev/null || true\n", imageArn, region)
+		fmt.Printf("    aws imagebuilder delete-image --image-build-version-arn %s --region %s\n", imageArn, region)
+	case "kinesisanalyticsv2:application":
+		createTimestamp := res.Metadata["create_timestamp"]
+		fmt.Printf("    # First stop the application, then delete it using its original CreateTimestamp\n")
+		fmt.Printf("    aws kinesisanalyticsv2 stop-application --application-name %s --force --region %s 2>/dev/null || true\n", res.Name, region)
+		fmt.Printf("    aws kinesisanalyticsv2 delete-application --application-name %s --create-timestamp %s --region %s\n", res.Name, createTimestamp, region)
 	default:
 		fmt.Printf("    # %s: %s (manual cleanup required)\n", res.Type, res.Name)
 	}
@@ -658,13 +703,6 @@ func (r *REPL) loadSessionState() {
 		r.identityManager.SetCurrent(nil)
 	}
 
-	// Load attacker identity
-	if attackerIdentity := session.GetAttackerIdentity(); attackerIdentity != nil {
-		r.identityManager.SetAttackerIdentity(attackerIdentity)
-	} else {
-		r.identityManager.ClearAttackerIdentity()
-	}
-
 	// Load current module
 	if moduleName := session.GetCurrentModule(); moduleName != "" {
 		if module, err := modules.LoadModule(moduleName); err == nil {
@@ -696,9 +734,6 @@ func (r *REPL) saveCurrentState() {
 		session.SetCurrentIdentity(identity.Name)
 	}
 
-	// Save attacker identity
-	session.SetAttackerIdentity(r.identityManager.GetAttackerIdentity())
-
 	// Save current module
 	if r.currentModule != nil {
 		session.SetCurrentModule(r.currentModule.Name())
@@ -720,6 +755,8 @@ func (r *REPL) cleanupResource(resource CreatedResource, identity *modules.Ident
 		return r.cleanupLambdaFunction(ctx, config, resource)
 	case "ec2:instance":
 		return r.cleanupEC2Instance(ctx, config, resource)
+	case "ec2:spot-instance-request":
+		return r.cleanupEC2SpotInstanceRequest(ctx, config, resource)
 	case "iam:role":
 		return r.cleanupIAMRole(ctx, config, resource)
 	case "iam:user":
@@ -752,6 +789,66 @@ func (r *REPL) cleanupResource(resource CreatedResource, identity *modules.Ident
 		return r.cleanupS3Bucket(ctx, config, resource)
 	case "glue:job":
 		return r.cleanupGlueJob(ctx, config, resource)
+	case "glue:dev-endpoint":
+		return r.cleanupGlueDevEndpoint(ctx, config, resource)
+	case "glue:session":
+		return r.cleanupGlueSession(ctx, config, resource)
+	case "glue:trigger":
+		return r.cleanupGlueTrigger(ctx, config, resource)
+	case "emrserverless:application":
+		return r.cleanupEMRServerlessApplication(ctx, config, resource)
+	case "cloudformation:stack":
+		return r.cleanupCloudFormationStack(ctx, config, resource)
+	case "cloudformation:stack-update":
+		return r.cleanupCloudFormationStackUpdate(ctx, config, resource)
+	case "cloudformation:stackset":
+		return r.cleanupCloudFormationStackSet(ctx, config, resource)
+	case "cloudformation:stackset-update":
+		return r.cleanupCloudFormationStackSetUpdate(ctx, config, resource)
+	case "bedrock-agentcore:browser":
+		return r.cleanupBedrockAgentCoreBrowser(ctx, config, resource)
+	case "bedrock-agentcore:harness":
+		return r.cleanupBedrockAgentCoreHarness(ctx, config, resource)
+	case "bedrock-agentcore:code-interpreter":
+		return r.cleanupBedrockCodeInterpreter(ctx, config, resource)
+	case "bedrock-agentcore:agent-runtime":
+		return r.cleanupBedrockAgentCoreAgentRuntime(ctx, config, resource)
+	case "ecs:task":
+		return r.cleanupECSTask(ctx, config, resource)
+	case "ec2:userdata":
+		return r.cleanupEC2UserData(ctx, config, resource)
+	case "apprunner:service":
+		return r.cleanupAppRunnerService(ctx, config, resource)
+	case "braket:job":
+		return r.cleanupBraketJob(ctx, config, resource)
+	case "ec2:launch-template-version":
+		return r.cleanupEC2LaunchTemplateVersion(ctx, config, resource)
+	case "ec2:launch-template-default":
+		return r.cleanupEC2LaunchTemplateDefault(ctx, config, resource)
+	case "batch:job-definition":
+		return r.cleanupBatchJobDefinition(ctx, config, resource)
+	case "imagebuilder:component":
+		return r.cleanupImageBuilderComponent(ctx, config, resource)
+	case "imagebuilder:recipe":
+		return r.cleanupImageBuilderRecipe(ctx, config, resource)
+	case "imagebuilder:infra-config":
+		return r.cleanupImageBuilderInfraConfig(ctx, config, resource)
+	case "imagebuilder:image":
+		return r.cleanupImageBuilderImage(ctx, config, resource)
+	case "emr:cluster":
+		return r.cleanupEMRCluster(ctx, config, resource)
+	case "omics:workflow":
+		return r.cleanupOmicsWorkflow(ctx, config, resource)
+	case "omics:run":
+		return r.cleanupOmicsRun(ctx, config, resource)
+	case "ssm:automation-document":
+		return r.cleanupSSMAutomationDocument(ctx, config, resource)
+	case "kinesisanalyticsv2:application":
+		return r.cleanupKinesisAnalyticsApplication(ctx, config, resource)
+	case "gamelift:fleet":
+		return r.cleanupGameLiftFleet(ctx, config, resource)
+	case "gamelift:build":
+		return r.cleanupGameLiftBuild(ctx, config, resource)
 	default:
 		return fmt.Errorf("unsupported resource type: %s", resource.Type)
 	}
@@ -825,6 +922,25 @@ func (r *REPL) cleanupEC2Instance(ctx context.Context, config aws.Config, resour
 
 	_, err := client.TerminateInstances(ctx, &ec2.TerminateInstancesInput{
 		InstanceIds: []string{instanceID},
+	})
+	return err
+}
+
+// cleanupEC2SpotInstanceRequest cancels an EC2 spot instance request.
+func (r *REPL) cleanupEC2SpotInstanceRequest(ctx context.Context, config aws.Config, resource CreatedResource) error {
+	if resource.Region != "" {
+		config.Region = resource.Region
+	}
+
+	client := ec2.NewFromConfig(config)
+
+	spotRequestID, exists := resource.Metadata["spot_request_id"]
+	if !exists {
+		spotRequestID = resource.Name
+	}
+
+	_, err := client.CancelSpotInstanceRequests(ctx, &ec2.CancelSpotInstanceRequestsInput{
+		SpotInstanceRequestIds: []string{spotRequestID},
 	})
 	return err
 }
@@ -1178,3 +1294,125 @@ func (r *REPL) cleanupGlueJob(ctx context.Context, config aws.Config, resource C
 	})
 	return err
 }
+
+// cleanupGlueSession stops (if still running) and deletes a Glue Interactive Session.
+func (r *REPL) cleanupGlueSession(ctx context.Context, config aws.Config, resource CreatedResource) error {
+	if resource.Region != "" {
+		config.Region = resource.Region
+	}
+	client := glue.NewFromConfig(config)
+
+	// Retrieve current status; stop the session before deleting if it is still running.
+	statusResult, err := client.GetSession(ctx, &glue.GetSessionInput{
+		Id: aws.String(resource.Name),
+	})
+	if err == nil {
+		status := statusResult.Session.Status
+		if status == gluetypes.SessionStatusReady || status == gluetypes.SessionStatusProvisioning {
+			_, _ = client.StopSession(ctx, &glue.StopSessionInput{
+				Id: aws.String(resource.Name),
+			})
+			time.Sleep(5 * time.Second)
+		}
+	}
+
+	_, err = client.DeleteSession(ctx, &glue.DeleteSessionInput{
+		Id: aws.String(resource.Name),
+	})
+	return err
+}
+
+// cleanupGlueDevEndpoint deletes a Glue development endpoint.
+// AWS processes the deletion asynchronously; billing stops as soon as the
+// delete request is accepted.
+func (r *REPL) cleanupGlueDevEndpoint(ctx context.Context, config aws.Config, resource CreatedResource) error {
+	if resource.Region != "" {
+		config.Region = resource.Region
+	}
+	client := glue.NewFromConfig(config)
+	endpointName := resource.Name
+	if n := resource.Metadata["endpoint_name"]; n != "" {
+		endpointName = n
+	}
+	_, err := client.DeleteDevEndpoint(ctx, &glue.DeleteDevEndpointInput{
+		EndpointName: aws.String(endpointName),
+	})
+	return err
+}
+
+// cleanupGlueTrigger stops (if active) then deletes a Glue trigger.
+// The trigger must be stopped before it can be deleted when in ACTIVATED state.
+func (r *REPL) cleanupGlueTrigger(ctx context.Context, config aws.Config, resource CreatedResource) error {
+	if resource.Region != "" {
+		config.Region = resource.Region
+	}
+	client := glue.NewFromConfig(config)
+	// Stop the trigger first; ignore errors if it is already stopped or deactivated.
+	_, _ = client.StopTrigger(ctx, &glue.StopTriggerInput{
+		Name: aws.String(resource.Name),
+	})
+	_, err := client.DeleteTrigger(ctx, &glue.DeleteTriggerInput{
+		Name: aws.String(resource.Name),
+	})
+	return err
+}
+
+// cleanupEC2UserData, cleanupEC2LaunchTemplateVersion, cleanupEC2LaunchTemplateDefault,
+// cleanupEMRServerlessApplication, and cleanupEMRCluster are implemented in cleanup_extra.go.
+
+// cleanupOmicsWorkflow deletes a HealthOmics workflow.
+func (r *REPL) cleanupOmicsWorkflow(ctx context.Context, config aws.Config, resource CreatedResource) error {
+	if resource.Region != "" {
+		config.Region = resource.Region
+	}
+
+	client := omics.NewFromConfig(config)
+
+	// Prefer the workflow_id metadata field; fall back to the resource Name.
+	workflowID := resource.Metadata["workflow_id"]
+	if workflowID == "" {
+		workflowID = resource.Name
+	}
+
+	_, err := client.DeleteWorkflow(ctx, &omics.DeleteWorkflowInput{
+		Id: aws.String(workflowID),
+	})
+	return err
+}
+
+// cleanupOmicsRun deletes a HealthOmics workflow run.
+// If the run is still active (PENDING, STARTING, RUNNING), it is cancelled first.
+func (r *REPL) cleanupOmicsRun(ctx context.Context, config aws.Config, resource CreatedResource) error {
+	if resource.Region != "" {
+		config.Region = resource.Region
+	}
+
+	client := omics.NewFromConfig(config)
+
+	// Prefer the run_id metadata field; fall back to the resource Name.
+	runID := resource.Metadata["run_id"]
+	if runID == "" {
+		runID = resource.Name
+	}
+
+	// Check current run state before attempting deletion.
+	getResult, err := client.GetRun(ctx, &omics.GetRunInput{
+		Id: aws.String(runID),
+	})
+	if err == nil {
+		switch getResult.Status {
+		case omicstypes.RunStatusPending, omicstypes.RunStatusStarting, omicstypes.RunStatusRunning:
+			// Cancel the run first; deletion of an active run is not permitted.
+			_, _ = client.CancelRun(ctx, &omics.CancelRunInput{
+				Id: aws.String(runID),
+			})
+			time.Sleep(15 * time.Second)
+		}
+	}
+
+	_, err = client.DeleteRun(ctx, &omics.DeleteRunInput{
+		Id: aws.String(runID),
+	})
+	return err
+}
+

@@ -1,7 +1,9 @@
 package repl
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"pathrunner/pkg/attacker"
 	"pathrunner/pkg/modules"
 	"pathrunner/pkg/status"
@@ -80,7 +82,8 @@ func (r *REPL) cmdShow(repl *REPL, args []string) error {
 
 	switch target {
 	case "modules":
-		return r.showModules()
+		wide := len(args) > 1 && args[1] == "--wide"
+		return r.showModules(wide)
 	case "payloads":
 		return r.showPayloads()
 	case "options":
@@ -127,12 +130,13 @@ func (r *REPL) cmdSearch(repl *REPL, args []string) error {
 // cmdModules handles the top-level modules command with subcommands
 func (r *REPL) cmdModules(repl *REPL, args []string) error {
 	if len(args) == 0 {
-		return r.showModules()
+		return r.showModules(false)
 	}
 
 	switch args[0] {
 	case "list":
-		return r.showModules()
+		wide := len(args) > 1 && args[1] == "--wide"
+		return r.showModules(wide)
 	case "search":
 		if len(args) < 2 {
 			return NewInvalidArgumentsError("modules search requires a query")
@@ -152,6 +156,11 @@ func (r *REPL) cmdModules(repl *REPL, args []string) error {
 			testedAgainst = args[2]
 		}
 		return r.markModuleTested(args[1], testedAgainst)
+	case "mark-results":
+		if len(args) < 4 {
+			return NewInvalidArgumentsError("modules mark-results requires module ID, scenario, and results JSON file. Usage: modules mark-results <id> <scenario> <json-file>")
+		}
+		return r.markModuleResults(args[1], args[2], args[3])
 	case "mark-status":
 		if len(args) < 3 {
 			return NewInvalidArgumentsError("modules mark-status requires module ID and status. Usage: modules mark-status <id> <tested|untested|failing|needs-update>")
@@ -172,6 +181,9 @@ func (r *REPL) cmdPayloads(repl *REPL, args []string) error {
 
 	switch args[0] {
 	case "list":
+		if len(args) > 1 && args[1] == "--all" {
+			return r.showAllPayloads()
+		}
 		return r.showPayloads()
 	case "help":
 		return r.showPayloadsHelp()
@@ -255,6 +267,31 @@ func (r *REPL) cmdUnset(repl *REPL, args []string) error {
 	}
 
 	option := args[0]
+
+	if option == "module" {
+		if r.currentModule == nil {
+			fmt.Println("No module selected.")
+			return nil
+		}
+		name := r.currentModule.Name()
+		r.currentModule = nil
+		r.options = make(map[string]string)
+		r.updateCompletion()
+		fmt.Printf("Unset module: %s\n", name)
+		return nil
+	}
+
+	if option == "identity" {
+		if r.identityManager.GetCurrent() == nil {
+			fmt.Println("No identity selected.")
+			return nil
+		}
+		r.identityManager.ClearIdentity()
+		r.updateCompletion()
+		fmt.Println("Unset current identity.")
+		return nil
+	}
+
 	if _, exists := r.options[option]; !exists {
 		return NewInvalidArgumentsError(fmt.Sprintf("option '%s' is not set", option))
 	}
@@ -350,6 +387,15 @@ func (r *REPL) discoverAndSetOption(discoverable modules.Discoverable, optionNam
 
 	fmt.Printf("Found %d option(s) for %s:\n", len(choices), optionName)
 
+	// When only one choice is available, auto-select it without prompting.
+	// This supports non-interactive use (test scripts, CI) where there's no TTY.
+	if len(choices) == 1 {
+		selected := choices[0]
+		r.options[optionName] = selected.Value
+		fmt.Printf("Auto-selected %s => %s\n", optionName, selected.Value)
+		return nil
+	}
+
 	// Build selection options
 	labels := make([]string, len(choices))
 	for i, c := range choices {
@@ -425,6 +471,15 @@ func (r *REPL) tryResolveMissingOptions(missing []string) bool {
 					r.options["EXFIL_BUCKET"] = bucket
 					fmt.Printf("  [*] Using attacker exfil bucket: %s\n", bucket)
 					continue
+				}
+				if opt.Required {
+					if r.tryGuideInfraSetup("bucket", "attacker infra bucket create", "attacker infra bucket status") {
+						if bucket := attacker.GetExfilBucket(); bucket != "" {
+							r.options["EXFIL_BUCKET"] = bucket
+							fmt.Printf("  [*] Using attacker exfil bucket: %s\n", bucket)
+							continue
+						}
+					}
 				}
 			}
 			if opt.Name == "TARGET_ARN" && r.options["TARGET_ARN"] == "" {
@@ -507,6 +562,52 @@ func (r *REPL) promptPayloadSelection() error {
 	r.showPayloadOptions(selected.Name)
 
 	return nil
+}
+
+// tryGuideInfraSetup checks whether the attacker infra needed for a module
+// option is deployed, and if not, guides the user through creating it. Returns
+// true if the infra was successfully created (caller should re-check the option
+// value). Returns false if the user declined, the attacker identity is missing,
+// or creation failed -- caller should fall through to the manual prompt.
+//
+// infraType is a human-readable label ("ecr", "bucket").
+// createCmd is the REPL command to run (e.g., "attacker infra ecr create").
+// statusCmd is the command to view the result (e.g., "attacker infra ecr status").
+func (r *REPL) tryGuideInfraSetup(infraType string, createCmd string, statusCmd string) bool {
+	attackerIdentity := r.identityManager.GetAttackerIdentity()
+	if attackerIdentity == nil {
+		fmt.Println()
+		fmt.Printf("  This module requires attacker %s infrastructure, but no attacker identity is configured.\n", infraType)
+		fmt.Println("  Set one up with:")
+		fmt.Println()
+		fmt.Println("    attacker set profile <profile-name>")
+		fmt.Println()
+		return false
+	}
+
+	fmt.Println()
+	fmt.Printf("  This module requires attacker %s infrastructure that hasn't been deployed yet.\n", infraType)
+
+	confirmed, err := ui.Confirm(fmt.Sprintf("Create attacker %s infrastructure now?", infraType))
+	if err != nil || !confirmed {
+		fmt.Println()
+		fmt.Println("  You can create it manually later with:")
+		fmt.Printf("    %s\n", createCmd)
+		fmt.Println()
+		return false
+	}
+
+	fmt.Println()
+	if err := r.ExecuteCommand(createCmd); err != nil {
+		fmt.Printf("  [!] Failed to create %s infrastructure: %v\n", infraType, err)
+		fmt.Println()
+		return false
+	}
+
+	fmt.Println()
+	fmt.Printf("  View status anytime with: %s\n", statusCmd)
+	fmt.Println()
+	return true
 }
 
 // promptManualOption asks the user to type in a value for a required option.
@@ -743,8 +844,9 @@ func (r *REPL) showInfo() error {
 	return nil
 }
 
-// showModules displays available modules with enriched metadata
-func (r *REPL) showModules() error {
+// showModules displays available modules with enriched metadata.
+// Pass wide=true to include the description column.
+func (r *REPL) showModules(wide bool) error {
 	infos := modules.ListPathInfos()
 
 	// Fall back to basic listing if no PathInfo available
@@ -759,25 +861,40 @@ func (r *REPL) showModules() error {
 		for _, name := range moduleNames {
 			_, description, err := modules.GetModuleInfo(name)
 			if err == nil {
-				rows = append(rows, []string{name, description})
+				if wide {
+					rows = append(rows, []string{name, description})
+				} else {
+					rows = append(rows, []string{name})
+				}
 			}
 		}
 
 		fmt.Println("Available Modules:")
 		fmt.Println()
-		ui.Table([]string{"Module", "Description"}, rows)
+		if wide {
+			ui.Table([]string{"Module", "Description"}, rows)
+		} else {
+			ui.Table([]string{"Module"}, rows)
+		}
 		fmt.Println()
 		return nil
 	}
 
-	rows := make([][]string, 0, len(infos))
-	for _, info := range infos {
-		rows = append(rows, []string{info.ID, info.Name, info.Category, info.Description})
-	}
-
 	fmt.Println("Available Modules:")
 	fmt.Println()
-	ui.Table([]string{"ID", "Name", "Category", "Description"}, rows)
+	if wide {
+		rows := make([][]string, 0, len(infos))
+		for _, info := range infos {
+			rows = append(rows, []string{info.ID, info.Name, info.Category, info.Description})
+		}
+		ui.Table([]string{"ID", "Name", "Category", "Description"}, rows)
+	} else {
+		rows := make([][]string, 0, len(infos))
+		for _, info := range infos {
+			rows = append(rows, []string{info.ID, info.Name, info.Category})
+		}
+		ui.Table([]string{"ID", "Name", "Category"}, rows)
+	}
 	fmt.Println()
 
 	return nil
@@ -1100,6 +1217,11 @@ func (r *REPL) handleStructuredIdentityData(result string) error {
 		cmdArgs = append(cmdArgs, "--name", name)
 	}
 
+	// Pass --switch so AddIdentity skips the interactive prompt.
+	// The AUTO_SWITCH field controls whether we actually switch after adding,
+	// but we always want non-interactive add during auto-import.
+	cmdArgs = append(cmdArgs, "--switch")
+
 	fmt.Printf("\n✓ Detected credentials in exploit output\n")
 	fmt.Printf("  Identity name: %s\n", name)
 	fmt.Printf("  Type: %s\n", data["TYPE"])
@@ -1108,7 +1230,7 @@ func (r *REPL) handleStructuredIdentityData(result string) error {
 	}
 	fmt.Printf("  Automatically importing credentials...\n\n")
 
-	// Add the identity
+	// Add the identity (--switch makes it non-interactive and auto-switches)
 	err := r.identityManager.AddIdentity(cmdArgs)
 	if err != nil {
 		fmt.Printf("⚠ Failed to auto-import identity: %v\n", err)
@@ -1118,23 +1240,6 @@ func (r *REPL) handleStructuredIdentityData(result string) error {
 
 	fmt.Printf("✓ Identity added successfully!\n")
 	r.UpdatePrompt()
-
-	// Check if we should auto-switch
-	if data["AUTO_SWITCH"] == "true" {
-		identities := r.identityManager.GetIdentities()
-
-		for identName := range identities {
-			ident := identities[identName]
-			if ident.AccessKeyID == data["ACCESS_KEY_ID"] {
-				err := r.identityManager.SwitchIdentity(identName)
-				if err == nil {
-					fmt.Printf("✓ Switched to identity '%s'\n", identName)
-					r.UpdatePrompt()
-				}
-				break
-			}
-		}
-	}
 
 	return nil
 }
@@ -1206,8 +1311,9 @@ func (r *REPL) showAllModuleStatuses() error {
 		statusText := "unknown"
 		lastTested := "-"
 		notes := ""
+		entry := manifest.Modules[info.ID]
 
-		if entry, exists := manifest.Modules[info.ID]; exists {
+		if entry.Status != "" {
 			statusText = entry.Status
 			if entry.LastTested != nil {
 				lastTested = *entry.LastTested
@@ -1228,7 +1334,24 @@ func (r *REPL) showAllModuleStatuses() error {
 			styledStatus = ui.Muted.Render(statusText)
 		}
 
-		rows = append(rows, []string{info.ID, info.Name, styledStatus, lastTested, notes})
+		payloadSummary := "-"
+		if len(entry.PayloadResults) > 0 {
+			passed := 0
+			for _, pr := range entry.PayloadResults {
+				if pr.Execution == "PASS" && (pr.Verified == "YES" || pr.Verified == "SKIP") {
+					passed++
+				}
+			}
+			total := len(entry.PayloadResults)
+			summary := fmt.Sprintf("%d/%d passed", passed, total)
+			if passed == total {
+				payloadSummary = ui.Success.Render(summary)
+			} else {
+				payloadSummary = ui.Error.Render(summary)
+			}
+		}
+
+		rows = append(rows, []string{info.ID, info.Name, styledStatus, lastTested, payloadSummary, notes})
 	}
 
 	// Summary counts
@@ -1252,7 +1375,7 @@ func (r *REPL) showAllModuleStatuses() error {
 	fmt.Println(")")
 	fmt.Println()
 
-	ui.Table([]string{"ID", "Name", "Status", "Last Tested", "Notes"}, rows)
+	ui.Table([]string{"ID", "Name", "Status", "Last Tested", "Results", "Notes"}, rows)
 	fmt.Println()
 
 	return nil
@@ -1291,6 +1414,40 @@ func (r *REPL) showModuleStatus(moduleID string) error {
 
 	fmt.Println()
 	ui.KeyValueTable("", kvPairs)
+
+	if len(entry.PayloadResults) > 0 {
+		fmt.Println()
+		fmt.Println(ui.BoldCyan.Render("Payload Results"))
+		fmt.Println()
+
+		var resultRows [][]string
+		for _, pr := range entry.PayloadResults {
+			execStyled := pr.Execution
+			if pr.Execution == "PASS" {
+				execStyled = ui.Success.Render(pr.Execution)
+			} else {
+				execStyled = ui.Error.Render(pr.Execution)
+			}
+
+			verStyled := pr.Verified
+			switch pr.Verified {
+			case "YES":
+				verStyled = ui.Success.Render(pr.Verified)
+			case "NO":
+				verStyled = ui.Error.Render(pr.Verified)
+			case "SKIP":
+				verStyled = ui.Warning.Render(pr.Verified)
+			}
+
+			reason := pr.FailReason
+			if reason == "" {
+				reason = "-"
+			}
+			resultRows = append(resultRows, []string{pr.Payload, execStyled, pr.Creds, verStyled, reason})
+		}
+		ui.Table([]string{"Payload", "Execution", "Creds", "Verified", "Failure Reason"}, resultRows)
+	}
+
 	fmt.Println()
 
 	return nil
@@ -1314,6 +1471,49 @@ func (r *REPL) markModuleTested(moduleID string, testedAgainst string) error {
 	}
 
 	fmt.Printf("Marked '%s' as tested.\n", moduleID)
+	return nil
+}
+
+// markModuleResults records per-payload test results for a module.
+// The resultsPath argument is a file path containing a JSON array of PayloadResult objects.
+func (r *REPL) markModuleResults(moduleID string, testedAgainst string, resultsPath string) error {
+	resultsData, err := os.ReadFile(resultsPath)
+	if err != nil {
+		return NewInvalidArgumentsError(fmt.Sprintf("failed to read results file '%s': %v", resultsPath, err))
+	}
+
+	var results []status.PayloadResult
+	if err := json.Unmarshal(resultsData, &results); err != nil {
+		return NewInvalidArgumentsError(fmt.Sprintf("invalid results JSON: %v", err))
+	}
+
+	manifest, err := status.LoadManifest()
+	if err != nil {
+		return NewExecutionError(fmt.Sprintf("failed to load status manifest: %v", err), err)
+	}
+
+	if manifest.Modules == nil {
+		manifest.Modules = make(map[string]status.ModuleStatus)
+	}
+
+	manifest.MarkTestedWithResults(moduleID, testedAgainst, results)
+
+	if err := status.SaveManifest(manifest); err != nil {
+		return NewExecutionError(fmt.Sprintf("failed to save status manifest: %v", err), err)
+	}
+
+	passed := 0
+	for _, r := range results {
+		if r.Execution == "PASS" && (r.Verified == "YES" || r.Verified == "SKIP") {
+			passed++
+		}
+	}
+
+	if passed == len(results) {
+		fmt.Printf("Marked '%s' as tested (%d/%d payloads passed).\n", moduleID, passed, len(results))
+	} else {
+		fmt.Printf("Marked '%s' as failing (%d/%d payloads passed).\n", moduleID, passed, len(results))
+	}
 	return nil
 }
 

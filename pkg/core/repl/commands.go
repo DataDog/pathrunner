@@ -347,10 +347,11 @@ func (r *REPL) showIdentityClearHelp() error {
 
 func (r *REPL) showShowHelp() error {
 	fmt.Println("Show Commands:")
-	fmt.Println("  show modules    - List all available modules")
-	fmt.Println("  show payloads   - List available payloads for current module")
-	fmt.Println("  show options    - Show current module options")
-	fmt.Println("  show info       - Show detailed path metadata for current module")
+	fmt.Println("  show modules          - List all available modules")
+	fmt.Println("  show modules --wide   - List modules with description column")
+	fmt.Println("  show payloads         - List available payloads for current module")
+	fmt.Println("  show options          - Show current module options")
+	fmt.Println("  show info             - Show detailed path metadata for current module")
 	return nil
 }
 
@@ -373,10 +374,12 @@ func (r *REPL) showModulesHelp() error {
 	fmt.Println("Modules Command:")
 	fmt.Println("  modules                              - List all available modules")
 	fmt.Println("  modules list                         - List all available modules")
+	fmt.Println("  modules list --wide                  - List modules with description column")
 	fmt.Println("  modules search <query>               - Search modules by keyword")
 	fmt.Println("  modules status                       - Show test status for all modules")
 	fmt.Println("  modules status <id>                  - Show test status for one module")
 	fmt.Println("  modules mark-tested <id> [lab]       - Mark a module as tested")
+	fmt.Println("  modules mark-results <id> <lab> <f>  - Record per-payload test results from JSON file")
 	fmt.Println("  modules mark-status <id> <status>    - Set module status (tested|untested|failing|needs-update)")
 	fmt.Println("  modules help                         - Show this help message")
 	return nil
@@ -384,9 +387,10 @@ func (r *REPL) showModulesHelp() error {
 
 func (r *REPL) showPayloadsHelp() error {
 	fmt.Println("Payloads Command:")
-	fmt.Println("  payloads        - List payloads (current module or all)")
-	fmt.Println("  payloads list   - List payloads (current module or all)")
-	fmt.Println("  payloads help   - Show this help message")
+	fmt.Println("  payloads            - List payloads (current module, or all if no module selected)")
+	fmt.Println("  payloads list       - List payloads (current module, or all if no module selected)")
+	fmt.Println("  payloads list --all - List payloads for all modules regardless of current module")
+	fmt.Println("  payloads help       - Show this help message")
 	return nil
 }
 
@@ -452,11 +456,15 @@ func (r *REPL) showSetHelp() error {
 
 func (r *REPL) showUnsetHelp() error {
 	fmt.Println("Unset Command:")
-	fmt.Println("  unset <option>    - Clear module option value")
+	fmt.Println("  unset <option>    - Clear a module option value")
+	fmt.Println("  unset module      - Deselect the current module (clears all options)")
+	fmt.Println("  unset identity    - Deselect the current identity")
 	fmt.Println()
 	fmt.Println("Examples:")
 	fmt.Println("  unset ROLE_ARN")
 	fmt.Println("  unset PAYLOAD")
+	fmt.Println("  unset module")
+	fmt.Println("  unset identity")
 	return nil
 }
 

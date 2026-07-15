@@ -112,6 +112,144 @@ func DiscoverSecurityGroups(ctx context.Context, config aws.Config) ([]modules.D
 	return allGroups, nil
 }
 
+// DiscoverEC2InstancesWithProfiles lists running EC2 instances that have an IAM
+// instance profile attached. Results include the instance ID, public IP, and
+// profile ARN so the caller can assess privilege escalation potential.
+func DiscoverEC2InstancesWithProfiles(ctx context.Context, config aws.Config) ([]modules.DiscoveryChoice, error) {
+	client := ec2.NewFromConfig(config)
+
+	listCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	input := &ec2.DescribeInstancesInput{
+		Filters: []types.Filter{
+			{Name: aws.String("instance-state-name"), Values: []string{"running"}},
+		},
+	}
+
+	var choices []modules.DiscoveryChoice
+	paginator := ec2.NewDescribeInstancesPaginator(client, input)
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(listCtx)
+		if err != nil {
+			if IsAccessDenied(err) {
+				return nil, fmt.Errorf("%s", FormatPermissionError("INSTANCE_ID", "ec2:DescribeInstances", err))
+			}
+			return nil, fmt.Errorf("failed to describe instances: %v", err)
+		}
+
+		for _, reservation := range page.Reservations {
+			for _, inst := range reservation.Instances {
+				instanceID := aws.ToString(inst.InstanceId)
+
+				// Only include instances with an IAM instance profile attached.
+				if inst.IamInstanceProfile == nil {
+					continue
+				}
+				profileARN := aws.ToString(inst.IamInstanceProfile.Arn)
+				publicIP := aws.ToString(inst.PublicIpAddress)
+
+				name := getEC2TagValue(inst.Tags, "Name")
+				label := instanceID
+				if name != "" {
+					label = fmt.Sprintf("%s (%s)", name, instanceID)
+				}
+				if publicIP != "" {
+					label += fmt.Sprintf(" [%s]", publicIP)
+				}
+				label += fmt.Sprintf(" profile: %s", profileARN)
+
+				choices = append(choices, modules.DiscoveryChoice{
+					Value: instanceID,
+					Label: label,
+					Metadata: map[string]string{
+						"public_ip":           publicIP,
+						"instance_profile_arn": profileARN,
+						"instance_type":       string(inst.InstanceType),
+					},
+				})
+			}
+		}
+	}
+
+	if len(choices) == 0 {
+		return nil, fmt.Errorf("no running EC2 instances with IAM instance profiles found")
+	}
+
+	return choices, nil
+}
+
+// DiscoverEC2Instances lists EC2 instances that are running or stopped.
+// Both states are valid targets for ec2-002 (ModifyInstanceAttribute requires
+// the instance to be stopped, but if it's running the module will stop it first).
+func DiscoverEC2Instances(ctx context.Context, config aws.Config) ([]modules.DiscoveryChoice, error) {
+	client := ec2.NewFromConfig(config)
+
+	listCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	var choices []modules.DiscoveryChoice
+	paginator := ec2.NewDescribeInstancesPaginator(client, &ec2.DescribeInstancesInput{
+		Filters: []types.Filter{
+			{
+				Name:   aws.String("instance-state-name"),
+				Values: []string{"running", "stopped"},
+			},
+		},
+	})
+
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(listCtx)
+		if err != nil {
+			if IsAccessDenied(err) {
+				return nil, fmt.Errorf("%s", FormatPermissionError("INSTANCE_ID", "ec2:DescribeInstances", err))
+			}
+			return nil, fmt.Errorf("failed to describe instances: %v", err)
+		}
+
+		for _, reservation := range page.Reservations {
+			for _, instance := range reservation.Instances {
+				instanceID := aws.ToString(instance.InstanceId)
+				state := string(instance.State.Name)
+				instanceType := string(instance.InstanceType)
+
+				// Build a human-readable label.
+				name := getEC2TagValue(instance.Tags, "Name")
+				label := instanceID
+				if name != "" {
+					label = fmt.Sprintf("%s (%s)", name, instanceID)
+				}
+				label += fmt.Sprintf(" [%s, %s]", instanceType, state)
+
+				profileArn := ""
+				if instance.IamInstanceProfile != nil {
+					profileArn = aws.ToString(instance.IamInstanceProfile.Arn)
+					label += fmt.Sprintf(" [profile: %s]", profileArn)
+				}
+
+				metadata := map[string]string{
+					"instance_type": instanceType,
+					"state":         state,
+				}
+				if profileArn != "" {
+					metadata["instance_profile"] = profileArn
+				}
+				if name != "" {
+					metadata["name"] = name
+				}
+
+				choices = append(choices, modules.DiscoveryChoice{
+					Value:    instanceID,
+					Label:    label,
+					Metadata: metadata,
+				})
+			}
+		}
+	}
+
+	return choices, nil
+}
+
 // getEC2TagValue extracts a tag value by key from a list of EC2 tags.
 func getEC2TagValue(tags []types.Tag, key string) string {
 	for _, tag := range tags {

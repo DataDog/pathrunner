@@ -18,6 +18,7 @@ export const meta = {
 //     ],
 //     concurrency: 5,          // optional; workflow-level cap is already min(16, cores-2)
 //     dryRun: false,           // optional; skip enable/disable/build, just simulate
+//     verifyOnly: false,       // optional; skip Build stage — modules already exist, just test them
 //     iterationBudget: 5,      // optional; Verify stage's fix-and-retry budget per module. Default 5.
 //                              // Set to 1 to disable iteration (single-shot test, fail on first error).
 //   }
@@ -34,7 +35,10 @@ if (gaps.length === 0) {
 const dryRun = Boolean(args?.dryRun)
 if (dryRun) log('DRY RUN — no plabs applies, no module creation, no tests')
 
-log(`Batching ${gaps.length} modules. Rolling pool concurrency is capped by the workflow runtime (min(16, cores-2)).`)
+const verifyOnly = Boolean(args?.verifyOnly)
+if (verifyOnly) log('VERIFY ONLY — skipping Build stage, modules must already exist')
+
+log(`Batching ${gaps.length} modules${verifyOnly ? ' (verify only)' : ''}. Rolling pool concurrency is capped by the workflow runtime (min(16, cores-2)).`)
 
 // -----------------------------------------------------------------------------
 // Phase 0: SSO preflight — one up-front check, then trust the plabs-lifecycle
@@ -111,33 +115,34 @@ const BUILD_SCHEMA = {
   },
 }
 
-const VERIFY_SCHEMA = {
+// Schema for a single verify attempt — the orchestrator loops, not the agent.
+const VERIFY_ATTEMPT_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['success'],
+  required: ['outcome'],
   properties: {
-    success: { type: 'boolean' },
+    outcome: {
+      type: 'string',
+      enum: ['pass', 'fail-fixed', 'fail-hard-stop', 'fail-no-fix'],
+      description: 'pass = all tests green; fail-fixed = tests failed, minimal fix applied, orchestrator should retry; fail-hard-stop = lab/env issue, abort immediately; fail-no-fix = pathrunner-side bug but could not localize the fix',
+    },
     unitTests: { type: 'string', description: 'pass | fail | skipped' },
     integrationTests: { type: 'string', description: 'pass | fail | skipped' },
     liveTest: { type: 'string', description: 'pass | fail | skipped — via scripts/test-module.sh' },
-    iterationsUsed: { type: 'integer', description: 'How many fix-and-retry attempts were consumed (1 = passed first try)' },
-    fixesApplied: {
-      type: 'array',
-      description: 'Ordered list of fixes applied across iterations',
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['attempt', 'failureClass', 'summary'],
-        properties: {
-          attempt: { type: 'integer' },
-          failureClass: { type: 'string' },
-          filesEdited: { type: 'array', items: { type: 'string' } },
-          summary: { type: 'string' },
-        },
+    fix: {
+      type: 'object',
+      description: 'Populated when outcome=fail-fixed. Describes the fix applied this attempt.',
+      additionalProperties: false,
+      required: ['failureClass', 'summary'],
+      properties: {
+        failureClass: { type: 'string', description: 'Short slug: compile-error | wrong-sdk-call | wrong-arn | missing-env-var | test-assertion | timeout-constant | other' },
+        filesEdited: { type: 'array', items: { type: 'string' } },
+        summary: { type: 'string', description: 'One-line description of the fix' },
       },
     },
-    error: { type: 'string' },
-    hardStopReason: { type: 'string', description: 'Non-empty if a lab-side or environmental failure caused early abort (SSO expired, scenario not deployed, etc.)' },
+    error: { type: 'string', description: 'Concise failure detail for non-pass outcomes' },
+    hardStopReason: { type: 'string', description: 'Populated for fail-hard-stop: what lab/env signal triggered the abort' },
+    statusMessage: { type: 'string', description: 'One-line summary of what this attempt found/did, shown in the progress log' },
   },
 }
 
@@ -195,7 +200,7 @@ const stageEnable = async (gap, _origItem, idx) => {
 
 const stageBuild = async (state) => {
   if (!state.enabled) return state
-  if (dryRun) {
+  if (dryRun || verifyOnly) {
     state.built = true
     return state
   }
@@ -231,6 +236,9 @@ const stageBuild = async (state) => {
   return state
 }
 
+// stageVerify runs the iteration loop in the orchestrator so each attempt is its
+// own agent() call. This gives the /workflows view per-attempt turn counts and
+// a rolling status label instead of one opaque black-box agent.
 const stageVerify = async (state) => {
   if (!state.built) return state
   if (dryRun) {
@@ -239,54 +247,102 @@ const stageVerify = async (state) => {
   }
 
   const gap = state.gap
-  const result = await agent(
-    [
-      `You are testing the pathrunner module ${gap.pathId} against the live pathfinding-labs scenario ${gap.scenarioId}, which is already deployed. You have an iteration budget of ${VERIFY_ITERATION_BUDGET} attempts to get everything passing.`,
-      ``,
-      `The scenario's starting IAM user credentials have already been imported into pathrunner's identity store as name "${gap.scenarioId}" — you can \`./pathrunner identity switch ${gap.scenarioId}\` to use them.`,
-      ``,
-      `## Attempt loop (up to ${VERIFY_ITERATION_BUDGET} attempts)`,
-      ``,
-      `For each attempt:`,
-      `1. Run \`go test -run ${gap.pathId.replace('-', '')} ./tests/unit/ ./tests/integration/\`. Capture pass/fail.`,
-      `2. Run \`./scripts/test-module.sh full ${gap.pathId}\`. This exercises the module against the deployed lab (test-module.sh handles its own credential import + cleanup between runs). Capture pass/fail.`,
-      `3. If both pass, return success=true with iterationsUsed = current attempt count and the running list of fixesApplied (may be empty on a first-try pass).`,
-      `4. If either fails, classify the failure:`,
-      `   - PATHRUNNER-SIDE (fix and retry): Go compile error, panic, wrong ARN parse, wrong option name, missing import, wrong AWS SDK call, incorrect payload code-gen, missing os.environ.get in payload, wrong PATHFINDER_IDENTITY_DATA emission, test-assertion mismatch caused by module logic, timeout that a pathrunner-side constant would fix.`,
-      `   - HARD STOP (do not iterate — return immediately with hardStopReason set): \`plabs credentials\` returned empty (scenario not deployed), terraform state drift, missing pl-* resource in the lab, SSO expired mid-run, plabs status shows disabled, or any signal the failure is on the lab side or environmental.`,
-      `5. On PATHRUNNER-SIDE classification: read the implicated file(s), apply the minimal fix via Edit. ONLY edit under \`pkg/exploits/**\`, \`pkg/payloads/**\`, and rarely \`pkg/discovery/**\` or \`pkg/modules/**\`. NEVER touch \`../pathfinding-labs/**\` or \`../pathfinding.cloud/**\`. NEVER call \`plabs enable/disable/apply\` — the lab stays exactly as it was. NEVER commit.`,
-      `6. Run \`make build\` (regenerates register.go and compiles). If build fails, that's a bug in the fix — either fix again within the remaining budget or bail with success=false and error describing what you tried.`,
-      `7. Record the fix as \`{ attempt: <n>, failureClass: <short>, filesEdited: [...], summary: <one-line> }\` and loop.`,
-      ``,
-      `## Termination conditions`,
-      `- Pass on any attempt → return success=true with iterationsUsed and fixesApplied.`,
-      `- Hard-stop classification at any point → return success=false with hardStopReason set. Do NOT iterate through a lab-side failure.`,
-      `- Budget exhausted without passing → return success=false with a concise error describing the final failure state and the fixesApplied history.`,
-      `- Can't confidently identify the fix location → return success=false with error "could not localize fix", short of exhausting the budget. Better to bail than guess.`,
-      ``,
-      `## Guardrails (repeat)`,
-      `- Read-only for lab side: \`../pathfinding-labs/**\` and \`../pathfinding.cloud/**\` are reference only.`,
-      `- Never call plabs enable/disable/apply/swap during this stage. Disable happens in the next pipeline stage.`,
-      `- Never git commit.`,
-      `- If you can't understand the failure output, bail rather than making shot-in-the-dark edits.`,
-      ``,
-      `Return structured output following VERIFY_SCHEMA.`,
-    ].join('\n'),
-    { label: `verify:${gap.pathId}`, phase: 'Verify', schema: VERIFY_SCHEMA },
-  )
+  const fixesApplied = []
 
-  // Capture iteration info regardless of pass/fail so the final summary reflects
-  // what the fix loop actually did.
-  state.verifyInfo = result || {}
-  state.iterationsUsed = result?.iterationsUsed ?? 0
-  state.fixesApplied = result?.fixesApplied ?? []
+  for (let attempt = 1; attempt <= VERIFY_ITERATION_BUDGET; attempt++) {
+    const attemptLabel = `verify:${gap.pathId} [${attempt}/${VERIFY_ITERATION_BUDGET}]`
 
-  if (!result || !result.success) {
-    const hardStop = result?.hardStopReason ? ` (hard-stop: ${result.hardStopReason})` : ''
-    state.errors.push(`verify: ${result?.error || 'agent returned null or unsuccessful'}${hardStop}`)
-    return state
+    // Build a concise "prior fixes" section so the agent knows what was already tried.
+    const priorFixesSection = fixesApplied.length === 0
+      ? ''
+      : [
+          '',
+          `## Prior fixes applied (do not repeat these — try a different approach if they didn't work)`,
+          ...fixesApplied.map((f) => `- Attempt ${f.attempt} (${f.failureClass}): ${f.summary}${f.filesEdited?.length ? ` [${f.filesEdited.join(', ')}]` : ''}`),
+        ].join('\n')
+
+    const result = await agent(
+      [
+        `You are running ONE verify attempt (#${attempt} of max ${VERIFY_ITERATION_BUDGET}) for pathrunner module ${gap.pathId} against deployed lab ${gap.scenarioId}.`,
+        ``,
+        `The scenario's starting credentials are already in pathrunner's identity store as "${gap.scenarioId}".`,
+        priorFixesSection,
+        ``,
+        `## Steps for this single attempt`,
+        ``,
+        `1. Run \`go test -run ${gap.pathId.replace('-', '_')} ./tests/unit/ ./tests/integration/\`. Capture pass/fail and output.`,
+        `2. Run the live test and save its full output to disk with: \`./scripts/test-module.sh full ${gap.pathId} 2>&1 | tee /tmp/pathrunner-verify-${gap.pathId}-attempt-${attempt}.log; echo "test-module-exit:\${PIPESTATUS[0]}"\`. The tee makes output visible to you AND persists it so the operator can review it after the run. Read the embedded \`test-module-exit:N\` line at the end to determine pass (0) or fail (non-zero).`,
+        `3. If both pass → return outcome="pass". You are done.`,
+        `4. If either fails → classify:`,
+        `   - PATHRUNNER-SIDE: Go compile error, panic, wrong ARN parse, wrong option name, missing import, wrong AWS SDK call, bad payload code-gen, missing os.environ.get, wrong PATHFINDER_IDENTITY_DATA output, test-assertion mismatch from module logic, timeout constant.`,
+        `   - HARD STOP: plabs credentials empty (scenario not deployed), terraform drift, missing pl-* resource, SSO expired mid-run, plabs status shows disabled.`,
+        `5. HARD STOP → return outcome="fail-hard-stop" with hardStopReason. Do not edit anything.`,
+        `6. PATHRUNNER-SIDE → read implicated file(s), apply the minimal fix via Edit. ONLY edit under \`pkg/exploits/**\`, \`pkg/payloads/**\`, and rarely \`pkg/discovery/**\` or \`pkg/modules/**\`. NEVER touch \`../pathfinding-labs/**\` or \`../pathfinding.cloud/**\`. Run \`make build\`. If build fails, that counts as the fix failing — set outcome="fail-no-fix" and describe what you tried. If build succeeds, return outcome="fail-fixed" with the fix populated (the orchestrator will retry).`,
+        `7. Can't localize the fix with confidence → return outcome="fail-no-fix" immediately. Better to bail than guess.`,
+        ``,
+        `## Guardrails`,
+        `- Never call plabs enable/disable/apply/swap. The lab is already deployed; disable happens after this stage.`,
+        `- Never git commit.`,
+        `- statusMessage: always populate with a one-liner like "all tests passed", "compile error in module.go line 42 — fixed missing import", "hard-stop: plabs credentials empty".`,
+        ``,
+        `Return structured output.`,
+      ].join('\n'),
+      { label: attemptLabel, phase: 'Verify', schema: VERIFY_ATTEMPT_SCHEMA },
+    )
+
+    const status = result?.statusMessage || result?.outcome || 'no response'
+    log(`${gap.pathId} attempt ${attempt}/${VERIFY_ITERATION_BUDGET}: ${status}`)
+
+    if (!result) {
+      state.errors.push(`verify attempt ${attempt}: agent returned null`)
+      break
+    }
+
+    if (result.outcome === 'pass') {
+      state.tested = true
+      state.iterationsUsed = attempt
+      state.fixesApplied = fixesApplied
+      state.verifyInfo = {
+        success: true,
+        unitTests: result.unitTests,
+        integrationTests: result.integrationTests,
+        liveTest: result.liveTest,
+        iterationsUsed: attempt,
+        fixesApplied,
+      }
+      return state
+    }
+
+    if (result.outcome === 'fail-hard-stop') {
+      state.errors.push(`verify: hard-stop — ${result.hardStopReason || result.error || 'unspecified lab/env failure'}`)
+      state.verifyInfo = { success: false, hardStopReason: result.hardStopReason, iterationsUsed: attempt, fixesApplied }
+      state.iterationsUsed = attempt
+      state.fixesApplied = fixesApplied
+      return state
+    }
+
+    if (result.outcome === 'fail-no-fix') {
+      state.errors.push(`verify: could not localize fix after attempt ${attempt} — ${result.error || 'unspecified'}`)
+      state.verifyInfo = { success: false, error: result.error, iterationsUsed: attempt, fixesApplied }
+      state.iterationsUsed = attempt
+      state.fixesApplied = fixesApplied
+      return state
+    }
+
+    // outcome === 'fail-fixed': record the fix and continue the loop
+    if (result.fix) {
+      fixesApplied.push({ attempt, ...result.fix })
+    }
   }
-  state.tested = true
+
+  // Budget exhausted without passing
+  if (!state.tested) {
+    state.errors.push(`verify: budget exhausted after ${VERIFY_ITERATION_BUDGET} attempts`)
+    state.verifyInfo = { success: false, error: 'budget exhausted', iterationsUsed: VERIFY_ITERATION_BUDGET, fixesApplied }
+    state.iterationsUsed = VERIFY_ITERATION_BUDGET
+    state.fixesApplied = fixesApplied
+  }
+
   return state
 }
 
@@ -375,6 +431,7 @@ const summary = {
 }
 
 log(`Done. Fully successful: ${summary.fullySuccessful}/${summary.attempted}`)
+log(`Test logs written to /tmp/pathrunner-verify-<module>-attempt-<N>.log for each attempt`)
 if (passedAfterFix > 0) {
   log(`${passedAfterFix} passed after iterative fixes; ${passedFirstTry} first-try passes`)
 }

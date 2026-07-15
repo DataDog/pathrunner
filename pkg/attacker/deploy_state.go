@@ -10,8 +10,9 @@ import (
 // DeployState tracks all deployed attacker infrastructure. Persisted to
 // ~/.pathrunner/deploy.json across workspaces since attacker infra is shared.
 type DeployState struct {
-	EC2     *EC2DeployState     `json:"ec2,omitempty"`
-	Buckets []BucketDeployState `json:"buckets,omitempty"`
+	EC2      *EC2DeployState      `json:"ec2,omitempty"`
+	Buckets  []BucketDeployState  `json:"buckets,omitempty"`
+	ECRRepos []ECRRepoDeployState `json:"ecr_repos,omitempty"`
 }
 
 // EC2DeployState tracks a deployed pathrunner EC2 instance and its associated resources.
@@ -33,6 +34,15 @@ type BucketDeployState struct {
 	Type       string   `json:"type"` // "code" or "exfil"
 	Region     string   `json:"region"`
 	AccountIDs []string `json:"account_ids"` // victim account IDs granted access via resource policy
+}
+
+// ECRRepoDeployState tracks a deployed attacker ECR repository. The repo is
+// generic infrastructure -- modules push their own service-specific images.
+type ECRRepoDeployState struct {
+	RepositoryName string   `json:"repository_name"`
+	RepositoryURI  string   `json:"repository_uri"` // e.g., 123456789012.dkr.ecr.us-east-1.amazonaws.com/pathrunner-runtime
+	Region         string   `json:"region"`
+	AccountIDs     []string `json:"account_ids"` // victim account IDs granted pull access via repo policy
 }
 
 // deployStatePath returns the path to the deploy state file.
@@ -107,5 +117,5 @@ func RemoveDeployState() error {
 
 // HasAnyDeployedResources returns true if there are any deployed resources tracked.
 func (s *DeployState) HasAnyDeployedResources() bool {
-	return s.EC2 != nil || len(s.Buckets) > 0
+	return s.EC2 != nil || len(s.Buckets) > 0 || len(s.ECRRepos) > 0
 }

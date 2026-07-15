@@ -369,6 +369,15 @@ func (c *CLI) createModulesCmd() *cobra.Command {
 	})
 
 	modulesCmd.AddCommand(&cobra.Command{
+		Use:   "mark-results <module-id> <scenario-id> <results-json-file>",
+		Short: "Record per-payload test results for a module",
+		Args:  cobra.ExactArgs(3),
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("modules mark-results " + args[0] + " " + args[1] + " " + args[2])
+		},
+	})
+
+	modulesCmd.AddCommand(&cobra.Command{
 		Use:   "mark-status <module-id> <status>",
 		Short: "Set module test status (tested|untested|failing|needs-update)",
 		Args:  cobra.ExactArgs(2),
@@ -382,21 +391,35 @@ func (c *CLI) createModulesCmd() *cobra.Command {
 
 // Payloads command with subcommands
 func (c *CLI) createPayloadsCmd() *cobra.Command {
+	var allPayloads bool
+
 	payloadsCmd := &cobra.Command{
 		Use:   "payloads",
 		Short: "List available payloads",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("payloads list")
+			if allPayloads {
+				c.executeREPLCommand("payloads list --all")
+			} else {
+				c.executeREPLCommand("payloads list")
+			}
 		},
 	}
+	payloadsCmd.Flags().BoolVar(&allPayloads, "all", false, "List payloads for all modules")
 
-	payloadsCmd.AddCommand(&cobra.Command{
+	listCmd := &cobra.Command{
 		Use:   "list",
 		Short: "List all available payloads",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("payloads list")
+			if allPayloads {
+				c.executeREPLCommand("payloads list --all")
+			} else {
+				c.executeREPLCommand("payloads list")
+			}
 		},
-	})
+	}
+	listCmd.Flags().BoolVar(&allPayloads, "all", false, "List payloads for all modules")
+
+	payloadsCmd.AddCommand(listCmd)
 
 	return payloadsCmd
 }
@@ -635,22 +658,38 @@ func (c *CLI) createAttackerCmd() *cobra.Command {
 		},
 	}
 
-	// attacker set
-	setCmd := &cobra.Command{
-		Use:   "set",
-		Short: "Configure attacker account credentials",
+	// attacker identity
+	identityCmd := &cobra.Command{
+		Use:   "identity",
+		Short: "Manage attacker identity",
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("attacker identity show")
+		},
 	}
 
-	setCmd.AddCommand(&cobra.Command{
+	identityCmd.AddCommand(&cobra.Command{
+		Use:   "show",
+		Short: "Show current attacker identity",
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("attacker identity show")
+		},
+	})
+
+	identityAddCmd := &cobra.Command{
+		Use:   "add",
+		Short: "Configure attacker identity credentials",
+	}
+
+	identityAddCmd.AddCommand(&cobra.Command{
 		Use:   "profile [name]",
 		Short: "Configure from AWS profile",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("attacker set profile " + args[0])
+			c.executeREPLCommand("attacker identity add profile " + args[0])
 		},
 	})
 
-	keysCmd := &cobra.Command{
+	identityAddKeysCmd := &cobra.Command{
 		Use:   "keys",
 		Short: "Configure from access keys",
 		Run: func(cmd *cobra.Command, args []string) {
@@ -660,7 +699,7 @@ func (c *CLI) createAttackerCmd() *cobra.Command {
 				fmt.Println("Error: --access and --secret are required")
 				return
 			}
-			replCmd := fmt.Sprintf("attacker set keys --access %s --secret %s", accessKey, secretKey)
+			replCmd := fmt.Sprintf("attacker identity add keys --access %s --secret %s", accessKey, secretKey)
 			if token, _ := cmd.Flags().GetString("token"); token != "" {
 				replCmd += " --token " + token
 			}
@@ -670,35 +709,100 @@ func (c *CLI) createAttackerCmd() *cobra.Command {
 			c.executeREPLCommand(replCmd)
 		},
 	}
-	keysCmd.Flags().String("access", "", "AWS access key ID")
-	keysCmd.Flags().String("secret", "", "AWS secret access key")
-	keysCmd.Flags().String("token", "", "AWS session token (optional)")
-	keysCmd.Flags().String("region", "", "AWS region (default: us-east-1)")
-	setCmd.AddCommand(keysCmd)
+	identityAddKeysCmd.Flags().String("access", "", "AWS access key ID")
+	identityAddKeysCmd.Flags().String("secret", "", "AWS secret access key")
+	identityAddKeysCmd.Flags().String("token", "", "AWS session token (optional)")
+	identityAddKeysCmd.Flags().String("region", "", "AWS region (default: us-east-1)")
+	identityAddCmd.AddCommand(identityAddKeysCmd)
+
+	identityCmd.AddCommand(identityAddCmd)
+
+	identityCmd.AddCommand(&cobra.Command{
+		Use:   "remove",
+		Short: "Remove attacker identity",
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("attacker identity remove")
+		},
+	})
+
+	identityCmd.AddCommand(&cobra.Command{
+		Use:   "validate",
+		Short: "Validate attacker credentials",
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("attacker identity validate")
+		},
+	})
+
+	attackerCmd.AddCommand(identityCmd)
+
+	// Legacy aliases
+	setCmd := &cobra.Command{
+		Use:        "set",
+		Short:      "Configure attacker account credentials (alias for 'attacker identity add')",
+		Deprecated: "use 'attacker identity add' instead",
+	}
+
+	setCmd.AddCommand(&cobra.Command{
+		Use:   "profile [name]",
+		Short: "Configure from AWS profile",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("attacker identity add profile " + args[0])
+		},
+	})
+
+	legacyKeysCmd := &cobra.Command{
+		Use:   "keys",
+		Short: "Configure from access keys",
+		Run: func(cmd *cobra.Command, args []string) {
+			accessKey, _ := cmd.Flags().GetString("access")
+			secretKey, _ := cmd.Flags().GetString("secret")
+			if accessKey == "" || secretKey == "" {
+				fmt.Println("Error: --access and --secret are required")
+				return
+			}
+			replCmd := fmt.Sprintf("attacker identity add keys --access %s --secret %s", accessKey, secretKey)
+			if token, _ := cmd.Flags().GetString("token"); token != "" {
+				replCmd += " --token " + token
+			}
+			if region, _ := cmd.Flags().GetString("region"); region != "" {
+				replCmd += " --region " + region
+			}
+			c.executeREPLCommand(replCmd)
+		},
+	}
+	legacyKeysCmd.Flags().String("access", "", "AWS access key ID")
+	legacyKeysCmd.Flags().String("secret", "", "AWS secret access key")
+	legacyKeysCmd.Flags().String("token", "", "AWS session token (optional)")
+	legacyKeysCmd.Flags().String("region", "", "AWS region (default: us-east-1)")
+	setCmd.AddCommand(legacyKeysCmd)
 
 	attackerCmd.AddCommand(setCmd)
 
 	attackerCmd.AddCommand(&cobra.Command{
-		Use:   "show",
-		Short: "Show current attacker identity",
+		Use:        "show",
+		Short:      "Show current attacker identity (alias for 'attacker identity show')",
+		Deprecated: "use 'attacker identity show' instead",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("attacker show")
+			c.executeREPLCommand("attacker identity show")
 		},
 	})
 
 	attackerCmd.AddCommand(&cobra.Command{
-		Use:   "validate",
-		Short: "Validate attacker credentials",
+		Use:        "validate",
+		Short:      "Validate attacker credentials (alias for 'attacker identity validate')",
+		Deprecated: "use 'attacker identity validate' instead",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("attacker validate")
+			c.executeREPLCommand("attacker identity validate")
 		},
 	})
 
 	attackerCmd.AddCommand(&cobra.Command{
-		Use:   "clear",
-		Short: "Remove attacker identity",
+		Use:        "clear",
+		Short:      "Remove attacker identity (alias for 'attacker identity remove')",
+		Deprecated: "use 'attacker identity remove' instead",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("attacker clear")
+			c.executeREPLCommand("attacker identity remove")
 		},
 	})
 
@@ -772,7 +876,7 @@ func (c *CLI) createAttackerCmd() *cobra.Command {
 	infraCmd := &cobra.Command{
 		Use:   "infra",
 		Short: "Manage attacker infrastructure",
-		Long:  "Deploy and manage attacker-side infrastructure (EC2 instances, S3 buckets)",
+		Long:  "Deploy and manage attacker-side infrastructure (EC2 instances, S3 buckets, ECR repos)",
 	}
 
 	// attacker infra ec2
@@ -870,6 +974,9 @@ func (c *CLI) createAttackerCmd() *cobra.Command {
 	infraBucketCmd.AddCommand(infraBucketDestroyCmd)
 
 	infraCmd.AddCommand(infraBucketCmd)
+
+	// attacker infra ecr
+	infraCmd.AddCommand(c.buildInfraECRCmd())
 
 	// attacker infra status (global)
 	infraCmd.AddCommand(&cobra.Command{
@@ -1107,6 +1214,9 @@ func (c *CLI) createInfraCmd() *cobra.Command {
 
 	infraCmd.AddCommand(infraBucketCmd)
 
+	// infra ecr
+	infraCmd.AddCommand(c.buildInfraECRCmd())
+
 	infraCmd.AddCommand(&cobra.Command{
 		Use:   "status",
 		Short: "Show all deployed infrastructure",
@@ -1124,4 +1234,45 @@ func (c *CLI) createInfraCmd() *cobra.Command {
 	})
 
 	return infraCmd
+}
+
+// buildInfraECRCmd builds the "infra ecr" Cobra command subtree, shared by
+// both createAttackerCmd and createInfraCmd.
+func (c *CLI) buildInfraECRCmd() *cobra.Command {
+	infraECRCmd := &cobra.Command{
+		Use:   "ecr",
+		Short: "Manage ECR repository deployments",
+	}
+
+	infraECRCreateCmd := &cobra.Command{
+		Use:   "create",
+		Short: "Create an ECR repo and push the bedrock runtime container image",
+		Run: func(cmd *cobra.Command, args []string) {
+			replArgs := []string{"attacker", "infra", "ecr", "create"}
+			if region, _ := cmd.Flags().GetString("region"); region != "" {
+				replArgs = append(replArgs, "--region", region)
+			}
+			c.executeREPLCommand(strings.Join(replArgs, " "))
+		},
+	}
+	infraECRCreateCmd.Flags().String("region", "", "AWS region for the ECR repository")
+	infraECRCmd.AddCommand(infraECRCreateCmd)
+
+	infraECRCmd.AddCommand(&cobra.Command{
+		Use:   "status",
+		Short: "Show deployed ECR repositories",
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("attacker infra ecr status")
+		},
+	})
+
+	infraECRCmd.AddCommand(&cobra.Command{
+		Use:   "destroy",
+		Short: "Destroy all deployed ECR repositories",
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("attacker infra ecr destroy")
+		},
+	})
+
+	return infraECRCmd
 }

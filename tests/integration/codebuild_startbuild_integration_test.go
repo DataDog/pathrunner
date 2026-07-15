@@ -1,0 +1,122 @@
+package integration
+
+import (
+	"testing"
+
+	_ "pathrunner/pkg/exploits/codebuild_startbuild"
+	_ "pathrunner/pkg/payloads/codebuild" // Register codebuild payloads so PAYLOAD validation works
+)
+
+func TestCodeBuildStartBuildModuleUse(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	if err := r.ExecuteCommand("use codebuild-002"); err != nil {
+		t.Fatalf("Failed to use codebuild-002: %v", err)
+	}
+}
+
+func TestCodeBuildStartBuildModuleUseAlias(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	if err := r.ExecuteCommand("use codebuild-startbuild"); err != nil {
+		t.Fatalf("Failed to use codebuild-startbuild alias: %v", err)
+	}
+}
+
+func TestCodeBuildStartBuildModuleInfo(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	if err := r.ExecuteCommand("use codebuild-002"); err != nil {
+		t.Fatalf("Failed to use codebuild-002: %v", err)
+	}
+
+	if err := r.ExecuteCommand("info"); err != nil {
+		t.Fatalf("Expected info to succeed: %v", err)
+	}
+}
+
+func TestCodeBuildStartBuildModuleShowOptions(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	if err := r.ExecuteCommand("use codebuild-002"); err != nil {
+		t.Fatalf("Failed to use codebuild-002: %v", err)
+	}
+
+	if err := r.ExecuteCommand("show options"); err != nil {
+		t.Fatalf("Expected show options to succeed: %v", err)
+	}
+}
+
+func TestCodeBuildStartBuildModuleSetOption(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	if err := r.ExecuteCommand("use codebuild-002"); err != nil {
+		t.Fatalf("Failed to use codebuild-002: %v", err)
+	}
+
+	if err := r.ExecuteCommand("set PROJECT_NAME my-privileged-project"); err != nil {
+		t.Fatalf("Expected set PROJECT_NAME to succeed: %v", err)
+	}
+
+	if err := r.ExecuteCommand("set TARGET_USER test-user"); err != nil {
+		t.Fatalf("Expected set TARGET_USER to succeed: %v", err)
+	}
+
+	if err := r.ExecuteCommand("set PAYLOAD backdoor/attach-policy"); err != nil {
+		t.Fatalf("Expected set PAYLOAD to succeed: %v", err)
+	}
+}
+
+func TestCodeBuildStartBuildModuleUnsetOption(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	if err := r.ExecuteCommand("use codebuild-002"); err != nil {
+		t.Fatalf("Failed to use codebuild-002: %v", err)
+	}
+
+	if err := r.ExecuteCommand("set PROJECT_NAME my-project"); err != nil {
+		t.Fatalf("Failed to set PROJECT_NAME: %v", err)
+	}
+
+	if err := r.ExecuteCommand("unset PROJECT_NAME"); err != nil {
+		t.Fatalf("Expected unset to succeed: %v", err)
+	}
+}
+
+func TestCodeBuildStartBuildExploitNoIdentity(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	if err := r.ExecuteCommand("use codebuild-002"); err != nil {
+		t.Fatalf("Failed to use codebuild-002: %v", err)
+	}
+
+	if err := r.ExecuteCommand("set PROJECT_NAME my-project"); err != nil {
+		t.Fatalf("Failed to set PROJECT_NAME: %v", err)
+	}
+
+	if err := r.ExecuteCommand("set PAYLOAD backdoor/attach-policy"); err != nil {
+		t.Fatalf("Failed to set PAYLOAD: %v", err)
+	}
+
+	// Exploit without identity should fail
+	err := r.ExecuteCommand("exploit")
+	if err == nil {
+		t.Error("Expected exploit to fail without identity")
+	}
+}
+
+func TestCodeBuildStartBuildSearchable(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	if err := r.ExecuteCommand("search codebuild"); err != nil {
+		t.Fatalf("Expected search to succeed: %v", err)
+	}
+}
