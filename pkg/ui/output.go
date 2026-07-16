@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"pathrunner/pkg/version"
+	"github.com/DataDog/pathrunner/pkg/version"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/lucasb-eyer/go-colorful"
@@ -76,10 +76,10 @@ func ClearScreen() {
 }
 
 // StartupBanner prints the integrated startup banner with context info.
-func StartupBanner(workspace, identity, module, payload, status string) {
+func StartupBanner(moduleCount int, workspace, identity, module, payload, status string) {
 	if !IsTTY() {
 		fmt.Println("Pathrunner AWS Post-Exploitation Framework")
-		fmt.Printf("Version %s | By Seth Art at Datadog\n", version.Full())
+		fmt.Printf("Version %s | By Seth Art at Datadog | %d modules\n", version.Full(), moduleCount)
 		fmt.Printf("Workspace: %s\n", workspace)
 		if identity != "" {
 			fmt.Printf("Identity: %s\n", identity)
@@ -97,7 +97,7 @@ func StartupBanner(workspace, identity, module, payload, status string) {
 	bright := lipgloss.NewStyle().Foreground(ColorBright)
 
 	title := GradientText("PATHRUNNER", cyan, green, true) +
-		Muted.Render("  "+version.Full())
+		Muted.Render(fmt.Sprintf("  %s | %d modules", version.Full(), moduleCount))
 
 	var lines []string
 	lines = append(lines, title)

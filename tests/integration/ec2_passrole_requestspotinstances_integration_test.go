@@ -3,7 +3,7 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/ec2_passrole_requestspotinstances"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/ec2_passrole_requestspotinstances"
 )
 
 func TestEc2PassroleRequestSpotInstancesModuleUse(t *testing.T) {

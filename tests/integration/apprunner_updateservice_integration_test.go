@@ -3,8 +3,8 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/apprunner_updateservice"
-	_ "pathrunner/pkg/payloads/apprunner"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/apprunner_updateservice"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/apprunner"
 )
 
 func TestAppRunnerUpdateServiceModuleUse(t *testing.T) {

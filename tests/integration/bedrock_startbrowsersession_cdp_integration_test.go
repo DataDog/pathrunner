@@ -3,7 +3,7 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/bedrock_startbrowsersession_cdp"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/bedrock_startbrowsersession_cdp"
 )
 
 func TestBedrockStartBrowserSessionCDPModuleUse(t *testing.T) {

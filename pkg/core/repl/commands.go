@@ -6,10 +6,10 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"pathrunner/pkg/modules"
-	"pathrunner/pkg/pmapper"
-	"pathrunner/pkg/ui"
-	"pathrunner/pkg/version"
+	"github.com/DataDog/pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/pmapper"
+	"github.com/DataDog/pathrunner/pkg/ui"
+	"github.com/DataDog/pathrunner/pkg/version"
 	"strings"
 )
 
@@ -126,6 +126,21 @@ func (r *REPL) getCommands() map[string]*Command {
 			Description: "Manage reverse shell sessions",
 			Handler:     r.cmdSessions,
 		},
+		"options": {
+			Name:        "options",
+			Description: "Show current module options",
+			Handler:     r.cmdOptions,
+		},
+		"cloudfox": {
+			Name:        "cloudfox",
+			Description: "Import cloudfox output data",
+			Handler:     r.cmdCloudfox,
+		},
+		"resources": {
+			Name:        "resources",
+			Description: "List and explore imported AWS resources",
+			Handler:     r.cmdResources,
+		},
 	}
 }
 
@@ -142,7 +157,7 @@ func (r *REPL) cmdHelp(repl *REPL, args []string) error {
 	coreOrder := []string{
 		"modules", "search", "use",
 		"identity", "attacker", "sessions", "aws", "whoami",
-		"workspace", "pmapper", "context",
+		"workspace", "pmapper", "cloudfox", "resources", "context",
 		"version", "help", "exit",
 	}
 	fmt.Println(ui.BoldCyan.Render("  Core Commands"))
@@ -217,6 +232,10 @@ func (r *REPL) showSpecificHelp(command string) error {
 		return r.showAttackerHelp()
 	case "sessions":
 		return r.showSessionsHelp()
+	case "cloudfox":
+		return r.showCloudfoxHelp()
+	case "resources":
+		return r.showResourcesHelp()
 	default:
 		return NewCommandNotFoundError(command)
 	}
@@ -346,12 +365,22 @@ func (r *REPL) showIdentityClearHelp() error {
 }
 
 func (r *REPL) showShowHelp() error {
-	fmt.Println("Show Commands:")
-	fmt.Println("  show modules          - List all available modules")
-	fmt.Println("  show modules --wide   - List modules with description column")
-	fmt.Println("  show payloads         - List available payloads for current module")
-	fmt.Println("  show options          - Show current module options")
-	fmt.Println("  show info             - Show detailed path metadata for current module")
+	fmt.Println("Show Command:")
+	fmt.Println("  show <command> [subcommand]   Transparent read-intent prefix for any display command")
+	fmt.Println()
+	fmt.Println("Available targets:")
+	fmt.Println("  show modules [list|summary|status|--wide]")
+	fmt.Println("  show payloads [list]")
+	fmt.Println("  show identity [list|show|check]")
+	fmt.Println("  show workspace [list|report|history]")
+	fmt.Println("  show pmapper [status|analyze]")
+	fmt.Println("  show resources [list|summary|status]")
+	fmt.Println("  show sessions [list]")
+	fmt.Println("  show attacker [identity|listener|infra]")
+	fmt.Println("  show options")
+	fmt.Println("  show info")
+	fmt.Println()
+	fmt.Println("Write operations (add, switch, create, mark-*, search) must be run directly.")
 	return nil
 }
 
@@ -375,6 +404,7 @@ func (r *REPL) showModulesHelp() error {
 	fmt.Println("  modules                              - List all available modules")
 	fmt.Println("  modules list                         - List all available modules")
 	fmt.Println("  modules list --wide                  - List modules with description column")
+	fmt.Println("  modules summary                      - Show module count by service")
 	fmt.Println("  modules search <query>               - Search modules by keyword")
 	fmt.Println("  modules status                       - Show test status for all modules")
 	fmt.Println("  modules status <id>                  - Show test status for one module")
@@ -694,7 +724,9 @@ func (r *REPL) buildContextData() (workspace, identityStr, moduleStr, payloadStr
 
 // PrintStartupBanner prints the integrated startup banner with context.
 func (r *REPL) PrintStartupBanner() {
-	ui.StartupBanner(r.buildContextData())
+	moduleCount := len(modules.ListPathInfos())
+	w, i, m, p, s := r.buildContextData()
+	ui.StartupBanner(moduleCount, w, i, m, p, s)
 }
 
 // PrintContextPanel prints the context summary box.
@@ -897,6 +929,30 @@ func (r *REPL) cmdContext(repl *REPL, args []string) error {
 						{Key: "Nodes", Value: fmt.Sprintf("%d (%d admin)", status.NodeCount, status.AdminCount)},
 						{Key: "Edges", Value: fmt.Sprintf("%d", status.EdgeCount)},
 						{Key: "Escalation", Value: pathInfo},
+					})
+					fmt.Println()
+				}
+			}
+
+			// Resources info
+			r.resourcesManager.TryAutoLoad(accountID)
+			if r.resourcesManager.IsLoaded(accountID) {
+				resList := r.resourcesManager.ListResources(accountID, "")
+				if len(resList) > 0 {
+					serviceCounts := make(map[string]int)
+					for _, res := range resList {
+						serviceCounts[res.Service]++
+					}
+					var parts []string
+					for svc, count := range serviceCounts {
+						parts = append(parts, fmt.Sprintf("%s(%d)", svc, count))
+					}
+
+					ui.Section("Resources")
+					ui.KeyValueTable("", []ui.KV{
+						{Key: "Account", Value: accountID},
+						{Key: "Total", Value: fmt.Sprintf("%d", len(resList))},
+						{Key: "Services", Value: strings.Join(parts, ", ")},
 					})
 					fmt.Println()
 				}

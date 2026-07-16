@@ -3,11 +3,11 @@ package cli
 import (
 	"fmt"
 	"os"
-	"pathrunner/pkg/attacker"
-	"pathrunner/pkg/core"
-	"pathrunner/pkg/core/repl"
-	"pathrunner/pkg/modules"
-	"pathrunner/pkg/utils"
+	"github.com/DataDog/pathrunner/pkg/attacker"
+	"github.com/DataDog/pathrunner/pkg/core"
+	"github.com/DataDog/pathrunner/pkg/core/repl"
+	"github.com/DataDog/pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/utils"
 
 	"github.com/spf13/cobra"
 )
@@ -108,6 +108,8 @@ func (c *CLI) CreateRootCommand() *cobra.Command {
 	rootCmd.AddCommand(addToGroup(c.createWhoamiCmd(), "core"))
 	rootCmd.AddCommand(addToGroup(c.createWorkspaceCmd(), "core"))
 	rootCmd.AddCommand(addToGroup(c.createPmapperCmd(), "core"))
+	rootCmd.AddCommand(addToGroup(c.createCloudfoxCmd(), "core"))
+	rootCmd.AddCommand(addToGroup(c.createResourcesCmd(), "core"))
 	rootCmd.AddCommand(addToGroup(c.createAttackerCmd(), "core"))
 	rootCmd.AddCommand(addToGroup(c.createSessionsCmd(), "core"))
 	rootCmd.AddCommand(addToGroup(c.createContextCmd(), "core"))

@@ -3,7 +3,7 @@ package unit
 import (
 	"os"
 	"path/filepath"
-	"pathrunner/pkg/config"
+	"github.com/DataDog/pathrunner/pkg/config"
 	"testing"
 	"time"
 )

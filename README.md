@@ -4,6 +4,20 @@ A modular AWS privilege escalation exploitation framework with dual CLI/REPL int
 
 ![pathrunner - demo](https://github.com/user-attachments/assets/1cac76ca-9347-4aa7-b961-0a59bf400b43)
 
+## Overview
+
+Pathrunner automates exploitation of AWS IAM privilege escalation paths. It's the execution layer of a three-project ecosystem:
+
+```
+pathfinding.cloud (path definitions) → pathfinding-labs (deployable labs) → pathrunner (automated exploitation)
+```
+
+- **[pathfinding.cloud](https://pathfinding.cloud)** documents each privilege escalation path (prerequisites, permissions, manual exploitation steps)
+- **[pathfinding-labs](https://github.com/DataDog/pathfinding-labs)** deploys the vulnerable AWS infrastructure to practice against
+- **pathrunner** (this project) automates the exploitation itself, chaining modules and payloads to escalate from an initial identity to elevated access
+
+Modules reference a pathfinding.cloud path ID when they implement a documented path, and are validated against deployed pathfinding-labs scenarios.
+
 ## Features
 
 - **Dual Interface**: Includes a Metasploit style REPL for interactive use and a non-interactive CLI for automation use cases
@@ -16,16 +30,28 @@ A modular AWS privilege escalation exploitation framework with dual CLI/REPL int
 
 ### Coverage
 
-Pathrunner currently includes **29 exploit modules** across **4 AWS services** (EC2, IAM, Lambda, STS) with **8 interchangeable payloads** (credential exfiltration, HTTPS exfiltration, backdoor role/user/policy creation, reverse shells). 
+Pathrunner currently includes **83 exploit modules** across **22 AWS services** (IAM, EC2, Lambda, STS, ECS, Glue, CloudFormation, SSM, and more) with **37 interchangeable payloads** (credential exfiltration, HTTPS exfiltration, backdoor role/user/policy creation, reverse shells).
+
+## Installation
+
+Requires Go 1.25+ and valid AWS credentials.
+
+#### Direct Install
+```bash
+go install github.com/DataDog/pathrunner/cmd/pathrunner@latest
+```
+
+#### Build from source
+```bash
+git clone https://github.com/DataDog/pathrunner.git
+cd pathrunner
+make build
+cp pathrunner /usr/local/bin/
+```
 
 ## Quick Start
 
 ```bash
-# Clone and build
-git clone https://github.com/DataDog/pathrunner.git
-cd pathrunner
-make build
-
 # Start the interactive shell
 ./pathrunner
 
@@ -56,8 +82,6 @@ pathrunner> pmapper import         # Auto-detects PMapper data directory
 pathrunner> pmapper analyze        # See what's next from here
 ```
 
-Requires Go 1.21+ and valid AWS credentials.
-
 ## PMapper Integration
 
 Import [Principal Mapper](https://github.com/nccgroup/PMapper) graph data to identify escalation paths and get actionable next steps:
@@ -79,7 +103,7 @@ pkg/
 ├── cli/         # Cobra CLI wrapper (1:1 with REPL commands)
 ├── modules/     # Module system: interfaces, registry, search/filter
 ├── payloads/    # Payload registry: tag-based filtering, service subdirectories
-├── exploits/    # Exploit modules (29), each embedding BaseModule
+├── exploits/    # Exploit modules (83), each embedding BaseModule
 ├── discovery/   # Reusable AWS enumeration (roles, subnets, streams, etc.)
 ├── pmapper/     # PMapper graph import, querying, and module mapping
 ├── utils/       # Credential extraction from env vars, JSON, Python dicts
@@ -107,3 +131,28 @@ Users are responsible for:
 - Understanding that unauthorized access to computer systems is illegal
 
 The developers assume no liability for misuse of this tool.
+
+## Related Projects
+
+**Ecosystem:**
+- [pathfinding.cloud](https://pathfinding.cloud) - The source-of-truth library of AWS IAM privilege escalation paths that pathrunner modules implement
+- [pathfinding-labs](https://github.com/DataDog/pathfinding-labs) - Terraform lab environments used to deploy and validate pathrunner modules against
+
+**Other tools:**
+- [PMapper](https://github.com/nccgroup/PMapper) - AWS IAM privilege escalation analysis; pathrunner can import its graph output
+- [Pacu](https://github.com/RhinoSecurityLabs/pacu) - AWS exploitation framework
+- [Stratus Red Team](https://github.com/DataDog/stratus-red-team) - Adversary emulation for cloud, by Datadog
+
+## License
+
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+
+## Contact
+
+- **Issues**: Open an issue in this repository
+- **Discussions**: Use GitHub Discussions for questions
+- **Security**: For security concerns about this repository, please open a private security advisory
+
+---
+
+**Maintained by Seth Art from Datadog**

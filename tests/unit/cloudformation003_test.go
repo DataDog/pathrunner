@@ -1,8 +1,8 @@
 package unit
 
 import (
-	cfn003 "pathrunner/pkg/exploits/cloudformation_passrole_createstackset_createstackinstances"
-	"pathrunner/pkg/modules"
+	cfn003 "github.com/DataDog/pathrunner/pkg/exploits/cloudformation_passrole_createstackset_createstackinstances"
+	"github.com/DataDog/pathrunner/pkg/modules"
 	"testing"
 )
 

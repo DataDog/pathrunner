@@ -1,7 +1,7 @@
 package unit
 
 import (
-	"pathrunner/pkg/exploits/ec2_instanceconnect"
+	"github.com/DataDog/pathrunner/pkg/exploits/ec2_instanceconnect"
 	"testing"
 )
 

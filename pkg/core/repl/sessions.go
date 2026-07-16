@@ -2,7 +2,7 @@ package repl
 
 import (
 	"fmt"
-	"pathrunner/pkg/ui"
+	"github.com/DataDog/pathrunner/pkg/ui"
 	"strconv"
 	"time"
 )

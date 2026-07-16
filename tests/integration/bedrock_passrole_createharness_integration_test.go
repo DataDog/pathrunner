@@ -3,7 +3,7 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/bedrock_passrole_createharness"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/bedrock_passrole_createharness"
 )
 
 func TestBedrockPassroleCreateHarnessModuleUse(t *testing.T) {

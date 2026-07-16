@@ -3,8 +3,8 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/bedrock_passrole_codeinterpreter"
-	_ "pathrunner/pkg/payloads/bedrock" // Register bedrock payloads so PAYLOAD validation works
+	_ "github.com/DataDog/pathrunner/pkg/exploits/bedrock_passrole_codeinterpreter"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/bedrock" // Register bedrock payloads so PAYLOAD validation works
 )
 
 func TestBedrockPassroleCodeInterpreterModuleUse(t *testing.T) {

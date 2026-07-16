@@ -1,8 +1,8 @@
 package unit
 
 import (
-	"pathrunner/pkg/exploits/emrserverless_passrole"
-	"pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/exploits/emrserverless_passrole"
+	"github.com/DataDog/pathrunner/pkg/modules"
 	"strings"
 	"testing"
 )

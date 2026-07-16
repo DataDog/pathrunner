@@ -3,7 +3,7 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/batch_passrole_registerjobdefinition_submitjob"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/batch_passrole_registerjobdefinition_submitjob"
 )
 
 func TestBatchPassroleRegisterJobDefinitionSubmitJobModuleUse(t *testing.T) {

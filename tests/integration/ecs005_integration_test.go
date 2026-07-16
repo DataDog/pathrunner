@@ -3,7 +3,7 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/ecs_registertaskdefinition_runtask"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/ecs_registertaskdefinition_runtask"
 )
 
 func TestEcs005ModuleUse(t *testing.T) {

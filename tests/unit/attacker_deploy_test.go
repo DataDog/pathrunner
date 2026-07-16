@@ -3,8 +3,8 @@ package unit
 import (
 	"os"
 	"path/filepath"
-	"pathrunner/pkg/attacker"
-	"pathrunner/pkg/core/repl"
+	"github.com/DataDog/pathrunner/pkg/attacker"
+	"github.com/DataDog/pathrunner/pkg/core/repl"
 	"testing"
 )
 

@@ -3,7 +3,7 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/ec2_modifyinstanceattribute"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/ec2_modifyinstanceattribute"
 )
 
 func TestEC2ModifyInstanceAttributeModuleUse(t *testing.T) {

@@ -1,8 +1,8 @@
 package unit
 
 import (
-	"pathrunner/pkg/exploits/bedrock_startsession_invoke"
-	"pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/exploits/bedrock_startsession_invoke"
+	"github.com/DataDog/pathrunner/pkg/modules"
 	"testing"
 )
 

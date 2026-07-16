@@ -1,58 +1,381 @@
 {
   "modules": {
+    "apprunner-001": {
+      "status": "tested",
+      "last_tested": "2026-07-08",
+      "tested_against": "apprunner-001-to-admin",
+      "notes": ""
+    },
+    "apprunner-002": {
+      "status": "untested",
+      "last_tested": "2026-07-08",
+      "tested_against": "apprunner-002-to-admin",
+      "notes": ""
+    },
+    "batch-002": {
+      "status": "tested",
+      "last_tested": "2026-07-08",
+      "tested_against": "batch-002-batch-submitjob",
+      "notes": ""
+    },
+    "bedrock-001": {
+      "status": "tested",
+      "last_tested": "2026-07-08",
+      "tested_against": "bedrock-001-to-admin",
+      "notes": ""
+    },
+    "bedrock-002": {
+      "status": "tested",
+      "last_tested": "2026-07-08",
+      "tested_against": "bedrock-002-to-admin",
+      "notes": ""
+    },
+    "bedrock-003": {
+      "status": "tested",
+      "last_tested": "2026-07-08",
+      "tested_against": "bedrock-003-to-admin",
+      "notes": ""
+    },
+    "bedrock-004": {
+      "status": "tested",
+      "last_tested": "2026-07-08",
+      "tested_against": "bedrock-004-to-admin",
+      "notes": ""
+    },
+    "bedrock-005": {
+      "status": "tested",
+      "last_tested": "2026-07-08",
+      "tested_against": "bedrock-005-to-admin",
+      "notes": ""
+    },
+    "bedrock-006": {
+      "status": "tested",
+      "last_tested": "2026-07-09",
+      "tested_against": "bedrock-006-to-admin",
+      "notes": ""
+    },
+    "bedrock-007": {
+      "status": "tested",
+      "last_tested": "2026-07-09",
+      "tested_against": "bedrock-007-to-admin",
+      "notes": ""
+    },
+    "braket-001": {
+      "status": "tested",
+      "last_tested": "2026-07-08",
+      "tested_against": "braket-001-to-admin",
+      "notes": ""
+    },
+    "cloudformation-001": {
+      "status": "tested",
+      "last_tested": "2026-07-08",
+      "tested_against": "cloudformation-001-to-admin",
+      "notes": ""
+    },
+    "cloudformation-002": {
+      "status": "tested",
+      "last_tested": "2026-07-08",
+      "tested_against": "cloudformation-002-to-admin",
+      "notes": ""
+    },
+    "cloudformation-003": {
+      "status": "tested",
+      "last_tested": "2026-07-08",
+      "tested_against": "cloudformation-003-to-admin",
+      "notes": ""
+    },
+    "cloudformation-004": {
+      "status": "tested",
+      "last_tested": "2026-07-08",
+      "tested_against": "cloudformation-004-to-admin",
+      "notes": ""
+    },
+    "cloudformation-005": {
+      "status": "tested",
+      "last_tested": "2026-07-08",
+      "tested_against": "cloudformation-005-to-admin",
+      "notes": ""
+    },
+    "codebuild-001": {
+      "status": "tested",
+      "last_tested": "2026-07-08",
+      "tested_against": "codebuild-001-to-admin",
+      "notes": ""
+    },
+    "codebuild-002": {
+      "status": "tested",
+      "last_tested": "2026-07-08",
+      "tested_against": "codebuild-002-to-admin",
+      "notes": ""
+    },
+    "codebuild-003": {
+      "status": "tested",
+      "last_tested": "2026-07-10",
+      "tested_against": "codebuild-003-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "backdoor/attach-policy",
+          "execution": "PASS",
+          "creds_obtained": "NO",
+          "verified": "YES"
+        }
+      ]
+    },
+    "codebuild-004": {
+      "status": "tested",
+      "last_tested": "2026-07-10",
+      "tested_against": "codebuild-004-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "backdoor/attach-policy",
+          "execution": "PASS",
+          "creds_obtained": "NO",
+          "verified": "YES"
+        }
+      ]
+    },
+    "codedeploy-001": {
+      "status": "tested",
+      "last_tested": "2026-07-10",
+      "tested_against": "codedeploy-001-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "none",
+          "execution": "PASS",
+          "creds_obtained": "NO",
+          "verified": "YES"
+        }
+      ]
+    },
+    "cognitoidentity-001": {
+      "status": "tested",
+      "last_tested": "2026-07-11",
+      "tested_against": "cognitoidentity-001-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "none",
+          "execution": "PASS",
+          "creds_obtained": "YES",
+          "verified": "YES"
+        }
+      ]
+    },
     "ec2-001": {
       "status": "untested",
       "last_tested": null,
       "tested_against": null,
       "notes": ""
     },
+    "ec2-002": {
+      "status": "failing",
+      "last_tested": "2026-07-10",
+      "tested_against": "ec2-002-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "backdoor/attach-policy",
+          "execution": "PASS",
+          "creds_obtained": "NO",
+          "verified": "YES"
+        },
+        {
+          "payload": "backdoor/create-access-key",
+          "execution": "PASS",
+          "creds_obtained": "NO",
+          "verified": "YES"
+        },
+        {
+          "payload": "backdoor/create-role",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Resolving missing required options..."
+        },
+        {
+          "payload": "backdoor/create-user",
+          "execution": "PASS",
+          "creds_obtained": "NO",
+          "verified": "YES"
+        },
+        {
+          "payload": "backdoor/update-role-trust",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Resolving missing required options..."
+        },
+        {
+          "payload": "exfil/https",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Resolving missing required options..."
+        },
+        {
+          "payload": "exfil/s3",
+          "execution": "PASS",
+          "creds_obtained": "NO",
+          "verified": "YES"
+        },
+        {
+          "payload": "revshell/tls",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Resolving missing required options..."
+        }
+      ]
+    },
+    "ec2-003": {
+      "status": "tested",
+      "last_tested": "2026-07-10",
+      "tested_against": "ec2-003-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "none",
+          "execution": "PASS",
+          "creds_obtained": "YES",
+          "verified": "YES"
+        }
+      ]
+    },
+    "ec2-004": {
+      "status": "failing",
+      "last_tested": "2026-07-10",
+      "tested_against": "ec2-004-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "revshell/tls",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Resolving missing required options..."
+        }
+      ]
+    },
+    "ec2-005": {
+      "status": "tested",
+      "last_tested": "2026-07-10",
+      "tested_against": "ec2-005-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "backdoor/attach-policy",
+          "execution": "PASS",
+          "creds_obtained": "NO",
+          "verified": "YES"
+        }
+      ]
+    },
     "ecs-001": {
       "status": "tested",
-      "last_tested": "2026-07-08",
+      "last_tested": "2026-07-09",
       "tested_against": "ecs-001-to-admin",
       "notes": ""
     },
     "ecs-002": {
       "status": "tested",
-      "last_tested": "2026-07-08",
+      "last_tested": "2026-07-09",
       "tested_against": "ecs-002-to-admin",
       "notes": ""
     },
     "ecs-003": {
       "status": "tested",
-      "last_tested": "2026-07-08",
+      "last_tested": "2026-07-09",
       "tested_against": "ecs-003-to-admin",
       "notes": ""
     },
     "ecs-004": {
       "status": "tested",
-      "last_tested": "2026-07-08",
+      "last_tested": "2026-07-09",
       "tested_against": "ecs-004-to-admin",
       "notes": ""
     },
     "ecs-005": {
       "status": "tested",
-      "last_tested": "2026-07-08",
+      "last_tested": "2026-07-09",
       "tested_against": "ecs-005-to-admin",
       "notes": ""
     },
     "ecs-006": {
       "status": "tested",
-      "last_tested": "2026-07-08",
+      "last_tested": "2026-07-09",
       "tested_against": "ecs-006-to-admin",
       "notes": ""
     },
     "ecs-008": {
       "status": "tested",
-      "last_tested": "2026-07-08",
+      "last_tested": "2026-07-09",
       "tested_against": "ecs-008-to-admin",
       "notes": ""
     },
     "ecs-009": {
       "status": "tested",
-      "last_tested": "2026-07-08",
+      "last_tested": "2026-07-10",
       "tested_against": "ecs-009-to-admin",
       "notes": ""
+    },
+    "emr-001": {
+      "status": "tested",
+      "last_tested": "2026-07-12",
+      "tested_against": "emr-001-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "backdoor/attach-policy",
+          "execution": "PASS",
+          "creds_obtained": "NO",
+          "verified": "YES"
+        }
+      ]
+    },
+    "emrserverless-001": {
+      "status": "tested",
+      "last_tested": "2026-07-12",
+      "tested_against": "emrserverless-001-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "none",
+          "execution": "PASS",
+          "creds_obtained": "NO",
+          "verified": "YES"
+        }
+      ]
+    },
+    "gamelift-001": {
+      "status": "tested",
+      "last_tested": "2026-07-11",
+      "tested_against": "gamelift-001-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "backdoor/attach-policy",
+          "execution": "PASS",
+          "creds_obtained": "NO",
+          "verified": "YES"
+        }
+      ]
+    },
+    "glue-001": {
+      "status": "tested",
+      "last_tested": "2026-07-10",
+      "tested_against": "glue-001-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "none",
+          "execution": "PASS",
+          "creds_obtained": "NO",
+          "verified": "YES"
+        }
+      ]
     },
     "glue-003": {
       "status": "untested",
@@ -60,65 +383,420 @@
       "tested_against": null,
       "notes": "first cross-account module, requires attacker identity"
     },
+    "glue-004": {
+      "status": "failing",
+      "last_tested": "2026-07-10",
+      "tested_against": "glue-004-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "backdoor/attach-policy",
+          "execution": "PASS",
+          "creds_obtained": "NO",
+          "verified": "YES"
+        },
+        {
+          "payload": "backdoor/create-access-key",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Error: module execution failed: Glue job failed: ClientError: An error occurred (AccessDenied) when calling the CreateAccessKey operation: User: arn:aws:sts::697683661464:assumed-role/pl-prod-glue-004"
+        },
+        {
+          "payload": "backdoor/create-role",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Resolving missing required options..."
+        },
+        {
+          "payload": "backdoor/create-user",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Error: module execution failed: Glue job failed: ClientError: An error occurred (AccessDenied) when calling the CreateAccessKey operation: User: arn:aws:sts::697683661464:assumed-role/pl-prod-glue-004"
+        },
+        {
+          "payload": "backdoor/update-role-trust",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Resolving missing required options..."
+        },
+        {
+          "payload": "exfil/cloudwatch",
+          "execution": "PASS",
+          "creds_obtained": "NO",
+          "verified": "YES"
+        },
+        {
+          "payload": "exfil/https",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Resolving missing required options..."
+        },
+        {
+          "payload": "exfil/s3",
+          "execution": "PASS",
+          "creds_obtained": "NO",
+          "verified": "YES"
+        },
+        {
+          "payload": "revshell/tls",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Resolving missing required options..."
+        }
+      ]
+    },
+    "glue-005": {
+      "status": "failing",
+      "last_tested": "2026-07-10",
+      "tested_against": "glue-005-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "backdoor/attach-policy",
+          "execution": "PASS",
+          "creds_obtained": "NO",
+          "verified": "YES"
+        },
+        {
+          "payload": "backdoor/create-access-key",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Error: module execution failed: Glue job failed: ClientError: An error occurred (AccessDenied) when calling the CreateAccessKey operation: User: arn:aws:sts::697683661464:assumed-role/pl-prod-glue-005"
+        },
+        {
+          "payload": "backdoor/create-role",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Resolving missing required options..."
+        },
+        {
+          "payload": "backdoor/create-user",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Error: module execution failed: Glue job failed: ClientError: An error occurred (AccessDenied) when calling the CreateAccessKey operation: User: arn:aws:sts::697683661464:assumed-role/pl-prod-glue-005"
+        },
+        {
+          "payload": "backdoor/update-role-trust",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Resolving missing required options..."
+        },
+        {
+          "payload": "exfil/cloudwatch",
+          "execution": "PASS",
+          "creds_obtained": "NO",
+          "verified": "YES"
+        },
+        {
+          "payload": "exfil/https",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Resolving missing required options..."
+        },
+        {
+          "payload": "exfil/s3",
+          "execution": "PASS",
+          "creds_obtained": "NO",
+          "verified": "YES"
+        },
+        {
+          "payload": "revshell/tls",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Resolving missing required options..."
+        }
+      ]
+    },
+    "glue-006": {
+      "status": "failing",
+      "last_tested": "2026-07-10",
+      "tested_against": "glue-006-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "backdoor/attach-policy",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Error: module execution failed: failed to upload Glue script to attacker bucket: failed to upload to s3://pathrunner-code-b85bb76e/glue-006/1783724252/payload_script.py: operation error S3: PutObject,"
+        },
+        {
+          "payload": "backdoor/create-access-key",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Error: module execution failed: failed to upload Glue script to attacker bucket: failed to upload to s3://pathrunner-code-b85bb76e/glue-006/1783724252/payload_script.py: operation error S3: PutObject,"
+        },
+        {
+          "payload": "backdoor/create-role",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Resolving missing required options..."
+        },
+        {
+          "payload": "backdoor/create-user",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Error: module execution failed: failed to upload Glue script to attacker bucket: failed to upload to s3://pathrunner-code-b85bb76e/glue-006/1783724252/payload_script.py: operation error S3: PutObject,"
+        },
+        {
+          "payload": "backdoor/update-role-trust",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Resolving missing required options..."
+        },
+        {
+          "payload": "exfil/cloudwatch",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Error: module execution failed: failed to upload Glue script to attacker bucket: failed to upload to s3://pathrunner-code-b85bb76e/glue-006/1783724252/payload_script.py: operation error S3: PutObject,"
+        },
+        {
+          "payload": "exfil/https",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Resolving missing required options..."
+        },
+        {
+          "payload": "exfil/s3",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Error: module execution failed: failed to upload Glue script to attacker bucket: failed to upload to s3://pathrunner-code-b85bb76e/glue-006/1783724253/payload_script.py: operation error S3: PutObject,"
+        },
+        {
+          "payload": "revshell/tls",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Resolving missing required options..."
+        }
+      ]
+    },
+    "glue-007": {
+      "status": "failing",
+      "last_tested": "2026-07-10",
+      "tested_against": "glue-007-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "backdoor/attach-policy",
+          "execution": "PASS",
+          "creds_obtained": "NO",
+          "verified": "YES"
+        },
+        {
+          "payload": "backdoor/create-access-key",
+          "execution": "PASS",
+          "creds_obtained": "NO",
+          "verified": "YES"
+        },
+        {
+          "payload": "backdoor/create-role",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Resolving missing required options..."
+        },
+        {
+          "payload": "backdoor/create-user",
+          "execution": "PASS",
+          "creds_obtained": "NO",
+          "verified": "YES"
+        },
+        {
+          "payload": "backdoor/update-role-trust",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Resolving missing required options..."
+        },
+        {
+          "payload": "exfil/cloudwatch",
+          "execution": "PASS",
+          "creds_obtained": "NO",
+          "verified": "YES"
+        },
+        {
+          "payload": "exfil/https",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Resolving missing required options..."
+        },
+        {
+          "payload": "exfil/s3",
+          "execution": "PASS",
+          "creds_obtained": "NO",
+          "verified": "YES"
+        },
+        {
+          "payload": "revshell/tls",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Resolving missing required options..."
+        }
+      ]
+    },
     "iam-001": {
-      "status": "untested",
-      "last_tested": null,
-      "tested_against": null,
-      "notes": ""
+      "status": "tested",
+      "last_tested": "2026-07-10",
+      "tested_against": "iam-001-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "none",
+          "execution": "PASS",
+          "creds_obtained": "NO",
+          "verified": "YES"
+        }
+      ]
     },
     "iam-002": {
-      "status": "untested",
-      "last_tested": null,
-      "tested_against": null,
-      "notes": ""
+      "status": "failing",
+      "last_tested": "2026-07-10",
+      "tested_against": "iam-002-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "none",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Error: module execution failed: failed to create access key for user pl-prod-iam-002-to-admin-target-user: operation error IAM: CreateAccessKey, https response error StatusCode: 403, RequestID: 142587"
+        }
+      ]
     },
     "iam-003": {
-      "status": "untested",
-      "last_tested": null,
-      "tested_against": null,
-      "notes": ""
+      "status": "failing",
+      "last_tested": "2026-07-10",
+      "tested_against": "iam-003-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "none",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Error: module execution failed: failed to create access key for user 'pl-prod-iam-003-to-admin-target-user': operation error IAM: CreateAccessKey, https response error StatusCode: 403, RequestID: dd93"
+        }
+      ]
     },
     "iam-004": {
-      "status": "untested",
-      "last_tested": null,
-      "tested_against": null,
-      "notes": ""
+      "status": "tested",
+      "last_tested": "2026-07-10",
+      "tested_against": "iam-004-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "none",
+          "execution": "PASS",
+          "creds_obtained": "NO",
+          "verified": "YES"
+        }
+      ]
     },
     "iam-005": {
-      "status": "untested",
-      "last_tested": null,
-      "tested_against": null,
-      "notes": ""
+      "status": "tested",
+      "last_tested": "2026-07-10",
+      "tested_against": "iam-005-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "none",
+          "execution": "PASS",
+          "creds_obtained": "NO",
+          "verified": "YES"
+        }
+      ]
     },
     "iam-006": {
-      "status": "untested",
-      "last_tested": null,
-      "tested_against": null,
-      "notes": ""
+      "status": "tested",
+      "last_tested": "2026-07-10",
+      "tested_against": "iam-006-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "none",
+          "execution": "PASS",
+          "creds_obtained": "NO",
+          "verified": "YES"
+        }
+      ]
     },
     "iam-007": {
-      "status": "untested",
-      "last_tested": null,
-      "tested_against": null,
-      "notes": ""
+      "status": "tested",
+      "last_tested": "2026-07-10",
+      "tested_against": "iam-007-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "none",
+          "execution": "PASS",
+          "creds_obtained": "NO",
+          "verified": "YES"
+        }
+      ]
     },
     "iam-008": {
-      "status": "untested",
-      "last_tested": null,
-      "tested_against": null,
-      "notes": ""
+      "status": "tested",
+      "last_tested": "2026-07-10",
+      "tested_against": "iam-008-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "none",
+          "execution": "PASS",
+          "creds_obtained": "NO",
+          "verified": "YES"
+        }
+      ]
     },
     "iam-009": {
-      "status": "untested",
-      "last_tested": null,
-      "tested_against": null,
-      "notes": ""
+      "status": "tested",
+      "last_tested": "2026-07-10",
+      "tested_against": "iam-009-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "none",
+          "execution": "PASS",
+          "creds_obtained": "NO",
+          "verified": "YES"
+        }
+      ]
     },
     "iam-010": {
-      "status": "untested",
-      "last_tested": null,
-      "tested_against": null,
-      "notes": ""
+      "status": "tested",
+      "last_tested": "2026-07-10",
+      "tested_against": "iam-010-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "none",
+          "execution": "PASS",
+          "creds_obtained": "NO",
+          "verified": "YES"
+        }
+      ]
     },
     "iam-011": {
       "status": "untested",
@@ -127,10 +805,18 @@
       "notes": ""
     },
     "iam-012": {
-      "status": "untested",
-      "last_tested": null,
-      "tested_against": null,
-      "notes": ""
+      "status": "tested",
+      "last_tested": "2026-07-10",
+      "tested_against": "iam-012-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "none",
+          "execution": "PASS",
+          "creds_obtained": "YES",
+          "verified": "YES"
+        }
+      ]
     },
     "iam-013": {
       "status": "untested",
@@ -139,58 +825,161 @@
       "notes": ""
     },
     "iam-014": {
-      "status": "untested",
-      "last_tested": null,
-      "tested_against": null,
-      "notes": ""
+      "status": "tested",
+      "last_tested": "2026-07-10",
+      "tested_against": "iam-014-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "none",
+          "execution": "PASS",
+          "creds_obtained": "YES",
+          "verified": "YES"
+        }
+      ]
     },
     "iam-015": {
-      "status": "untested",
-      "last_tested": null,
-      "tested_against": null,
-      "notes": ""
+      "status": "failing",
+      "last_tested": "2026-07-10",
+      "tested_against": "iam-015-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "none",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Error: module execution failed: failed to create access key: operation error IAM: CreateAccessKey, https response error StatusCode: 403, RequestID: ba5c145e-30aa-4310-9e65-2013d0d425ef, api error Acce"
+        }
+      ]
     },
     "iam-016": {
-      "status": "untested",
-      "last_tested": null,
-      "tested_against": null,
-      "notes": ""
+      "status": "failing",
+      "last_tested": "2026-07-10",
+      "tested_against": "iam-016-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "none",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Error: module execution failed: failed to put role policy: operation error IAM: PutRolePolicy, https response error StatusCode: 403, RequestID: e6aaae0c-fd05-44ec-8aeb-6c338f2f8c5d, api error AccessDe"
+        }
+      ]
     },
     "iam-017": {
-      "status": "untested",
-      "last_tested": null,
-      "tested_against": null,
-      "notes": ""
+      "status": "tested",
+      "last_tested": "2026-07-10",
+      "tested_against": "iam-017-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "none",
+          "execution": "PASS",
+          "creds_obtained": "YES",
+          "verified": "YES"
+        }
+      ]
     },
     "iam-018": {
-      "status": "untested",
-      "last_tested": null,
-      "tested_against": null,
-      "notes": ""
+      "status": "failing",
+      "last_tested": "2026-07-10",
+      "tested_against": "iam-018-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "none",
+          "execution": "FAIL",
+          "creds_obtained": "NO",
+          "verified": "SKIP",
+          "fail_reason": "Error: module execution failed: failed to create access key: operation error IAM: CreateAccessKey, https response error StatusCode: 403, RequestID: 6f957397-dceb-4f6b-92e5-16b46ec4e00a, api error Acce"
+        }
+      ]
     },
     "iam-019": {
-      "status": "untested",
-      "last_tested": null,
-      "tested_against": null,
-      "notes": ""
+      "status": "tested",
+      "last_tested": "2026-07-10",
+      "tested_against": "iam-019-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "none",
+          "execution": "PASS",
+          "creds_obtained": "YES",
+          "verified": "YES"
+        }
+      ]
     },
     "iam-020": {
-      "status": "untested",
-      "last_tested": null,
-      "tested_against": null,
-      "notes": ""
+      "status": "tested",
+      "last_tested": "2026-07-10",
+      "tested_against": "iam-020-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "none",
+          "execution": "PASS",
+          "creds_obtained": "YES",
+          "verified": "YES"
+        }
+      ]
     },
     "iam-021": {
-      "status": "untested",
-      "last_tested": null,
-      "tested_against": null,
-      "notes": ""
+      "status": "tested",
+      "last_tested": "2026-07-10",
+      "tested_against": "iam-021-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "none",
+          "execution": "PASS",
+          "creds_obtained": "YES",
+          "verified": "YES"
+        }
+      ]
+    },
+    "imagebuilder-001": {
+      "status": "tested",
+      "last_tested": "2026-07-11",
+      "tested_against": "imagebuilder-001-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "backdoor/attach-policy",
+          "execution": "PASS",
+          "creds_obtained": "NO",
+          "verified": "YES"
+        }
+      ]
+    },
+    "kinesisanalytics-001": {
+      "status": "tested",
+      "last_tested": "2026-07-12",
+      "tested_against": "kinesisanalytics-001-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "none",
+          "execution": "PASS",
+          "creds_obtained": "NO",
+          "verified": "YES"
+        }
+      ]
     },
     "lambda-001": {
       "status": "tested",
-      "last_tested": "2026-06-15",
-      "tested_against": "pathfinding-labs/lambda-001",
-      "notes": ""
+      "last_tested": "2026-07-15",
+      "tested_against": "lambda-001-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "exfil/response",
+          "execution": "PASS",
+          "creds_obtained": "YES",
+          "verified": "YES"
+        }
+      ]
     },
     "lambda-002": {
       "status": "tested",
@@ -221,6 +1010,62 @@
       "last_tested": null,
       "tested_against": null,
       "notes": ""
+    },
+    "omics-001": {
+      "status": "tested",
+      "last_tested": "2026-07-11",
+      "tested_against": "omics-001-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "none",
+          "execution": "PASS",
+          "creds_obtained": "YES",
+          "verified": "YES"
+        }
+      ]
+    },
+    "ssm-001": {
+      "status": "tested",
+      "last_tested": "2026-07-10",
+      "tested_against": "ssm-001-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "none",
+          "execution": "PASS",
+          "creds_obtained": "YES",
+          "verified": "YES"
+        }
+      ]
+    },
+    "ssm-002": {
+      "status": "tested",
+      "last_tested": "2026-07-10",
+      "tested_against": "ssm-002-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "none",
+          "execution": "PASS",
+          "creds_obtained": "YES",
+          "verified": "YES"
+        }
+      ]
+    },
+    "ssm-003": {
+      "status": "tested",
+      "last_tested": "2026-07-11",
+      "tested_against": "ssm-003-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "none",
+          "execution": "PASS",
+          "creds_obtained": "NO",
+          "verified": "YES"
+        }
+      ]
     },
     "sts-001": {
       "status": "tested",

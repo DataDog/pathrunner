@@ -1,8 +1,8 @@
 package unit
 
 import (
-	"pathrunner/pkg/exploits/batch_submitjob"
-	"pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/exploits/batch_submitjob"
+	"github.com/DataDog/pathrunner/pkg/modules"
 	"testing"
 )
 

@@ -1,0 +1,16 @@
+[
+  {
+    "Account": "123456789012",
+    "Name": "test-bucket-123456789012",
+    "Public?": "No",
+    "Region": "us-east-1",
+    "Resource Policy Summary": ""
+  },
+  {
+    "Account": "123456789012",
+    "Name": "public-bucket-123456789012",
+    "Public?": "Yes",
+    "Region": "us-east-1",
+    "Resource Policy Summary": "Allow * s3:GetObject"
+  }
+]

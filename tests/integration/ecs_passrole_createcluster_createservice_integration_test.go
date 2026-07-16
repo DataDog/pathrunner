@@ -3,7 +3,7 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/ecs_passrole_createcluster_createservice"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/ecs_passrole_createcluster_createservice"
 )
 
 func TestECSPassroleCreateclusterCreateserviceModuleUse(t *testing.T) {

@@ -3,7 +3,7 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/codebuild_passrole_startbuildbatch"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/codebuild_passrole_startbuildbatch"
 )
 
 func TestCodeBuildPassroleStartBuildBatchModuleUse(t *testing.T) {

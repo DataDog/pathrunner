@@ -1,7 +1,7 @@
 package repl
 
 import (
-	"pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/modules"
 	"strings"
 
 	"github.com/chzyer/readline"
@@ -40,6 +40,8 @@ func (r *REPL) getCompleter() readline.AutoCompleter {
 			readline.PcItem("version"),
 			readline.PcItem("info"),
 			readline.PcItem("sessions"),
+			readline.PcItem("cloudfox"),
+			readline.PcItem("resources"),
 			readline.PcItem("listener"),
 			readline.PcItem("infra"),
 			readline.PcItem("run"),
@@ -52,12 +54,71 @@ func (r *REPL) getCompleter() readline.AutoCompleter {
 		aliasCompleter("ids", identityTree),
 		r.buildUseCompleter(),
 		readline.PcItem("show",
+			// Modules: read-only subcommands only (no mark-*, no search)
 			readline.PcItem("modules",
+				readline.PcItem("list", readline.PcItem("--wide")),
+				readline.PcItem("summary"),
+				readline.PcItem("status"),
 				readline.PcItem("--wide"),
 			),
-			readline.PcItem("payloads"),
+			readline.PcItem("module",
+				readline.PcItem("list", readline.PcItem("--wide")),
+				readline.PcItem("summary"),
+				readline.PcItem("status"),
+				readline.PcItem("--wide"),
+			),
+			// Payloads
+			readline.PcItem("payloads", readline.PcItem("list")),
+			readline.PcItem("payload", readline.PcItem("list")),
+			// Identity: read-only subcommands only (no add, switch, clear, remove, refresh)
+			readline.PcItem("identity",
+				readline.PcItem("list"),
+				readline.PcItem("show"),
+				readline.PcItem("check"),
+			),
+			readline.PcItem("identities",
+				readline.PcItem("list"),
+				readline.PcItem("show"),
+				readline.PcItem("check"),
+			),
+			// Workspace: read-only subcommands only (no create, switch, delete, cleanup)
+			readline.PcItem("workspace",
+				readline.PcItem("list"),
+				readline.PcItem("report"),
+				readline.PcItem("history"),
+			),
+			readline.PcItem("workspaces",
+				readline.PcItem("list"),
+				readline.PcItem("report"),
+				readline.PcItem("history"),
+			),
+			// Options and info
 			readline.PcItem("options"),
 			readline.PcItem("info"),
+			// Resources: read-only
+			readline.PcItem("resources",
+				readline.PcItem("list",
+					readline.PcItem("--wide"),
+				),
+				readline.PcItem("summary"),
+				readline.PcItem("status"),
+			),
+			// PMapper: no import
+			readline.PcItem("pmapper",
+				readline.PcItem("status"),
+				readline.PcItem("analyze", readline.PcItem("--all")),
+			),
+			// Sessions
+			readline.PcItem("sessions", readline.PcItem("list")),
+			// Attacker: no set, no clear
+			readline.PcItem("attacker",
+				readline.PcItem("identity",
+					readline.PcItem("show"),
+					readline.PcItem("validate"),
+				),
+				r.buildListenerSubtree(),
+				r.buildInfraSubtree(),
+			),
 			readline.PcItem("help"),
 		),
 		r.buildModulesCompleter(),
@@ -90,6 +151,11 @@ func (r *REPL) getCompleter() readline.AutoCompleter {
 			readline.PcItem("help"),
 		),
 		r.buildPmapperCompleter(),
+		r.buildCloudfoxCompleter(),
+		r.buildResourcesCompleter(),
+		readline.PcItem("options",
+			readline.PcItem("help"),
+		),
 		readline.PcItem("version"),
 	)
 }
@@ -376,6 +442,7 @@ func (r *REPL) buildModulesCompleter() readline.PrefixCompleterInterface {
 		readline.PcItem("list",
 			readline.PcItem("--wide"),
 		),
+		readline.PcItem("summary"),
 		readline.PcItem("search"),
 		readline.PcItem("status"),
 		readline.PcItem("mark-tested"),
@@ -443,6 +510,55 @@ func (r *REPL) buildSessionsCompleter() readline.PrefixCompleterInterface {
 		readline.PcItem("kill"),
 		readline.PcItem("-i"),
 		readline.PcItem("-k"),
+		readline.PcItem("help"),
+	)
+}
+
+// buildCloudfoxCompleter builds completion for the cloudfox command
+func (r *REPL) buildCloudfoxCompleter() readline.PrefixCompleterInterface {
+	return readline.PcItem("cloudfox",
+		readline.PcItem("import",
+			readline.PcItem("--path"),
+			readline.PcItem("help"),
+		),
+		readline.PcItem("help"),
+	)
+}
+
+// buildResourcesCompleter builds completion for the resources command
+func (r *REPL) buildResourcesCompleter() readline.PrefixCompleterInterface {
+	return readline.PcItem("resources",
+		readline.PcItem("import",
+			readline.PcItem("--path"),
+			readline.PcItem("help"),
+		),
+		readline.PcItem("list",
+			readline.PcItem("ec2"),
+			readline.PcItem("lambda"),
+			readline.PcItem("s3"),
+			readline.PcItem("iam"),
+			readline.PcItem("rds"),
+			readline.PcItem("dynamodb"),
+			readline.PcItem("ecs"),
+			readline.PcItem("glue"),
+			readline.PcItem("ssm"),
+			readline.PcItem("secretsmanager"),
+			readline.PcItem("apprunner"),
+			readline.PcItem("codebuild"),
+			readline.PcItem("cloudformation"),
+			readline.PcItem("sns"),
+			readline.PcItem("emr"),
+			readline.PcItem("--wide"),
+			readline.PcItem("--account"),
+			readline.PcItem("help"),
+		),
+		readline.PcItem("summary",
+			readline.PcItem("--account"),
+			readline.PcItem("help"),
+		),
+		readline.PcItem("status",
+			readline.PcItem("help"),
+		),
 		readline.PcItem("help"),
 	)
 }

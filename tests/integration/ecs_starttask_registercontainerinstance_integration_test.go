@@ -3,7 +3,7 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/ecs_starttask_registercontainerinstance"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/ecs_starttask_registercontainerinstance"
 )
 
 func TestEcsStarttaskRegistercontainerinstanceModuleUse(t *testing.T) {

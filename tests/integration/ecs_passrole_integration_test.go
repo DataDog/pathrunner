@@ -3,7 +3,7 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/ecs_passrole"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/ecs_passrole"
 )
 
 func TestEcsPassroleModuleUse(t *testing.T) {

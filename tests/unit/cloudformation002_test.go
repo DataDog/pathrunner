@@ -1,8 +1,8 @@
 package unit
 
 import (
-	cfn002 "pathrunner/pkg/exploits/cloudformation_updatestack"
-	"pathrunner/pkg/modules"
+	cfn002 "github.com/DataDog/pathrunner/pkg/exploits/cloudformation_updatestack"
+	"github.com/DataDog/pathrunner/pkg/modules"
 	"testing"
 )
 

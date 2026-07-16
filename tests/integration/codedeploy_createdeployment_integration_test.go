@@ -3,7 +3,7 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/codedeploy_createdeployment"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/codedeploy_createdeployment"
 )
 
 func TestCodeDeployCreateDeploymentModuleUse(t *testing.T) {

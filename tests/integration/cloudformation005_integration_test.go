@@ -3,7 +3,7 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/cloudformation_createchangeset_executechangeset"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/cloudformation_createchangeset_executechangeset"
 )
 
 func TestCloudformation005ModuleUse(t *testing.T) {

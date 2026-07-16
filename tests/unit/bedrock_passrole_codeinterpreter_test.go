@@ -1,9 +1,9 @@
 package unit
 
 import (
-	"pathrunner/pkg/exploits/bedrock_passrole_codeinterpreter"
-	"pathrunner/pkg/modules"
-	_ "pathrunner/pkg/payloads/bedrock" // Register bedrock payloads for ListPayloads tests
+	"github.com/DataDog/pathrunner/pkg/exploits/bedrock_passrole_codeinterpreter"
+	"github.com/DataDog/pathrunner/pkg/modules"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/bedrock" // Register bedrock payloads for ListPayloads tests
 	"testing"
 )
 

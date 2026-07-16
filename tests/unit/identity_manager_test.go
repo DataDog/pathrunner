@@ -2,8 +2,8 @@ package unit
 
 import (
 	"encoding/json"
-	"pathrunner/pkg/core"
-	"pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/core"
+	"github.com/DataDog/pathrunner/pkg/modules"
 	"strings"
 	"testing"
 	"time"

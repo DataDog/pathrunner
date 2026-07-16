@@ -3,7 +3,7 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/ec2_instanceconnect"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/ec2_instanceconnect"
 )
 
 func TestEC2InstanceConnectModuleUse(t *testing.T) {

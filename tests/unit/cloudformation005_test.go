@@ -1,8 +1,8 @@
 package unit
 
 import (
-	cfn005 "pathrunner/pkg/exploits/cloudformation_createchangeset_executechangeset"
-	"pathrunner/pkg/modules"
+	cfn005 "github.com/DataDog/pathrunner/pkg/exploits/cloudformation_createchangeset_executechangeset"
+	"github.com/DataDog/pathrunner/pkg/modules"
 	"testing"
 )
 

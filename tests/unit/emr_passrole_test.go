@@ -1,10 +1,10 @@
 package unit
 
 import (
-	"pathrunner/pkg/exploits/emr_passrole"
+	"github.com/DataDog/pathrunner/pkg/exploits/emr_passrole"
 	"testing"
 
-	_ "pathrunner/pkg/payloads/emr"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/emr"
 )
 
 func TestEMRPassroleModuleInit(t *testing.T) {

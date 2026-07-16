@@ -1,7 +1,7 @@
 package integration
 
 import (
-	"pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/modules"
 	"regexp"
 	"strings"
 	"testing"

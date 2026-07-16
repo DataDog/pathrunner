@@ -1,8 +1,8 @@
 package unit
 
 import (
-	"pathrunner/pkg/exploits/bedrock_passrole_createharness"
-	"pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/exploits/bedrock_passrole_createharness"
+	"github.com/DataDog/pathrunner/pkg/modules"
 	"testing"
 )
 

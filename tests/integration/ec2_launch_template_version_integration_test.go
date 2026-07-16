@@ -3,7 +3,7 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/ec2_launch_template_version"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/ec2_launch_template_version"
 )
 
 func TestEC2LaunchTemplateVersionModuleUse(t *testing.T) {

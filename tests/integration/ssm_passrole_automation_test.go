@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	_ "pathrunner/pkg/exploits/ssm_passrole_automation"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/ssm_passrole_automation"
 )
 
 // TestSSM003UseModule verifies that the ssm-003 module can be selected via 'use'.

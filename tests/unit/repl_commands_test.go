@@ -1,7 +1,7 @@
 package unit
 
 import (
-	"pathrunner/pkg/core/repl"
+	"github.com/DataDog/pathrunner/pkg/core/repl"
 	"regexp"
 	"strings"
 	"testing"

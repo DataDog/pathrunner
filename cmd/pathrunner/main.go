@@ -2,33 +2,33 @@ package main
 
 import (
 	"os"
-	"pathrunner/pkg/cli"
+	"github.com/DataDog/pathrunner/pkg/cli"
 
 	// Auto-generated exploit module registrations.
 	// Run 'go generate ./pkg/exploits/' to regenerate after adding new modules.
-	_ "pathrunner/pkg/exploits"
+	_ "github.com/DataDog/pathrunner/pkg/exploits"
 
 	// Payload registrations (manual — payload sub-packages import the parent payloads package)
-	_ "pathrunner/pkg/payloads/ec2"
-	_ "pathrunner/pkg/payloads/glue"
-	_ "pathrunner/pkg/payloads/ecs"
-	_ "pathrunner/pkg/payloads/lambda"
-	_ "pathrunner/pkg/payloads/amplify"
-	_ "pathrunner/pkg/payloads/apprunner"
-	_ "pathrunner/pkg/payloads/batch"
-	_ "pathrunner/pkg/payloads/bedrock"
-	_ "pathrunner/pkg/payloads/braket"
-	_ "pathrunner/pkg/payloads/cloudformation"
-	_ "pathrunner/pkg/payloads/codebuild"
-	_ "pathrunner/pkg/payloads/codedeploy"
-	_ "pathrunner/pkg/payloads/ssm"
-	_ "pathrunner/pkg/payloads/cognitoidentity"
-	_ "pathrunner/pkg/payloads/emr"
-	_ "pathrunner/pkg/payloads/emrserverless"
-	_ "pathrunner/pkg/payloads/gamelift"
-	_ "pathrunner/pkg/payloads/imagebuilder"
-	_ "pathrunner/pkg/payloads/kinesisanalytics"
-	_ "pathrunner/pkg/payloads/omics"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/ec2"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/glue"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/ecs"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/lambda"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/amplify"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/apprunner"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/batch"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/bedrock"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/braket"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/cloudformation"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/codebuild"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/codedeploy"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/ssm"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/cognitoidentity"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/emr"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/emrserverless"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/gamelift"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/imagebuilder"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/kinesisanalytics"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/omics"
 )
 
 func main() {

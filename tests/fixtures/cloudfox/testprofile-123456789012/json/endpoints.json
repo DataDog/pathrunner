@@ -1,0 +1,12 @@
+[
+  {
+    "Account": "123456789012",
+    "Endpoint": "https://abc123.lambda-url.us-east-1.on.aws",
+    "Name": "test-function",
+    "Port": "443",
+    "Protocol": "https",
+    "Public": "True",
+    "Region": "us-east-1",
+    "Service": "Lambda"
+  }
+]

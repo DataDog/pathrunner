@@ -2,7 +2,7 @@ package cli
 
 import (
 	"fmt"
-	"pathrunner/pkg/version"
+	"github.com/DataDog/pathrunner/pkg/version"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -339,6 +339,14 @@ func (c *CLI) createModulesCmd() *cobra.Command {
 	})
 
 	modulesCmd.AddCommand(&cobra.Command{
+		Use:   "summary",
+		Short: "Show module count by service",
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("modules summary")
+		},
+	})
+
+	modulesCmd.AddCommand(&cobra.Command{
 		Use:   "search <query>",
 		Short: "Search modules by keyword",
 		Args:  cobra.MinimumNArgs(1),
@@ -635,6 +643,103 @@ func (c *CLI) createPmapperCmd() *cobra.Command {
 	})
 
 	return pmapperCmd
+}
+
+// Cloudfox command
+func (c *CLI) createCloudfoxCmd() *cobra.Command {
+	cloudfoxCmd := &cobra.Command{
+		Use:   "cloudfox",
+		Short: "Import cloudfox output data",
+		Long:  "Import AWS resource data from cloudfox output directories",
+	}
+
+	importCmd := &cobra.Command{
+		Use:   "import",
+		Short: "Import cloudfox output data",
+		Run: func(cmd *cobra.Command, args []string) {
+			var replArgs []string
+			replArgs = append(replArgs, "cloudfox", "import")
+
+			if path, _ := cmd.Flags().GetString("path"); path != "" {
+				replArgs = append(replArgs, "--path", path)
+			}
+
+			c.executeREPLCommand(strings.Join(replArgs, " "))
+		},
+	}
+	importCmd.Flags().String("path", "", "Cloudfox output directory path")
+	cloudfoxCmd.AddCommand(importCmd)
+
+	return cloudfoxCmd
+}
+
+// Resources command
+func (c *CLI) createResourcesCmd() *cobra.Command {
+	resourcesCmd := &cobra.Command{
+		Use:   "resources",
+		Short: "List and explore imported AWS resources",
+		Long:  "View AWS resources imported from cloudfox output",
+	}
+
+	importCmd := &cobra.Command{
+		Use:   "import",
+		Short: "Import cloudfox output data (alias for 'cloudfox import')",
+		Run: func(cmd *cobra.Command, args []string) {
+			var replArgs []string
+			replArgs = append(replArgs, "resources", "import")
+
+			if path, _ := cmd.Flags().GetString("path"); path != "" {
+				replArgs = append(replArgs, "--path", path)
+			}
+
+			c.executeREPLCommand(strings.Join(replArgs, " "))
+		},
+	}
+	importCmd.Flags().String("path", "", "Cloudfox output directory path")
+	resourcesCmd.AddCommand(importCmd)
+
+	listCmd := &cobra.Command{
+		Use:   "list [service]",
+		Short: "List imported resources, optionally filtered by service",
+		Run: func(cmd *cobra.Command, args []string) {
+			replArgs := []string{"resources", "list"}
+			if wide, _ := cmd.Flags().GetBool("wide"); wide {
+				replArgs = append(replArgs, "--wide")
+			}
+			if account, _ := cmd.Flags().GetString("account"); account != "" {
+				replArgs = append(replArgs, "--account", account)
+			}
+			replArgs = append(replArgs, args...)
+			c.executeREPLCommand(strings.Join(replArgs, " "))
+		},
+	}
+	listCmd.Flags().Bool("wide", false, "Show ARN and type columns")
+	listCmd.Flags().String("account", "", "AWS account ID")
+	resourcesCmd.AddCommand(listCmd)
+
+	summaryCmd := &cobra.Command{
+		Use:   "summary",
+		Short: "Show resource counts by service and region",
+		Run: func(cmd *cobra.Command, args []string) {
+			replArgs := []string{"resources", "summary"}
+			if account, _ := cmd.Flags().GetString("account"); account != "" {
+				replArgs = append(replArgs, "--account", account)
+			}
+			c.executeREPLCommand(strings.Join(replArgs, " "))
+		},
+	}
+	summaryCmd.Flags().String("account", "", "AWS account ID")
+	resourcesCmd.AddCommand(summaryCmd)
+
+	resourcesCmd.AddCommand(&cobra.Command{
+		Use:   "status",
+		Short: "Show import status",
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("resources status")
+		},
+	})
+
+	return resourcesCmd
 }
 
 // Version command

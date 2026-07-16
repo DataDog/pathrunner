@@ -5,38 +5,38 @@ import (
 	"testing"
 
 	// Import modules and payloads to register them
-	_ "pathrunner/pkg/exploits/ec2_passrole"
-	_ "pathrunner/pkg/exploits/glue_passrole_job"
-	_ "pathrunner/pkg/exploits/iam_addusertogroup"
-	_ "pathrunner/pkg/exploits/iam_attachgrouppolicy"
-	_ "pathrunner/pkg/exploits/iam_attachrolepolicy"
-	_ "pathrunner/pkg/exploits/iam_attachrolepolicy_assumerole"
-	_ "pathrunner/pkg/exploits/iam_attachrolepolicy_updateassumerolepolicy"
-	_ "pathrunner/pkg/exploits/iam_attachuserpolicy"
-	_ "pathrunner/pkg/exploits/iam_attachuserpolicy_createaccesskey"
-	_ "pathrunner/pkg/exploits/iam_create_policy_version"
-	_ "pathrunner/pkg/exploits/iam_createaccesskey"
-	_ "pathrunner/pkg/exploits/iam_createloginprofile"
-	_ "pathrunner/pkg/exploits/iam_createpolicyversion_assumerole"
-	_ "pathrunner/pkg/exploits/iam_createpolicyversion_updateassumerolepolicy"
-	_ "pathrunner/pkg/exploits/iam_deleteaccesskey_createaccesskey"
-	_ "pathrunner/pkg/exploits/iam_putgrouppolicy"
-	_ "pathrunner/pkg/exploits/iam_putrolepolicy"
-	_ "pathrunner/pkg/exploits/iam_putrolepolicy_assumerole"
-	_ "pathrunner/pkg/exploits/iam_putrolepolicy_updateassumerolepolicy"
-	_ "pathrunner/pkg/exploits/iam_putuserpolicy"
-	_ "pathrunner/pkg/exploits/iam_putuserpolicy_createaccesskey"
-	_ "pathrunner/pkg/exploits/iam_updateassumerolepolicy"
-	_ "pathrunner/pkg/exploits/iam_updateloginprofile"
-	_ "pathrunner/pkg/exploits/lambda_createfunction_addpermission"
-	_ "pathrunner/pkg/exploits/lambda_passrole"
-	_ "pathrunner/pkg/exploits/lambda_passrole_esm"
-	_ "pathrunner/pkg/exploits/lambda_updatecode"
-	_ "pathrunner/pkg/exploits/lambda_updatecode_addpermission"
-	_ "pathrunner/pkg/exploits/lambda_updatecode_invoke"
-	_ "pathrunner/pkg/exploits/sts_assume_role"
-	_ "pathrunner/pkg/payloads/ec2"
-	_ "pathrunner/pkg/payloads/lambda"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/ec2_passrole"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/glue_passrole_job"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_addusertogroup"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_attachgrouppolicy"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_attachrolepolicy"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_attachrolepolicy_assumerole"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_attachrolepolicy_updateassumerolepolicy"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_attachuserpolicy"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_attachuserpolicy_createaccesskey"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_create_policy_version"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_createaccesskey"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_createloginprofile"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_createpolicyversion_assumerole"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_createpolicyversion_updateassumerolepolicy"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_deleteaccesskey_createaccesskey"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_putgrouppolicy"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_putrolepolicy"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_putrolepolicy_assumerole"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_putrolepolicy_updateassumerolepolicy"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_putuserpolicy"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_putuserpolicy_createaccesskey"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_updateassumerolepolicy"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_updateloginprofile"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/lambda_createfunction_addpermission"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/lambda_passrole"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/lambda_passrole_esm"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/lambda_updatecode"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/lambda_updatecode_addpermission"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/lambda_updatecode_invoke"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/sts_assume_role"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/ec2"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/lambda"
 )
 
 func TestShowInfoWithModule(t *testing.T) {
@@ -184,6 +184,26 @@ func TestModulesSearchCommand(t *testing.T) {
 	err := r.ExecuteCommand("modules search passrole")
 	if err != nil {
 		t.Errorf("Expected no error from modules search, got: %v", err)
+	}
+}
+
+func TestModulesSummaryCommand(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("modules summary")
+	if err != nil {
+		t.Errorf("Expected no error from modules summary, got: %v", err)
+	}
+}
+
+func TestShowModulesSummaryCommand(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("show modules summary")
+	if err != nil {
+		t.Errorf("Expected no error from show modules summary, got: %v", err)
 	}
 }
 

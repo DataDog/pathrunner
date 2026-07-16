@@ -1,27 +1,27 @@
 package unit
 
 import (
-	"pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/modules"
 	"testing"
 
 	// Import IAM modules iam-005 through iam-021 to register them
-	_ "pathrunner/pkg/exploits/iam_putrolepolicy"
-	_ "pathrunner/pkg/exploits/iam_updateloginprofile"
-	_ "pathrunner/pkg/exploits/iam_putuserpolicy"
-	_ "pathrunner/pkg/exploits/iam_attachuserpolicy"
-	_ "pathrunner/pkg/exploits/iam_attachrolepolicy"
-	_ "pathrunner/pkg/exploits/iam_attachgrouppolicy"
-	_ "pathrunner/pkg/exploits/iam_putgrouppolicy"
-	_ "pathrunner/pkg/exploits/iam_updateassumerolepolicy"
-	_ "pathrunner/pkg/exploits/iam_addusertogroup"
-	_ "pathrunner/pkg/exploits/iam_attachrolepolicy_assumerole"
-	_ "pathrunner/pkg/exploits/iam_createpolicyversion_assumerole"
-	_ "pathrunner/pkg/exploits/iam_putrolepolicy_assumerole"
-	_ "pathrunner/pkg/exploits/iam_attachuserpolicy_createaccesskey"
-	_ "pathrunner/pkg/exploits/iam_putuserpolicy_createaccesskey"
-	_ "pathrunner/pkg/exploits/iam_attachrolepolicy_updateassumerolepolicy"
-	_ "pathrunner/pkg/exploits/iam_createpolicyversion_updateassumerolepolicy"
-	_ "pathrunner/pkg/exploits/iam_putrolepolicy_updateassumerolepolicy"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_putrolepolicy"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_updateloginprofile"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_putuserpolicy"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_attachuserpolicy"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_attachrolepolicy"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_attachgrouppolicy"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_putgrouppolicy"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_updateassumerolepolicy"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_addusertogroup"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_attachrolepolicy_assumerole"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_createpolicyversion_assumerole"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_putrolepolicy_assumerole"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_attachuserpolicy_createaccesskey"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_putuserpolicy_createaccesskey"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_attachrolepolicy_updateassumerolepolicy"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_createpolicyversion_updateassumerolepolicy"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/iam_putrolepolicy_updateassumerolepolicy"
 )
 
 type iamModuleTestCase struct {

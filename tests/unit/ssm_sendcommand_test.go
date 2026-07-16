@@ -3,7 +3,7 @@ package unit
 import (
 	"testing"
 
-	"pathrunner/pkg/exploits/ssm_sendcommand"
+	"github.com/DataDog/pathrunner/pkg/exploits/ssm_sendcommand"
 )
 
 func TestSSMSendCommandModuleInit(t *testing.T) {

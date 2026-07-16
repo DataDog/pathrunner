@@ -1,8 +1,8 @@
 package unit
 
 import (
-	"pathrunner/pkg/exploits/codedeploy_createdeployment"
-	"pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/exploits/codedeploy_createdeployment"
+	"github.com/DataDog/pathrunner/pkg/modules"
 	"testing"
 )
 

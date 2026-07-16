@@ -3,8 +3,8 @@ package repl
 import (
 	"context"
 	"fmt"
-	"pathrunner/pkg/modules"
-	"pathrunner/pkg/ui"
+	"github.com/DataDog/pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/ui"
 	"strings"
 	"time"
 

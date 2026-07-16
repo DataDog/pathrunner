@@ -3,13 +3,13 @@ package repl
 import (
 	"context"
 	"fmt"
-	"pathrunner/pkg/modules"
-	"pathrunner/pkg/ui"
+	"github.com/DataDog/pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/ui"
 	"strconv"
 	"strings"
 	"time"
 
-	"pathrunner/pkg/attacker"
+	"github.com/DataDog/pathrunner/pkg/attacker"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"

@@ -3,7 +3,7 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/glue_updatejob_createtrigger"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/glue_updatejob_createtrigger"
 )
 
 func TestGlueUpdatejobCreateTriggerModuleUse(t *testing.T) {

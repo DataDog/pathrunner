@@ -1,8 +1,8 @@
 package glue
 
 import (
-	"pathrunner/pkg/modules"
-	"pathrunner/pkg/payloads"
+	"github.com/DataDog/pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/payloads"
 )
 
 // ExfilCloudWatchPayload generates a Glue Python Shell script that extracts

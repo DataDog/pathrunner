@@ -3,8 +3,8 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/emr_passrole"
-	_ "pathrunner/pkg/payloads/emr"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/emr_passrole"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/emr"
 )
 
 func TestEMRPassroleModuleUse(t *testing.T) {

@@ -1,7 +1,7 @@
 package unit
 
 import (
-	"pathrunner/pkg/attacker"
+	"github.com/DataDog/pathrunner/pkg/attacker"
 	"testing"
 )
 

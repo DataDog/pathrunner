@@ -3,8 +3,8 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/gamelift_passrole"
-	_ "pathrunner/pkg/payloads/gamelift"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/gamelift_passrole"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/gamelift"
 )
 
 func TestGameLiftPassRoleModuleUse(t *testing.T) {

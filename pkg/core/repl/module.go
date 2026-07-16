@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"pathrunner/pkg/attacker"
-	"pathrunner/pkg/modules"
-	"pathrunner/pkg/status"
-	"pathrunner/pkg/ui"
-	"pathrunner/pkg/utils"
+	"sort"
 	"strings"
+
+	"github.com/DataDog/pathrunner/pkg/attacker"
+	"github.com/DataDog/pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/status"
+	"github.com/DataDog/pathrunner/pkg/ui"
+	"github.com/DataDog/pathrunner/pkg/utils"
 )
 
 // cmdUse selects a module for use
@@ -60,39 +62,93 @@ func (r *REPL) cmdUse(repl *REPL, args []string) error {
 	return nil
 }
 
-// cmdShow displays various information
+// showAllowed is the set of top-level commands that 'show' is permitted to proxy.
+// Write-level commands (set, exploit, use, exit, etc.) are absent intentionally.
+var showAllowed = map[string]bool{
+	"modules":   true,
+	"payloads":  true,
+	"identity":  true,
+	"workspace": true,
+	"options":   true,
+	"info":      true,
+	"pmapper":   true,
+	"sessions":  true,
+	"attacker":  true,
+	"resources": true,
+}
+
+// showBlockedSubcmds lists subcommands that 'show' must not proxy per target command.
+// These are write or action operations that don't belong behind a read-intent prefix.
+var showBlockedSubcmds = map[string]map[string]bool{
+	"modules": {
+		"mark-tested":  true,
+		"mark-results": true,
+		"mark-status":  true,
+		"search":       true,
+	},
+	"identity": {
+		"add":     true,
+		"switch":  true,
+		"clear":   true,
+		"remove":  true,
+		"refresh": true,
+	},
+	"workspace": {
+		"create":  true,
+		"switch":  true,
+		"delete":  true,
+		"cleanup": true,
+	},
+	"resources": {
+		"import": true,
+	},
+	"attacker": {
+		"set":   true,
+		"clear": true,
+	},
+}
+
+// cmdShow is a transparent read-intent proxy: 'show <cmd> [args...]' forwards
+// to '<cmd> [args...]'. A top-level allowlist blocks write commands; a per-command
+// subcommand blocklist blocks write subcommands (e.g. 'show modules mark-tested').
 func (r *REPL) cmdShow(repl *REPL, args []string) error {
-	if len(args) == 0 {
-		return NewInvalidArgumentsError("show command requires a target. Use 'show help' for more information")
+	if len(args) == 0 || args[0] == "help" {
+		return r.showShowHelp()
 	}
 
 	target := args[0]
 
-	if target == "help" {
-		return r.showShowHelp()
-	}
-
-	// Handle aliases for show subcommands
+	// Normalize aliases to canonical command names
 	switch target {
 	case "module":
 		target = "modules"
 	case "payload":
 		target = "payloads"
+	case "identities":
+		target = "identity"
+	case "workspaces":
+		target = "workspace"
 	}
 
-	switch target {
-	case "modules":
-		wide := len(args) > 1 && args[1] == "--wide"
-		return r.showModules(wide)
-	case "payloads":
-		return r.showPayloads()
-	case "options":
-		return r.showOptions()
-	case "info":
-		return r.showInfo()
-	default:
-		return NewInvalidArgumentsError(fmt.Sprintf("unknown show target: %s. Use 'show help' for available targets", args[0]))
+	if !showAllowed[target] {
+		return NewInvalidArgumentsError(fmt.Sprintf(
+			"'show %s' is not supported — use '%s' directly", args[0], args[0]))
 	}
+
+	// Block write subcommands for allowed targets
+	if len(args) > 1 {
+		if blocked, ok := showBlockedSubcmds[target]; ok && blocked[args[1]] {
+			return NewInvalidArgumentsError(fmt.Sprintf(
+				"'show %s %s' is not supported — use '%s %s' directly", target, args[1], target, args[1]))
+		}
+	}
+
+	cmds := r.getCommands()
+	cmd, ok := cmds[target]
+	if !ok {
+		return NewInvalidArgumentsError(fmt.Sprintf("unknown show target: %s", args[0]))
+	}
+	return cmd.Handler(r, args[1:])
 }
 
 // cmdSearch searches modules by keyword
@@ -166,6 +222,8 @@ func (r *REPL) cmdModules(repl *REPL, args []string) error {
 			return NewInvalidArgumentsError("modules mark-status requires module ID and status. Usage: modules mark-status <id> <tested|untested|failing|needs-update>")
 		}
 		return r.markModuleStatus(args[1], args[2])
+	case "summary":
+		return r.showModulesSummary()
 	case "help":
 		return r.showModulesHelp()
 	default:
@@ -846,6 +904,47 @@ func (r *REPL) showInfo() error {
 
 // showModules displays available modules with enriched metadata.
 // Pass wide=true to include the description column.
+// showModulesSummary displays a count of modules total and per service
+func (r *REPL) showModulesSummary() error {
+	infos := modules.ListPathInfos()
+
+	if len(infos) == 0 {
+		fmt.Println("No modules available.")
+		return nil
+	}
+
+	// Count modules by primary service, derived from the ID prefix (e.g., "lambda-001" -> "lambda").
+	// Using the Services list would overcount services like "iam" that appear on nearly every module.
+	serviceCounts := make(map[string]int)
+	for _, info := range infos {
+		primaryService := info.ID
+		if dashIdx := strings.LastIndex(info.ID, "-"); dashIdx != -1 {
+			primaryService = info.ID[:dashIdx]
+		}
+		serviceCounts[primaryService]++
+	}
+
+	// Sort service names for consistent output
+	serviceNames := make([]string, 0, len(serviceCounts))
+	for service := range serviceCounts {
+		serviceNames = append(serviceNames, service)
+	}
+	sort.Strings(serviceNames)
+
+	fmt.Printf("Total modules: %d\n", len(infos))
+	fmt.Println()
+
+	rows := make([][]string, 0, len(serviceNames))
+	for _, service := range serviceNames {
+		rows = append(rows, []string{service, fmt.Sprintf("%d", serviceCounts[service])})
+	}
+
+	ui.Table([]string{"Service", "Count"}, rows)
+	fmt.Println()
+
+	return nil
+}
+
 func (r *REPL) showModules(wide bool) error {
 	infos := modules.ListPathInfos()
 
@@ -1042,6 +1141,16 @@ func (r *REPL) showOptions() error {
 	}
 
 	return nil
+}
+
+// cmdOptions is the top-level handler for the 'options' command.
+func (r *REPL) cmdOptions(repl *REPL, args []string) error {
+	if len(args) > 0 && args[0] == "help" {
+		fmt.Println("Options Command:")
+		fmt.Println("  options   - Show current module options")
+		return nil
+	}
+	return r.showOptions()
 }
 
 // showPayloadOptions displays payload-specific options

@@ -3,7 +3,7 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/batch_submitjob"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/batch_submitjob"
 )
 
 func TestBatchSubmitJobModuleUse(t *testing.T) {
