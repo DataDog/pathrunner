@@ -1,8 +1,8 @@
 package unit
 
 import (
-	"pathrunner/pkg/exploits/glue_passrole_createsession"
-	"pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/exploits/glue_passrole_createsession"
+	"github.com/DataDog/pathrunner/pkg/modules"
 	"testing"
 )
 

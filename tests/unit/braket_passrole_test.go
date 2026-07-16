@@ -1,9 +1,9 @@
 package unit
 
 import (
-	"pathrunner/pkg/exploits/braket_passrole"
-	"pathrunner/pkg/modules"
-	_ "pathrunner/pkg/payloads/braket"
+	"github.com/DataDog/pathrunner/pkg/exploits/braket_passrole"
+	"github.com/DataDog/pathrunner/pkg/modules"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/braket"
 	"testing"
 )
 

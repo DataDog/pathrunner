@@ -1,9 +1,9 @@
 package unit
 
 import (
-	"pathrunner/pkg/exploits/apprunner_passrole"
-	"pathrunner/pkg/modules"
-	_ "pathrunner/pkg/payloads/apprunner"
+	"github.com/DataDog/pathrunner/pkg/exploits/apprunner_passrole"
+	"github.com/DataDog/pathrunner/pkg/modules"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/apprunner"
 	"testing"
 )
 

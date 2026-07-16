@@ -1,8 +1,8 @@
 package unit
 
 import (
-	"pathrunner/pkg/exploits/ecs_executecommand"
-	"pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/exploits/ecs_executecommand"
+	"github.com/DataDog/pathrunner/pkg/modules"
 	"testing"
 )
 

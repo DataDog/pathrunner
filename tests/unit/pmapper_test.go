@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"pathrunner/pkg/pmapper"
+	"github.com/DataDog/pathrunner/pkg/pmapper"
 	"testing"
 )
 

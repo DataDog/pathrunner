@@ -3,7 +3,7 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/bedrock_startsession_invoke"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/bedrock_startsession_invoke"
 )
 
 func TestBedrockStartSessionInvokeModuleUse(t *testing.T) {

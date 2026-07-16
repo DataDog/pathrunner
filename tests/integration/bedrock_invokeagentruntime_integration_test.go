@@ -3,7 +3,7 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/bedrock_invokeagentruntime"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/bedrock_invokeagentruntime"
 )
 
 func TestBedrockInvokeAgentRuntimeModuleUse(t *testing.T) {

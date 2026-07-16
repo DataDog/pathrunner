@@ -2,8 +2,8 @@ package glue
 
 import (
 	"fmt"
-	"pathrunner/pkg/modules"
-	"pathrunner/pkg/payloads"
+	"github.com/DataDog/pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/payloads"
 )
 
 type BackdoorUpdateRoleTrustPayload struct{}

@@ -3,7 +3,7 @@ package integration
 import (
 	"os"
 	"path/filepath"
-	"pathrunner/pkg/attacker"
+	"github.com/DataDog/pathrunner/pkg/attacker"
 	"testing"
 )
 

@@ -3,7 +3,7 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/emrserverless_passrole"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/emrserverless_passrole"
 )
 
 func TestEMRServerlessPassroleModuleUse(t *testing.T) {

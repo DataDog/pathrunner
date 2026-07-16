@@ -2,8 +2,8 @@ package repl
 
 import (
 	"fmt"
-	"pathrunner/pkg/attacker"
-	"pathrunner/pkg/ui"
+	"github.com/DataDog/pathrunner/pkg/attacker"
+	"github.com/DataDog/pathrunner/pkg/ui"
 	"regexp"
 	"strconv"
 )

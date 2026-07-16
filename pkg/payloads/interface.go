@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/modules"
 )
 
 // Payload represents a reusable exploitation payload that can be used across multiple modules

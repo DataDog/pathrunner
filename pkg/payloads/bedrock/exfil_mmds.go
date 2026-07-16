@@ -3,8 +3,8 @@ package bedrock
 import (
 	"encoding/json"
 	"fmt"
-	"pathrunner/pkg/modules"
-	"pathrunner/pkg/payloads"
+	"github.com/DataDog/pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/payloads"
 	"strings"
 	"time"
 )

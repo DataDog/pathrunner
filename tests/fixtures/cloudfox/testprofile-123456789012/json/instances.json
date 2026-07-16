@@ -1,0 +1,14 @@
+[
+  {
+    "Account": "123456789012",
+    "CanPrivEscToAdmin?": "No",
+    "External IP": "54.123.45.67",
+    "ID": "i-0123456789abcdef0",
+    "Internal IP": "10.0.1.100",
+    "IsAdminRole?": "No",
+    "Name": "test-instance",
+    "Role": "arn:aws:iam::123456789012:role/test-ec2-role",
+    "State": "running",
+    "Zone": "us-east-1a"
+  }
+]

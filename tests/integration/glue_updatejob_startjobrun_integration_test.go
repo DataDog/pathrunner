@@ -3,7 +3,7 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/glue_updatejob_startjobrun"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/glue_updatejob_startjobrun"
 )
 
 func TestGlueUpdatejobStartjobrunModuleUse(t *testing.T) {

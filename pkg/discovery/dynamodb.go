@@ -7,7 +7,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
-	"pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/modules"
 )
 
 // DiscoverDynamoDBStreams lists DynamoDB tables with streams enabled

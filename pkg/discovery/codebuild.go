@@ -8,7 +8,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/codebuild"
-	"pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/modules"
 )
 
 // DiscoverCodeBuildProjects lists CodeBuild projects and enriches each with

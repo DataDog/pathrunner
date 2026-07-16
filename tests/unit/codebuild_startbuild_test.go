@@ -1,10 +1,10 @@
 package unit
 
 import (
-	"pathrunner/pkg/exploits/codebuild_startbuild"
-	"pathrunner/pkg/modules"
-	_ "pathrunner/pkg/payloads/codebuild"
-	"pathrunner/pkg/payloads"
+	"github.com/DataDog/pathrunner/pkg/exploits/codebuild_startbuild"
+	"github.com/DataDog/pathrunner/pkg/modules"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/codebuild"
+	"github.com/DataDog/pathrunner/pkg/payloads"
 	"testing"
 )
 

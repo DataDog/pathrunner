@@ -1,8 +1,8 @@
 package unit
 
 import (
-	"pathrunner/pkg/exploits/apprunner_updateservice"
-	_ "pathrunner/pkg/payloads/apprunner"
+	"github.com/DataDog/pathrunner/pkg/exploits/apprunner_updateservice"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/apprunner"
 	"testing"
 )
 

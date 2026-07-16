@@ -1,8 +1,8 @@
 package unit
 
 import (
-	"pathrunner/pkg/exploits/bedrock_invokeagentruntime"
-	"pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/exploits/bedrock_invokeagentruntime"
+	"github.com/DataDog/pathrunner/pkg/modules"
 	"testing"
 )
 

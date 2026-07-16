@@ -1,9 +1,9 @@
 package unit
 
 import (
-	"pathrunner/pkg/exploits/imagebuilder_passrole"
-	"pathrunner/pkg/modules"
-	_ "pathrunner/pkg/payloads/imagebuilder"
+	"github.com/DataDog/pathrunner/pkg/exploits/imagebuilder_passrole"
+	"github.com/DataDog/pathrunner/pkg/modules"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/imagebuilder"
 	"testing"
 )
 

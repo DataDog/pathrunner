@@ -3,7 +3,7 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/cloudformation_passrole"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/cloudformation_passrole"
 )
 
 func TestCloudFormationPassRoleIntegration(t *testing.T) {

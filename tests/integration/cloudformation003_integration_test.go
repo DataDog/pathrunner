@@ -3,7 +3,7 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/cloudformation_passrole_createstackset_createstackinstances"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/cloudformation_passrole_createstackset_createstackinstances"
 )
 
 func TestCloudformation003ModuleUse(t *testing.T) {

@@ -1,0 +1,32 @@
+[
+  {
+    "Account": "123456789012",
+    "Arn": "arn:aws:ec2:us-east-1:123456789012:instance/i-0123456789abcdef0",
+    "CanPrivEscToAdmin?": "No",
+    "IsAdminRole?": "No",
+    "Name": "test-instance",
+    "Region": "us-east-1",
+    "Role": "arn:aws:iam::123456789012:role/test-ec2-role",
+    "Service": "EC2"
+  },
+  {
+    "Account": "123456789012",
+    "Arn": "arn:aws:lambda:us-east-1:123456789012:function:test-function",
+    "CanPrivEscToAdmin?": "Yes",
+    "IsAdminRole?": "Yes",
+    "Name": "test-function",
+    "Region": "us-east-1",
+    "Role": "arn:aws:iam::123456789012:role/test-lambda-admin-role",
+    "Service": "Lambda"
+  },
+  {
+    "Account": "123456789012",
+    "Arn": "arn:aws:ec2:us-west-2:123456789012:instance/i-0abcdef1234567890",
+    "CanPrivEscToAdmin?": "No",
+    "IsAdminRole?": "No",
+    "Name": "west-instance",
+    "Region": "us-west-2",
+    "Role": "",
+    "Service": "EC2"
+  }
+]

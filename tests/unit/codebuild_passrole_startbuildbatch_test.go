@@ -1,9 +1,9 @@
 package unit
 
 import (
-	"pathrunner/pkg/exploits/codebuild_passrole_startbuildbatch"
-	"pathrunner/pkg/modules"
-	_ "pathrunner/pkg/payloads/codebuild"
+	"github.com/DataDog/pathrunner/pkg/exploits/codebuild_passrole_startbuildbatch"
+	"github.com/DataDog/pathrunner/pkg/modules"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/codebuild"
 	"testing"
 )
 

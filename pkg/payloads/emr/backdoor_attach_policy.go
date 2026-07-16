@@ -3,8 +3,8 @@ package emr
 import (
 	"context"
 	"fmt"
-	"pathrunner/pkg/modules"
-	"pathrunner/pkg/payloads"
+	"github.com/DataDog/pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/payloads"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"

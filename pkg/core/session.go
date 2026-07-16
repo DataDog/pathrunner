@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/modules"
 )
 
 type Session struct {

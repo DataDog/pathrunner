@@ -3,7 +3,7 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/bedrock_passrole_createagentruntime"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/bedrock_passrole_createagentruntime"
 )
 
 func TestBedrockPassroleCreateAgentRuntimeModuleUse(t *testing.T) {

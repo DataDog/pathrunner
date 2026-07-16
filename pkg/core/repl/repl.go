@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"pathrunner/pkg/attacker"
-	"pathrunner/pkg/modules"
-	"pathrunner/pkg/pmapper"
-	"pathrunner/pkg/ui"
+	"github.com/DataDog/pathrunner/pkg/attacker"
+	"github.com/DataDog/pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/pmapper"
+	"github.com/DataDog/pathrunner/pkg/resources"
+	"github.com/DataDog/pathrunner/pkg/ui"
 	"strings"
 	"sync"
 
@@ -17,10 +18,11 @@ import (
 type REPL struct {
 	rl              *readline.Instance
 	rlConfig        *readline.Config
-	identityManager IdentityManager
-	sessionManager  SessionManager
-	pmapperManager  *pmapper.Manager
-	currentModule   modules.Module
+	identityManager  IdentityManager
+	sessionManager   SessionManager
+	pmapperManager   *pmapper.Manager
+	resourcesManager *resources.Manager
+	currentModule    modules.Module
 	options         map[string]string
 	lastResult      string
 	aliases         map[string]string // command aliases
@@ -112,11 +114,12 @@ type CreatedResource struct {
 
 func NewREPL(identityManager IdentityManager, sessionManager SessionManager) *REPL {
 	r := &REPL{
-		options:         make(map[string]string),
-		identityManager: identityManager,
-		sessionManager:  sessionManager,
-		pmapperManager:  pmapper.NewManager(),
-		aliases:         make(map[string]string),
+		options:          make(map[string]string),
+		identityManager:  identityManager,
+		sessionManager:   sessionManager,
+		pmapperManager:   pmapper.NewManager(),
+		resourcesManager: resources.NewManager(),
+		aliases:          make(map[string]string),
 	}
 
 	// Register command aliases

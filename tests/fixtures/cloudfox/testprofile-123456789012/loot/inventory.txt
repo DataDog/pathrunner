@@ -1,0 +1,7 @@
+arn:aws:s3:::test-bucket-123456789012
+arn:aws:s3:::public-bucket-123456789012
+arn:aws:ec2:us-east-1:123456789012:instance/i-0123456789abcdef0
+arn:aws:lambda:us-east-1:123456789012:function:test-function
+arn:aws:iam::123456789012:user/admin-user
+arn:aws:iam::123456789012:role/test-ec2-role
+arn:aws:sns:us-east-1:123456789012:alerts-topic

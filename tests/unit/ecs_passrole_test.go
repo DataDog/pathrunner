@@ -1,9 +1,9 @@
 package unit
 
 import (
-	"pathrunner/pkg/exploits/ecs_passrole"
-	"pathrunner/pkg/modules"
-	_ "pathrunner/pkg/payloads/ecs"
+	"github.com/DataDog/pathrunner/pkg/exploits/ecs_passrole"
+	"github.com/DataDog/pathrunner/pkg/modules"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/ecs"
 	"testing"
 )
 

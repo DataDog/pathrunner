@@ -2,9 +2,9 @@ package unit
 
 import (
 	"os"
-	"pathrunner/pkg/exploits/glue_updatejob_startjobrun"
-	"pathrunner/pkg/modules"
-	_ "pathrunner/pkg/payloads/glue"
+	"github.com/DataDog/pathrunner/pkg/exploits/glue_updatejob_startjobrun"
+	"github.com/DataDog/pathrunner/pkg/modules"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/glue"
 	"testing"
 )
 

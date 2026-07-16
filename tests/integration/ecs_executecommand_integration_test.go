@@ -3,7 +3,7 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/ecs_executecommand"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/ecs_executecommand"
 )
 
 func TestEcsExecutecommandModuleUse(t *testing.T) {

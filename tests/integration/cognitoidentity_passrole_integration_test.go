@@ -3,7 +3,7 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/cognitoidentity_passrole"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/cognitoidentity_passrole"
 )
 
 func TestCognitoIdentityPassroleModuleUse(t *testing.T) {

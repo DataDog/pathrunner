@@ -1,12 +1,12 @@
 package unit
 
 import (
-	"pathrunner/pkg/attacker"
-	"pathrunner/pkg/modules"
-	"pathrunner/pkg/payloads"
-	_ "pathrunner/pkg/payloads/ec2"    // Import to register EC2 payloads
-	_ "pathrunner/pkg/payloads/glue"   // Import to register Glue payloads
-	_ "pathrunner/pkg/payloads/lambda" // Import to register Lambda payloads
+	"github.com/DataDog/pathrunner/pkg/attacker"
+	"github.com/DataDog/pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/payloads"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/ec2"    // Import to register EC2 payloads
+	_ "github.com/DataDog/pathrunner/pkg/payloads/glue"   // Import to register Glue payloads
+	_ "github.com/DataDog/pathrunner/pkg/payloads/lambda" // Import to register Lambda payloads
 	"strings"
 	"testing"
 )

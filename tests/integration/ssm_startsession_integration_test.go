@@ -3,7 +3,7 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/ssm_startsession"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/ssm_startsession"
 )
 
 func TestSSMStartSessionModuleUse(t *testing.T) {

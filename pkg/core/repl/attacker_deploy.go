@@ -2,9 +2,9 @@ package repl
 
 import (
 	"fmt"
-	"pathrunner/pkg/attacker"
-	"pathrunner/pkg/ui"
-	"pathrunner/pkg/utils"
+	"github.com/DataDog/pathrunner/pkg/attacker"
+	"github.com/DataDog/pathrunner/pkg/ui"
+	"github.com/DataDog/pathrunner/pkg/utils"
 	"strings"
 )
 

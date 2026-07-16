@@ -1,0 +1,22 @@
+[
+  {
+    "Account": "123456789012",
+    "Arn": "arn:aws:iam::123456789012:user/admin-user",
+    "AttachedPolicies": "AdministratorAccess",
+    "CanPrivEscToAdmin?": "No",
+    "InlinePolicies": "",
+    "IsAdminRole?": "Yes",
+    "Name": "admin-user",
+    "Type": "User"
+  },
+  {
+    "Account": "123456789012",
+    "Arn": "arn:aws:iam::123456789012:role/test-ec2-role",
+    "AttachedPolicies": "AmazonEC2ReadOnlyAccess",
+    "CanPrivEscToAdmin?": "No",
+    "InlinePolicies": "",
+    "IsAdminRole?": "No",
+    "Name": "test-ec2-role",
+    "Type": "Role"
+  }
+]

@@ -2,9 +2,9 @@ package repl
 
 import (
 	"fmt"
-	"pathrunner/pkg/modules"
-	"pathrunner/pkg/pmapper"
-	"pathrunner/pkg/ui"
+	"github.com/DataDog/pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/pmapper"
+	"github.com/DataDog/pathrunner/pkg/ui"
 	"sort"
 	"strings"
 )

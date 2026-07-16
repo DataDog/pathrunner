@@ -1,7 +1,7 @@
 package unit
 
 import (
-	"pathrunner/pkg/exploits/ssm_startsession"
+	"github.com/DataDog/pathrunner/pkg/exploits/ssm_startsession"
 	"testing"
 )
 

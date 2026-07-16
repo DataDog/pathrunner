@@ -2,8 +2,8 @@ package unit
 
 import (
 	"os"
-	"pathrunner/pkg/core"
-	"pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/core"
+	"github.com/DataDog/pathrunner/pkg/modules"
 	"testing"
 )
 

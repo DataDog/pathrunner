@@ -1,9 +1,9 @@
 package unit
 
 import (
-	ecs005 "pathrunner/pkg/exploits/ecs_registertaskdefinition_runtask"
-	"pathrunner/pkg/modules"
-	_ "pathrunner/pkg/payloads/ecs"
+	ecs005 "github.com/DataDog/pathrunner/pkg/exploits/ecs_registertaskdefinition_runtask"
+	"github.com/DataDog/pathrunner/pkg/modules"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/ecs"
 	"testing"
 )
 

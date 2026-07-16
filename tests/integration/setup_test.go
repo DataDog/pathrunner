@@ -2,8 +2,8 @@ package integration
 
 import (
 	"os"
-	"pathrunner/pkg/core"
-	"pathrunner/pkg/core/repl"
+	"github.com/DataDog/pathrunner/pkg/core"
+	"github.com/DataDog/pathrunner/pkg/core/repl"
 	"testing"
 )
 

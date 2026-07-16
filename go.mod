@@ -1,4 +1,4 @@
-module pathrunner
+module github.com/DataDog/pathrunner
 
 go 1.25.0
 

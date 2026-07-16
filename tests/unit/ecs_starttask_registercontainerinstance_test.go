@@ -2,9 +2,9 @@ package unit
 
 import (
 	"os"
-	"pathrunner/pkg/exploits/ecs_starttask_registercontainerinstance"
-	"pathrunner/pkg/modules"
-	_ "pathrunner/pkg/payloads/ecs"
+	"github.com/DataDog/pathrunner/pkg/exploits/ecs_starttask_registercontainerinstance"
+	"github.com/DataDog/pathrunner/pkg/modules"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/ecs"
 	"testing"
 )
 

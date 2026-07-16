@@ -1,17 +1,17 @@
 package integration
 
 import (
-	"pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/modules"
 	"strings"
 	"testing"
 
 	// Import modules and payloads to register them
-	_ "pathrunner/pkg/exploits/ec2_passrole"
-	_ "pathrunner/pkg/exploits/lambda_passrole"
-	_ "pathrunner/pkg/exploits/lambda_passrole_esm"
-	_ "pathrunner/pkg/exploits/sts_assume_role"
-	_ "pathrunner/pkg/payloads/ec2"
-	_ "pathrunner/pkg/payloads/lambda"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/ec2_passrole"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/lambda_passrole"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/lambda_passrole_esm"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/sts_assume_role"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/ec2"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/lambda"
 )
 
 func TestDiscoverNoModule(t *testing.T) {

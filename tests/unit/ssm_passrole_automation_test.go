@@ -1,8 +1,8 @@
 package unit
 
 import (
-	"pathrunner/pkg/exploits/ssm_passrole_automation"
-	"pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/exploits/ssm_passrole_automation"
+	"github.com/DataDog/pathrunner/pkg/modules"
 	"strings"
 	"testing"
 )

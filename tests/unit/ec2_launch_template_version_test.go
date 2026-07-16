@@ -1,9 +1,9 @@
 package unit
 
 import (
-	"pathrunner/pkg/exploits/ec2_launch_template_version"
-	"pathrunner/pkg/modules"
-	_ "pathrunner/pkg/payloads/ec2"
+	"github.com/DataDog/pathrunner/pkg/exploits/ec2_launch_template_version"
+	"github.com/DataDog/pathrunner/pkg/modules"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/ec2"
 	"testing"
 )
 

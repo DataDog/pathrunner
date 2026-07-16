@@ -3,8 +3,8 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/codebuild_startbuildbatch"
-	_ "pathrunner/pkg/payloads/codebuild" // Register codebuild payloads so PAYLOAD validation works
+	_ "github.com/DataDog/pathrunner/pkg/exploits/codebuild_startbuildbatch"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/codebuild" // Register codebuild payloads so PAYLOAD validation works
 )
 
 func TestCodeBuildStartBuildBatchModuleUse(t *testing.T) {

@@ -3,8 +3,8 @@ package codebuild
 import (
 	"context"
 	"fmt"
-	"pathrunner/pkg/modules"
-	"pathrunner/pkg/payloads"
+	"github.com/DataDog/pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/payloads"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iam"

@@ -3,7 +3,7 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/glue_passrole_job_createtrigger"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/glue_passrole_job_createtrigger"
 )
 
 func TestGluePassroleJobCreateTriggerModuleUse(t *testing.T) {

@@ -3,7 +3,7 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/omics_passrole"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/omics_passrole"
 )
 
 func TestOmicsPassroleModuleUse(t *testing.T) {

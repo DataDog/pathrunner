@@ -1,7 +1,7 @@
 package unit
 
 import (
-	"pathrunner/pkg/exploits/bedrock_createbrowser_cdp"
+	"github.com/DataDog/pathrunner/pkg/exploits/bedrock_createbrowser_cdp"
 	"strings"
 	"testing"
 )

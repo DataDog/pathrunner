@@ -2,8 +2,8 @@ package core
 
 import (
 	"fmt"
-	"pathrunner/pkg/core/repl"
-	"pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/core/repl"
+	"github.com/DataDog/pathrunner/pkg/modules"
 	"time"
 )
 

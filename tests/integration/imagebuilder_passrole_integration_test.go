@@ -3,7 +3,7 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/imagebuilder_passrole"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/imagebuilder_passrole"
 )
 
 func TestImagebuilderPassroleModuleUse(t *testing.T) {

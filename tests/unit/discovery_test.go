@@ -2,16 +2,16 @@ package unit
 
 import (
 	"fmt"
-	"pathrunner/pkg/discovery"
-	"pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/discovery"
+	"github.com/DataDog/pathrunner/pkg/modules"
 	"strings"
 	"testing"
 
 	// Import modules to register them
-	_ "pathrunner/pkg/exploits/ec2_passrole"
-	_ "pathrunner/pkg/exploits/lambda_passrole"
-	_ "pathrunner/pkg/exploits/lambda_passrole_esm"
-	_ "pathrunner/pkg/exploits/sts_assume_role"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/ec2_passrole"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/lambda_passrole"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/lambda_passrole_esm"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/sts_assume_role"
 )
 
 func TestDiscoveryChoiceStruct(t *testing.T) {

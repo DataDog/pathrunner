@@ -1,9 +1,9 @@
 package unit
 
 import (
-	"pathrunner/pkg/exploits/gamelift_passrole"
-	"pathrunner/pkg/modules"
-	_ "pathrunner/pkg/payloads/gamelift"
+	"github.com/DataDog/pathrunner/pkg/exploits/gamelift_passrole"
+	"github.com/DataDog/pathrunner/pkg/modules"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/gamelift"
 	"testing"
 )
 

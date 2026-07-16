@@ -1,7 +1,7 @@
 package pmapper
 
 import (
-	"pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/modules"
 	"strings"
 )
 

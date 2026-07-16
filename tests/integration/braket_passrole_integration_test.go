@@ -3,7 +3,7 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/braket_passrole"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/braket_passrole"
 )
 
 func TestBraketPassroleModuleUse(t *testing.T) {

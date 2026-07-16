@@ -1,8 +1,8 @@
 package unit
 
 import (
-	"pathrunner/pkg/exploits/glue_passrole_devendpoint"
-	"pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/exploits/glue_passrole_devendpoint"
+	"github.com/DataDog/pathrunner/pkg/modules"
 	"testing"
 )
 

@@ -1,10 +1,10 @@
 package unit
 
 import (
-	"pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/modules"
 	"testing"
 
-	_ "pathrunner/pkg/exploits/cognitoidentity_passrole"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/cognitoidentity_passrole"
 )
 
 func TestCognitoIdentityPassroleModuleLoadByID(t *testing.T) {

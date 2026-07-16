@@ -3,8 +3,8 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/glue_passrole_createsession"
-	_ "pathrunner/pkg/payloads/glue"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/glue_passrole_createsession"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/glue"
 )
 
 func TestGluePassroleCreatesessionModuleUse(t *testing.T) {

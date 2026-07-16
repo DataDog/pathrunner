@@ -3,7 +3,7 @@ package integration
 import (
 	"testing"
 
-	_ "pathrunner/pkg/exploits/kinesisanalytics_passrole"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/kinesisanalytics_passrole"
 )
 
 func TestKinesisAnalyticsPassroleModuleUse(t *testing.T) {
