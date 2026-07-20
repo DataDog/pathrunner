@@ -14,7 +14,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/braket v1.42.0
 	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.74.0
 	github.com/aws/aws-sdk-go-v2/service/codebuild v1.71.0
-	github.com/aws/aws-sdk-go-v2/service/codedeploy v1.22.2
+	github.com/aws/aws-sdk-go-v2/service/codedeploy v1.37.1
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentity v1.35.0
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.59.1
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.310.0
@@ -42,8 +42,6 @@ require (
 	github.com/lucasb-eyer/go-colorful v1.4.0
 	github.com/spf13/cobra v1.10.2
 )
-
-require github.com/jmespath/go-jmespath v0.4.0 // indirect
 
 require (
 	github.com/atotto/clipboard v0.1.4 // indirect
