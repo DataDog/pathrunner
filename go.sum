@@ -68,8 +68,8 @@ github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.29 h1:DRebniUG
 github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.29/go.mod h1:LfRkPCD8YHDM2E5eTkos2UpwYeZnBcVarTa8L59bJHA=
 github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.30 h1:4HbXxyipSYxexU0juMIpdS05dilL6dbB2VQHxxN2vGU=
 github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.30/go.mod h1:G7RP+uhagpKtKhd1BM9N6JQqjCcGEU47K5lBVZQyRQw=
-github.com/aws/aws-sdk-go-v2/service/kinesisanalyticsv2 v1.39.0 h1:wd+638xriZ1eJ5FbYfuDPqyGdi5mrHBR+ZZBI/degPw=
-github.com/aws/aws-sdk-go-v2/service/kinesisanalyticsv2 v1.39.0/go.mod h1:sgIHBhkdMu8Dezi5Kx+VA7FmlfvMOSB0Kk565yfrQrM=
+github.com/aws/aws-sdk-go-v2/service/kinesisanalyticsv2 v1.40.0 h1:UN1Vp4Dzo3A9ZnRd5WCebbluZfHzdRlxazgSgSHYssw=
+github.com/aws/aws-sdk-go-v2/service/kinesisanalyticsv2 v1.40.0/go.mod h1:sgIHBhkdMu8Dezi5Kx+VA7FmlfvMOSB0Kk565yfrQrM=
 github.com/aws/aws-sdk-go-v2/service/lambda v1.94.0 h1:q3Hgw/pGOnM3wz7PsvoDrt+tAJHVsioBeqIF4zrPXjQ=
 github.com/aws/aws-sdk-go-v2/service/lambda v1.94.0/go.mod h1:3bF6WydfupDwCv8Q3g/Flt89341w/+NObn+KdQmLA60=
 github.com/aws/aws-sdk-go-v2/service/omics v1.38.7 h1:cwPjKkaA1nR29ZMN+GYcu6Q5hQRmd6vylVYYbZ0ybg8=

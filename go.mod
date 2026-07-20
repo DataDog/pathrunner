@@ -26,7 +26,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/glue v1.147.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.54.7
 	github.com/aws/aws-sdk-go-v2/service/imagebuilder v1.57.0
-	github.com/aws/aws-sdk-go-v2/service/kinesisanalyticsv2 v1.39.0
+	github.com/aws/aws-sdk-go-v2/service/kinesisanalyticsv2 v1.40.0
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.94.0
 	github.com/aws/aws-sdk-go-v2/service/omics v1.38.7
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.104.1
