@@ -23,7 +23,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/emr v1.62.0
 	github.com/aws/aws-sdk-go-v2/service/emrserverless v1.43.0
 	github.com/aws/aws-sdk-go-v2/service/gamelift v1.48.6
-	github.com/aws/aws-sdk-go-v2/service/glue v1.147.0
+	github.com/aws/aws-sdk-go-v2/service/glue v1.148.1
 	github.com/aws/aws-sdk-go-v2/service/iam v1.54.7
 	github.com/aws/aws-sdk-go-v2/service/imagebuilder v1.57.0
 	github.com/aws/aws-sdk-go-v2/service/kinesisanalyticsv2 v1.39.0
