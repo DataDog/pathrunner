@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 )
@@ -23,6 +24,23 @@ func DefaultCloudfoxDir() string {
 		return dir
 	}
 	return ""
+}
+
+// ListProfileDirs returns all cloudfox profile directories under basePath, sorted by profile name.
+// This is a convenience wrapper over FindProfileDirs that returns a slice instead of a map.
+func ListProfileDirs(basePath string) ([]ProfileDir, error) {
+	profileMap, err := FindProfileDirs(basePath, nil)
+	if err != nil {
+		return nil, err
+	}
+	dirs := make([]ProfileDir, 0, len(profileMap))
+	for _, dir := range profileMap {
+		dirs = append(dirs, dir)
+	}
+	sort.Slice(dirs, func(i, j int) bool {
+		return dirs[i].Profile < dirs[j].Profile
+	})
+	return dirs, nil
 }
 
 // FindProfileDirs discovers cloudfox profile directories under basePath.
@@ -137,8 +155,10 @@ func ImportFromDir(dirPath string) (*AccountResources, []string, error) {
 		{"secrets.json", parseSecrets},
 		{"endpoints.json", parseEndpoints},
 		{"role-trusts-principals.json", parseRoleTrusts},
-		{"access-keys.json", parseAccessKeys},
 		{"instances.json", parseInstances},
+		// access-keys.json omitted: UserName records duplicate principals.json entries
+		// (same users already present with full ARNs). AKIA key IDs are captured separately
+		// via loot/access-keys.txt.
 	}
 
 	for _, p := range parsers {
@@ -178,6 +198,7 @@ func ImportFromDir(dirPath string) (*AccountResources, []string, error) {
 		AccountID: accountID,
 		Imports: []ImportRecord{
 			{
+				SourceType:  "cloudfox",
 				SourceDir:   dirPath,
 				Profile:     profile,
 				ImportedAt:  time.Now(),
@@ -295,6 +316,7 @@ func parseWorkloads(path string, accountID string) []Resource {
 			Role:         r["Role"],
 			IsAdmin:      normalizeFlag(r["IsAdminRole?"]),
 			CanPrivEsc:   normalizeFlag(r["CanPrivEscToAdmin?"]),
+			Source:       "cloudfox",
 		})
 	}
 	return resources
@@ -316,6 +338,7 @@ func parsePrincipals(path string, accountID string) []Resource {
 			ResourceType: principalType,
 			IsAdmin:      normalizeFlag(r["IsAdminRole?"]),
 			CanPrivEsc:   normalizeFlag(r["CanPrivEscToAdmin?"]),
+			Source:       "cloudfox",
 			Properties: buildProperties(map[string]string{
 				"AttachedPolicies": r["AttachedPolicies"],
 				"InlinePolicies":   r["InlinePolicies"],
@@ -342,6 +365,7 @@ func parseBuckets(path string, accountID string) []Resource {
 			ResourceType: "bucket",
 			Region:       r["Region"],
 			Public:       normalizeFlag(r["Public?"]),
+			Source:       "cloudfox",
 			Properties: buildProperties(map[string]string{
 				"ResourcePolicySummary": r["Resource Policy Summary"],
 			}),
@@ -363,6 +387,7 @@ func parseDatabases(path string, accountID string) []Resource {
 			Service:      r["Service"],
 			ResourceType: "database",
 			Region:       r["Region"],
+			Source:       "cloudfox",
 			Properties: buildProperties(map[string]string{
 				"Engine":   r["Engine"],
 				"Size":     r["Size"],
@@ -389,6 +414,7 @@ func parseSecrets(path string, accountID string) []Resource {
 			Service:      r["Service"],
 			ResourceType: "secret",
 			Region:       r["Region"],
+			Source:       "cloudfox",
 			Properties: buildProperties(map[string]string{
 				"Description": r["Description"],
 			}),
@@ -411,6 +437,7 @@ func parseEndpoints(path string, accountID string) []Resource {
 			ResourceType: "endpoint",
 			Region:       r["Region"],
 			Public:       normalizeFlag(r["Public"]),
+			Source:       "cloudfox",
 			Properties: buildProperties(map[string]string{
 				"Endpoint": r["Endpoint"],
 				"Port":     r["Port"],
@@ -436,6 +463,7 @@ func parseRoleTrusts(path string, accountID string) []Resource {
 			ResourceType: "role-trust",
 			IsAdmin:      normalizeFlag(r["IsAdmin?"]),
 			CanPrivEsc:   normalizeFlag(r["CanPrivEscToAdmin?"]),
+			Source:       "cloudfox",
 			Properties: buildProperties(map[string]string{
 				"TrustedPrincipal": r["Trusted Principal"],
 				"ExternalID":      r["ExternalID"],
@@ -445,25 +473,6 @@ func parseRoleTrusts(path string, accountID string) []Resource {
 	return resources
 }
 
-func parseAccessKeys(path string, accountID string) []Resource {
-	records, err := readJSONArray(path)
-	if err != nil {
-		return nil
-	}
-	var resources []Resource
-	for _, r := range records {
-		resources = append(resources, Resource{
-			AccountID:    accountID,
-			Name:         r["User Name"],
-			Service:      "IAM",
-			ResourceType: "access-key",
-			Properties: buildProperties(map[string]string{
-				"AccessKeyID": r["Access Key ID"],
-			}),
-		})
-	}
-	return resources
-}
 
 func parseInstances(path string, accountID string) []Resource {
 	records, err := readJSONArray(path)
@@ -491,6 +500,7 @@ func parseInstances(path string, accountID string) []Resource {
 			Role:         r["Role"],
 			IsAdmin:      normalizeFlag(r["IsAdminRole?"]),
 			CanPrivEsc:   normalizeFlag(r["CanPrivEscToAdmin?"]),
+			Source:       "cloudfox",
 			Properties: buildProperties(map[string]string{
 				"InstanceID": r["ID"],
 				"Zone":       r["Zone"],
@@ -527,6 +537,7 @@ func parseInventoryARNs(path string, accountID string) []Resource {
 			Service:      service,
 			ResourceType: resourceType,
 			Region:       region,
+			Source:       "cloudfox",
 		})
 	}
 	return resources

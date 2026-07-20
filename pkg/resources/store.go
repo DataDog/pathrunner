@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Manager handles cloudfox resource loading, storage, and querying.
@@ -261,6 +262,203 @@ func (m *Manager) AvailableServices(accountID string) []string {
 	}
 	sort.Strings(services)
 	return services
+}
+
+// OptionMappings maps module option names to resource service/type queries.
+var OptionMappings = map[string]OptionResourceMapping{
+	"ROLE_ARN":           {Service: "IAM", ResourceType: "role", ReturnField: "arn"},
+	"EXECUTION_ROLE_ARN": {Service: "IAM", ResourceType: "role", ReturnField: "arn"},
+	"SERVICE_ROLE":       {Service: "IAM", ResourceType: "role", ReturnField: "arn"},
+	"INSTANCE_PROFILE":   {Service: "IAM", ResourceType: "instance-profile", ReturnField: "name"},
+	"TARGET_RUNTIME_ARN": {Service: "BedrockAgentCore", ResourceType: "runtime", ReturnField: "arn"},
+	"FUNCTION_NAME":      {Service: "Lambda", ResourceType: "function", ReturnField: "name"},
+	"INSTANCE_ID":        {Service: "EC2", ResourceType: "instance", ReturnField: "name"},
+	"BUCKET_NAME":        {Service: "S3", ResourceType: "bucket", ReturnField: "name"},
+	"BUCKET":             {Service: "S3", ResourceType: "bucket", ReturnField: "name"},
+	"JOB_NAME":           {Service: "Glue", ResourceType: "job", ReturnField: "name"},
+	"TABLE_NAME":         {Service: "DynamoDB", ResourceType: "table", ReturnField: "name"},
+	"PROJECT_NAME":       {Service: "CodeBuild", ResourceType: "project", ReturnField: "name"},
+	"GROUP_NAME":         {Service: "IAM", ResourceType: "group", ReturnField: "name"},
+	"USER_NAME":          {Service: "IAM", ResourceType: "user", ReturnField: "name"},
+	"TARGET_USER":        {Service: "IAM", ResourceType: "user", ReturnField: "name"},
+	"APP_NAME":           {Service: "CodeDeploy", ResourceType: "application", ReturnField: "name"},
+	"DEPLOYMENT_GROUP":   {Service: "CodeDeploy", ResourceType: "deployment-group", ReturnField: "name"},
+}
+
+// ImportCache imports AWS resources from a cloudfox cached-data account directory.
+// accountDir is the full path to the account-specific directory (e.g. ~/.cloudfox/cached-data/aws/123456789012).
+// Returns the imported account ID.
+func (m *Manager) ImportCache(accountDir string, accountID string) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	ar, err := ImportFromCacheDir(accountDir, accountID)
+	if err != nil {
+		return "", err
+	}
+	m.mergeAccount(ar)
+	if err := m.saveAccount(ar.AccountID); err != nil {
+		return "", fmt.Errorf("imported but failed to persist: %w", err)
+	}
+	return ar.AccountID, nil
+}
+
+// AddDiscoveredResources merges resources learned from module discovery API calls
+// into the account's resource set and persists to disk.
+func (m *Manager) AddDiscoveredResources(accountID string, newResources []Resource, sourceInfo string) error {
+	if accountID == "" || len(newResources) == 0 {
+		return nil
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Set source on all incoming resources
+	for i := range newResources {
+		newResources[i].Source = "discover"
+		newResources[i].AccountID = accountID
+	}
+
+	incoming := &AccountResources{
+		AccountID: accountID,
+		Imports: []ImportRecord{
+			{
+				SourceType: "discover",
+				SourceInfo: sourceInfo,
+				ImportedAt: time.Now(),
+			},
+		},
+		Resources: newResources,
+	}
+
+	m.mergeAccount(incoming)
+
+	return m.saveAccount(accountID)
+}
+
+// FindChoicesForOption queries the resource store for values that match a module option.
+// Returns nil if the option name has no known resource mapping.
+func (m *Manager) FindChoicesForOption(accountID string, optionName string) []DiscoverySuggestion {
+	mapping, exists := OptionMappings[optionName]
+	if !exists {
+		return nil
+	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	ar, exists := m.accounts[accountID]
+	if !exists {
+		// Try loading from disk without holding write lock
+		m.mu.RUnlock()
+		m.mu.Lock()
+		loaded, err := m.loadAccount(accountID)
+		if err != nil {
+			m.mu.Unlock()
+			m.mu.RLock()
+			return nil
+		}
+		m.accounts[accountID] = loaded
+		ar = loaded
+		m.mu.Unlock()
+		m.mu.RLock()
+	}
+
+	var suggestions []DiscoverySuggestion
+	for _, r := range ar.Resources {
+		if !strings.EqualFold(r.Service, mapping.Service) {
+			continue
+		}
+		if !strings.EqualFold(r.ResourceType, mapping.ResourceType) {
+			continue
+		}
+
+		value := r.Name
+		if mapping.ReturnField == "arn" && r.ARN != "" {
+			value = r.ARN
+		}
+		if value == "" {
+			continue
+		}
+
+		// Build a descriptive label similar to discovery labels
+		label := r.Name
+		if r.IsAdmin == "Yes" {
+			label += " [ADMIN]"
+		}
+		if r.Role != "" {
+			label += fmt.Sprintf(" (role: %s)", r.Role)
+		}
+
+		source := r.Source
+		if source == "" {
+			source = "cloudfox"
+		}
+
+		suggestions = append(suggestions, DiscoverySuggestion{
+			Value:  value,
+			Label:  label,
+			Source: source,
+		})
+	}
+
+	return suggestions
+}
+
+// ClearAccount removes all resources for a single account from memory and disk.
+func (m *Manager) ClearAccount(accountID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	delete(m.accounts, accountID)
+
+	path, err := resourcePath(accountID)
+	if err != nil {
+		return err
+	}
+
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to remove resource file for %s: %w", accountID, err)
+	}
+	return nil
+}
+
+// ClearAll removes all resources for every account from memory and disk.
+// Returns the number of accounts cleared.
+func (m *Manager) ClearAll() (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	dir, err := resourcesDir()
+	if err != nil {
+		return 0, err
+	}
+
+	count := len(m.accounts)
+	m.accounts = make(map[string]*AccountResources)
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return count, nil // memory cleared; disk read failure is non-fatal
+	}
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".json") {
+			_ = os.Remove(filepath.Join(dir, e.Name()))
+		}
+	}
+	return count, nil
+}
+
+// LoadedAccountIDs returns the account IDs currently loaded in memory.
+func (m *Manager) LoadedAccountIDs() []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	ids := make([]string, 0, len(m.accounts))
+	for id := range m.accounts {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	return ids
 }
 
 // saveAccount persists account resources to disk.

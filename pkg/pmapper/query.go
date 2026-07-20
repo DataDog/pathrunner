@@ -76,8 +76,6 @@ func (g *PrivescGraph) FindPathsToAdmin(principalARN string) []PrivescPath {
 		}
 
 		privescPath := g.buildPrivescPath(normalizedARN, adminARN, path)
-		// Append self-escalation step for the admin target
-		g.appendSelfEscalationStep(&privescPath)
 		paths = append(paths, privescPath)
 	}
 
@@ -278,8 +276,6 @@ func (g *PrivescGraph) FindAllReachable(principalARN string) []PrivescPath {
 			continue
 		}
 		privescPath := g.buildPrivescPath(normalizedARN, target, path)
-		// Append self-escalation step for admin targets
-		g.appendSelfEscalationStep(&privescPath)
 		paths = append(paths, privescPath)
 	}
 
@@ -321,35 +317,6 @@ func (g *PrivescGraph) buildSelfEscalationPaths(principalARN string) []PrivescPa
 	return []PrivescPath{path}
 }
 
-// appendSelfEscalationStep adds a self-escalation step to a path if the final
-// destination is an admin node with self-escalation capabilities.
-func (g *PrivescGraph) appendSelfEscalationStep(path *PrivescPath) {
-	if len(path.Steps) == 0 {
-		return
-	}
-	finalNode := path.Steps[len(path.Steps)-1].Destination
-	if !slices.Contains(g.adminARNs, finalNode) {
-		return
-	}
-
-	results := g.analyzeSelfEscalation(finalNode)
-	if len(results) == 0 {
-		return
-	}
-
-	// Use the first result as the representative self-escalation step
-	r := results[0]
-	step := PrivescStep{
-		Source:         finalNode,
-		Destination:    finalNode,
-		ShortReason:    "Self-Escalation",
-		Reason:         r.Description,
-		ModuleIDs:      selfEscalationModuleIDs(results),
-		SelfEscalation: &r,
-	}
-	path.Steps = append(path.Steps, step)
-}
-
 // analyzeSelfEscalation runs self-escalation analysis for a node in this graph.
 func (g *PrivescGraph) analyzeSelfEscalation(principalARN string) []SelfEscalationResult {
 	if len(g.Policies) == 0 {
@@ -369,19 +336,6 @@ func (g *PrivescGraph) analyzeSelfEscalation(principalARN string) []SelfEscalati
 	}
 
 	return AnalyzeSelfEscalation(*node, g.Policies)
-}
-
-// selfEscalationModuleIDs extracts unique module IDs from self-escalation results.
-func selfEscalationModuleIDs(results []SelfEscalationResult) []string {
-	seen := make(map[string]bool)
-	var ids []string
-	for _, r := range results {
-		if !seen[r.ModuleID] {
-			seen[r.ModuleID] = true
-			ids = append(ids, r.ModuleID)
-		}
-	}
-	return ids
 }
 
 // sortPathsByLength sorts paths by step count (shortest first).

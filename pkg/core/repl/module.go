@@ -9,6 +9,7 @@ import (
 
 	"github.com/DataDog/pathrunner/pkg/attacker"
 	"github.com/DataDog/pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/resources"
 	"github.com/DataDog/pathrunner/pkg/status"
 	"github.com/DataDog/pathrunner/pkg/ui"
 	"github.com/DataDog/pathrunner/pkg/utils"
@@ -430,12 +431,38 @@ func (r *REPL) cmdDiscover(repl *REPL, args []string) error {
 }
 
 // discoverAndSetOption runs discovery for a single option and presents an interactive selection.
+// It also saves discovered resources to the resource store and merges with cached suggestions.
 func (r *REPL) discoverAndSetOption(discoverable modules.Discoverable, optionName string, identity *modules.Identity) error {
 	fmt.Printf("Discovering values for %s...\n", optionName)
 
-	choices, err := discoverable.Discover(optionName, identity, r.options)
-	if err != nil {
-		return fmt.Errorf("discovery failed for %s: %v", optionName, err)
+	accountID := r.getCurrentAccountID()
+
+	// Run live API discovery
+	choices, discoverErr := discoverable.Discover(optionName, identity, r.options)
+
+	// Save live discovery results to the resource store
+	if discoverErr == nil && len(choices) > 0 && accountID != "" {
+		r.saveDiscoveryToResources(accountID, optionName, choices)
+	}
+
+	// Query the resource store for cached/imported suggestions
+	var storeSuggestions []resources.DiscoverySuggestion
+	if accountID != "" {
+		r.resourcesManager.TryAutoLoad(accountID)
+		storeSuggestions = r.resourcesManager.FindChoicesForOption(accountID, optionName)
+	}
+
+	// Handle API failure: fall back to resource store
+	if discoverErr != nil {
+		if len(storeSuggestions) > 0 {
+			fmt.Printf("Discovery API failed (%v), showing cached resources\n", discoverErr)
+			choices = suggestionsToChoices(storeSuggestions)
+		} else {
+			return fmt.Errorf("discovery failed for %s: %v", optionName, discoverErr)
+		}
+	} else {
+		// Merge live results with store suggestions, deduplicating by value
+		choices = mergeChoicesWithSuggestions(choices, storeSuggestions)
 	}
 
 	if len(choices) == 0 {
@@ -446,7 +473,6 @@ func (r *REPL) discoverAndSetOption(discoverable modules.Discoverable, optionNam
 	fmt.Printf("Found %d option(s) for %s:\n", len(choices), optionName)
 
 	// When only one choice is available, auto-select it without prompting.
-	// This supports non-interactive use (test scripts, CI) where there's no TTY.
 	if len(choices) == 1 {
 		selected := choices[0]
 		r.options[optionName] = selected.Value
@@ -454,10 +480,14 @@ func (r *REPL) discoverAndSetOption(discoverable modules.Discoverable, optionNam
 		return nil
 	}
 
-	// Build selection options
+	// Build selection labels with source attribution
 	labels := make([]string, len(choices))
 	for i, c := range choices {
-		labels[i] = c.Label
+		source := c.Source
+		if source == "" {
+			source = "discover"
+		}
+		labels[i] = fmt.Sprintf("source: %-10s | %s", source, c.Label)
 	}
 
 	selectedIndex, err := ui.Select(fmt.Sprintf("Select value for %s:", optionName), labels)
@@ -470,6 +500,156 @@ func (r *REPL) discoverAndSetOption(discoverable modules.Discoverable, optionNam
 	fmt.Printf("Set %s => %s\n", optionName, selected.Value)
 
 	return nil
+}
+
+// saveDiscoveryToResources converts DiscoveryChoice results into Resource objects
+// and saves them to the resource store for reuse by other modules.
+func (r *REPL) saveDiscoveryToResources(accountID string, optionName string, choices []modules.DiscoveryChoice) {
+	converted := choicesToResources(accountID, optionName, choices)
+	if len(converted) == 0 {
+		return
+	}
+
+	moduleID := ""
+	if r.currentModule != nil {
+		moduleID = r.currentModule.PathInfo().ID
+	}
+	sourceInfo := fmt.Sprintf("%s:%s", moduleID, optionName)
+
+	if err := r.resourcesManager.AddDiscoveredResources(accountID, converted, sourceInfo); err != nil {
+		// Non-fatal: log but don't block the discovery flow
+		fmt.Printf("Warning: could not save discovered resources: %v\n", err)
+	}
+}
+
+// choicesToResources converts discovery choices into Resource objects based on the option name.
+func choicesToResources(accountID string, optionName string, choices []modules.DiscoveryChoice) []resources.Resource {
+	mapping, exists := resources.OptionMappings[optionName]
+	if !exists {
+		return nil
+	}
+
+	var result []resources.Resource
+	for _, c := range choices {
+		r := resources.Resource{
+			AccountID:    accountID,
+			Service:      mapping.Service,
+			ResourceType: mapping.ResourceType,
+			Source:       "discover",
+		}
+
+		// Set name and ARN based on the return field type
+		if mapping.ReturnField == "arn" {
+			r.ARN = c.Value
+			// Try to extract a name from metadata
+			for _, key := range []string{"role_name", "user_name", "group_name", "job_name", "name"} {
+				if name, ok := c.Metadata[key]; ok && name != "" {
+					r.Name = name
+					break
+				}
+			}
+			if r.Name == "" {
+				r.Name = extractNameFromValue(c.Value)
+			}
+		} else {
+			r.Name = c.Value
+			// Try to get ARN from metadata
+			for _, key := range []string{"function_arn", "role_arn", "arn", "group_arn"} {
+				if arn, ok := c.Metadata[key]; ok && arn != "" {
+					r.ARN = arn
+					break
+				}
+			}
+		}
+
+		// Map common metadata to resource fields
+		if c.Metadata != nil {
+			if c.Metadata["admin_access"] == "true" {
+				r.IsAdmin = "Yes"
+			}
+			if ip, ok := c.Metadata["public_ip"]; ok && ip != "" {
+				if r.Properties == nil {
+					r.Properties = make(map[string]string)
+				}
+				r.Properties["ExternalIP"] = ip
+			}
+			// Store remaining metadata as properties
+			for _, key := range []string{"instance_type", "runtime", "handler", "state", "instance_profile_arn"} {
+				if val, ok := c.Metadata[key]; ok && val != "" {
+					if r.Properties == nil {
+						r.Properties = make(map[string]string)
+					}
+					r.Properties[key] = val
+				}
+			}
+		}
+
+		result = append(result, r)
+	}
+
+	return result
+}
+
+// extractNameFromValue extracts a human-readable name from an ARN or similar value.
+func extractNameFromValue(value string) string {
+	if idx := strings.LastIndex(value, "/"); idx >= 0 {
+		return value[idx+1:]
+	}
+	if idx := strings.LastIndex(value, ":"); idx >= 0 {
+		return value[idx+1:]
+	}
+	return value
+}
+
+// mergeChoicesWithSuggestions combines live API discovery results with cached resource store
+// suggestions, deduplicating by value. Live results take precedence.
+func mergeChoicesWithSuggestions(liveChoices []modules.DiscoveryChoice, suggestions []resources.DiscoverySuggestion) []modules.DiscoveryChoice {
+	if len(suggestions) == 0 {
+		// Tag all live choices with source
+		for i := range liveChoices {
+			if liveChoices[i].Source == "" {
+				liveChoices[i].Source = "discover"
+			}
+		}
+		return liveChoices
+	}
+
+	// Build set of values already in live results
+	seen := make(map[string]bool, len(liveChoices))
+	for i := range liveChoices {
+		if liveChoices[i].Source == "" {
+			liveChoices[i].Source = "discover"
+		}
+		seen[liveChoices[i].Value] = true
+	}
+
+	// Append store suggestions that aren't already in live results
+	for _, s := range suggestions {
+		if seen[s.Value] {
+			continue
+		}
+		liveChoices = append(liveChoices, modules.DiscoveryChoice{
+			Value:  s.Value,
+			Label:  s.Label,
+			Source: s.Source,
+		})
+	}
+
+	return liveChoices
+}
+
+// suggestionsToChoices converts resource store suggestions into DiscoveryChoices
+// for use when the live API call fails.
+func suggestionsToChoices(suggestions []resources.DiscoverySuggestion) []modules.DiscoveryChoice {
+	choices := make([]modules.DiscoveryChoice, len(suggestions))
+	for i, s := range suggestions {
+		choices[i] = modules.DiscoveryChoice{
+			Value:  s.Value,
+			Label:  s.Label,
+			Source: s.Source,
+		}
+	}
+	return choices
 }
 
 // tryResolveMissingOptions walks through all missing required options interactively:

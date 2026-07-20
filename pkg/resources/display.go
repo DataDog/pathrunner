@@ -6,54 +6,77 @@ import (
 	"strings"
 )
 
+// normalizeSource maps internal source strings to display labels.
+func normalizeSource(source string) string {
+	switch source {
+	case "discover":
+		return "pathrunner"
+	case "", "cloudfox":
+		return "cloudfox"
+	default:
+		return source
+	}
+}
+
 // FormatResourceTable formats resources as table rows for display.
 // Returns headers and rows suitable for ui.Table.
 func FormatResourceTable(resources []Resource) ([]string, [][]string) {
-	headers := []string{"Service", "Name", "Region", "Role", "Admin", "PrivEsc"}
+	headers := []string{"Source", "Service", "ARN"}
 
-	rows := make([][]string, 0, len(resources))
-	for _, r := range resources {
-		role := r.Role
-		if len(role) > 50 {
-			role = "..." + role[len(role)-47:]
+	sorted := make([]Resource, len(resources))
+	copy(sorted, resources)
+	sort.Slice(sorted, func(i, j int) bool {
+		ai, aj := sorted[i].ARN, sorted[j].ARN
+		if ai == "" {
+			ai = sorted[i].Name
 		}
+		if aj == "" {
+			aj = sorted[j].Name
+		}
+		return ai < aj
+	})
 
+	rows := make([][]string, 0, len(sorted))
+	for _, r := range sorted {
+		arn := r.ARN
+		if arn == "" {
+			arn = r.Name
+		}
 		rows = append(rows, []string{
+			normalizeSource(r.Source),
 			r.Service,
-			r.Name,
-			r.Region,
-			role,
-			r.IsAdmin,
-			r.CanPrivEsc,
+			arn,
 		})
 	}
 
 	return headers, rows
 }
 
-// FormatResourceTableWide formats resources with ARN column for wider display.
+// FormatResourceTableWide formats resources with type and name columns for wider display.
 func FormatResourceTableWide(resources []Resource) ([]string, [][]string) {
-	headers := []string{"Service", "Type", "Name", "ARN", "Region", "Role", "Admin"}
+	headers := []string{"Source", "Service", "Type", "Name", "ARN"}
 
-	rows := make([][]string, 0, len(resources))
-	for _, r := range resources {
-		arn := r.ARN
-		if len(arn) > 60 {
-			arn = "..." + arn[len(arn)-57:]
+	sorted := make([]Resource, len(resources))
+	copy(sorted, resources)
+	sort.Slice(sorted, func(i, j int) bool {
+		ai, aj := sorted[i].ARN, sorted[j].ARN
+		if ai == "" {
+			ai = sorted[i].Name
 		}
-		role := r.Role
-		if len(role) > 40 {
-			role = "..." + role[len(role)-37:]
+		if aj == "" {
+			aj = sorted[j].Name
 		}
+		return ai < aj
+	})
 
+	rows := make([][]string, 0, len(sorted))
+	for _, r := range sorted {
 		rows = append(rows, []string{
+			normalizeSource(r.Source),
 			r.Service,
 			r.ResourceType,
 			r.Name,
-			arn,
-			r.Region,
-			role,
-			r.IsAdmin,
+			r.ARN,
 		})
 	}
 
@@ -169,14 +192,25 @@ func FormatStatusReport(statuses []ImportStatus) string {
 		// Import history
 		sb.WriteString(fmt.Sprintf("  Imports: %d\n", len(status.Imports)))
 		for i, imp := range status.Imports {
-			profile := imp.Profile
-			if profile == "" {
-				profile = "unknown"
+			sourceType := imp.SourceType
+			if sourceType == "" {
+				sourceType = "cloudfox"
 			}
-			sb.WriteString(fmt.Sprintf("    %d. profile=%s dir=%s at=%s files=%d\n",
-				i+1, profile, imp.SourceDir,
-				imp.ImportedAt.Format("2006-01-02 15:04:05"),
-				len(imp.FilesParsed)))
+			switch sourceType {
+			case "discover":
+				sb.WriteString(fmt.Sprintf("    %d. [discover] %s at=%s\n",
+					i+1, imp.SourceInfo,
+					imp.ImportedAt.Format("2006-01-02 15:04:05")))
+			default:
+				profile := imp.Profile
+				if profile == "" {
+					profile = "unknown"
+				}
+				sb.WriteString(fmt.Sprintf("    %d. [cloudfox] profile=%s dir=%s at=%s files=%d\n",
+					i+1, profile, imp.SourceDir,
+					imp.ImportedAt.Format("2006-01-02 15:04:05"),
+					len(imp.FilesParsed)))
+			}
 		}
 	}
 

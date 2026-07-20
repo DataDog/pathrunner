@@ -1,9 +1,11 @@
 package repl
 
 import (
-	"github.com/DataDog/pathrunner/pkg/modules"
+	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/pathrunner/pkg/modules"
 	"github.com/chzyer/readline"
 )
 
@@ -514,11 +516,86 @@ func (r *REPL) buildSessionsCompleter() readline.PrefixCompleterInterface {
 	)
 }
 
+// dirCompleter returns directory completions for the --path flag. It receives the
+// full typed line, extracts the partial path after "--path ", expands "~", and
+// returns matching subdirectories.
+func (r *REPL) dirCompleter(line string) []string {
+	const marker = "--path "
+	idx := strings.LastIndex(line, marker)
+	if idx < 0 {
+		return nil
+	}
+	partial := line[idx+len(marker):]
+	return listDirsForPath(partial)
+}
+
+// listDirsForPath returns directory paths that match the given partial path prefix.
+// It handles "~" expansion and returns paths in display format (with "~" preserved).
+func listDirsForPath(partial string) []string {
+	home, _ := os.UserHomeDir()
+
+	// Expand ~ for filesystem access while preserving it for display.
+	fsPartial := partial
+	useTilde := home != "" && (partial == "~" || strings.HasPrefix(partial, "~/"))
+	if useTilde {
+		if partial == "~" {
+			fsPartial = home + string(filepath.Separator)
+		} else {
+			fsPartial = filepath.Join(home, partial[2:])
+			if strings.HasSuffix(partial, "/") {
+				fsPartial += string(filepath.Separator)
+			}
+		}
+	}
+
+	// Determine the directory to list and the base name prefix to filter by.
+	var dir, prefix string
+	if fsPartial == "" || strings.HasSuffix(fsPartial, string(filepath.Separator)) {
+		dir = fsPartial
+		if dir == "" {
+			dir = "."
+		}
+	} else {
+		dir = filepath.Dir(fsPartial)
+		prefix = filepath.Base(fsPartial)
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+
+	var results []string
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if prefix != "" && !strings.HasPrefix(name, prefix) {
+			continue
+		}
+		fullPath := filepath.Join(dir, name)
+		var displayPath string
+		if useTilde {
+			rel, err := filepath.Rel(home, fullPath)
+			if err == nil && !strings.HasPrefix(rel, "..") {
+				displayPath = "~/" + rel
+			} else {
+				displayPath = fullPath
+			}
+		} else {
+			displayPath = fullPath
+		}
+		results = append(results, displayPath+"/")
+	}
+	return results
+}
+
 // buildCloudfoxCompleter builds completion for the cloudfox command
 func (r *REPL) buildCloudfoxCompleter() readline.PrefixCompleterInterface {
 	return readline.PcItem("cloudfox",
 		readline.PcItem("import",
-			readline.PcItem("--path"),
+			readline.PcItem("--path", readline.PcItemDynamic(r.dirCompleter)),
 			readline.PcItem("help"),
 		),
 		readline.PcItem("help"),
@@ -529,7 +606,7 @@ func (r *REPL) buildCloudfoxCompleter() readline.PrefixCompleterInterface {
 func (r *REPL) buildResourcesCompleter() readline.PrefixCompleterInterface {
 	return readline.PcItem("resources",
 		readline.PcItem("import",
-			readline.PcItem("--path"),
+			readline.PcItem("--path", readline.PcItemDynamic(r.dirCompleter)),
 			readline.PcItem("help"),
 		),
 		readline.PcItem("list",
@@ -557,6 +634,11 @@ func (r *REPL) buildResourcesCompleter() readline.PrefixCompleterInterface {
 			readline.PcItem("help"),
 		),
 		readline.PcItem("status",
+			readline.PcItem("help"),
+		),
+		readline.PcItem("clear",
+			readline.PcItem("--all"),
+			readline.PcItem("--account"),
 			readline.PcItem("help"),
 		),
 		readline.PcItem("help"),

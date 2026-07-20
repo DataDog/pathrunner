@@ -41,6 +41,21 @@ Requires Go 1.25+ and valid AWS credentials.
 go install github.com/DataDog/pathrunner/cmd/pathrunner@latest
 ```
 
+#### Homebrew
+```bash
+brew tap DataDog/pathrunner https://github.com/DataDog/pathrunner
+brew install DataDog/pathrunner/pathrunner
+```
+
+#### Download from GitHub Releases
+```bash
+OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+ARCH=$(uname -m | sed 's/x86_64/amd64/')
+VERSION=$(curl -fsSL https://api.github.com/repos/DataDog/pathrunner/releases/latest | grep '"tag_name"' | cut -d'"' -f4 | tr -d 'v')
+curl -fsSL "https://github.com/DataDog/pathrunner/releases/download/v${VERSION}/pathrunner_${VERSION}_${OS}_${ARCH}.tar.gz" | tar -xz pathrunner
+sudo mv pathrunner /usr/local/bin/
+```
+
 #### Build from source
 ```bash
 git clone https://github.com/DataDog/pathrunner.git
