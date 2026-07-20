@@ -11,7 +11,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/batch v1.67.0
 	github.com/aws/aws-sdk-go-v2/service/bedrockagentcore v1.33.0
 	github.com/aws/aws-sdk-go-v2/service/bedrockagentcorecontrol v1.46.0
-	github.com/aws/aws-sdk-go-v2/service/braket v1.42.0
+	github.com/aws/aws-sdk-go-v2/service/braket v1.42.1
 	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.74.0
 	github.com/aws/aws-sdk-go-v2/service/codebuild v1.71.0
 	github.com/aws/aws-sdk-go-v2/service/codedeploy v1.22.2
