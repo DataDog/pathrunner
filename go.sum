@@ -18,8 +18,8 @@ github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.30 h1:jn46zC9LdsVR/ZpMIJ
 github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.30/go.mod h1:1hTMsAgbdS/AtUi4bw8+gUuh1pceo+eXRLfpSuSQj3M=
 github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.30 h1:VTGy885W5DKBxWRUJbym9hytNaYzsyaPkCHGRRMAOhU=
 github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.30/go.mod h1:AS0HycUvJRFvTt613AYDOgO2jzw+00cVSMny8XB3yMY=
-github.com/aws/aws-sdk-go-v2/service/apprunner v1.41.0 h1:L+4nSQD67FAI/P3tGGINHeUhuu+S1OxChtN5OvGQYg8=
-github.com/aws/aws-sdk-go-v2/service/apprunner v1.41.0/go.mod h1:UehvT8KFucM18V9+wDq5AeZDj9qlxn8IFjZtz1aphiE=
+github.com/aws/aws-sdk-go-v2/service/apprunner v1.41.1 h1:VuldHJhyBwsBfZhWLHq0EQmg3unXz08KVIEYpAm1bA4=
+github.com/aws/aws-sdk-go-v2/service/apprunner v1.41.1/go.mod h1:UehvT8KFucM18V9+wDq5AeZDj9qlxn8IFjZtz1aphiE=
 github.com/aws/aws-sdk-go-v2/service/autoscaling v1.69.0 h1:4FLdMjJIMLOM/yiwXRj250GvDNVy9rc3J1Ho3p8KGOk=
 github.com/aws/aws-sdk-go-v2/service/autoscaling v1.69.0/go.mod h1:sN7IK8djnxCOQDGVhOvUlIA83i1wIA5jYnzr2TlY9a8=
 github.com/aws/aws-sdk-go-v2/service/batch v1.67.0 h1:amCRVhE7xgdElZrfKzQ8PvWMzRsXT8j+0ereSPQB2jI=
