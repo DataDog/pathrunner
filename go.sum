@@ -32,8 +32,8 @@ github.com/aws/aws-sdk-go-v2/service/braket v1.42.0 h1:Al+kh1sahaay7J2SmV8hT+AMH
 github.com/aws/aws-sdk-go-v2/service/braket v1.42.0/go.mod h1:ww4t+gT1gtUVkCmOxPt6FTwLILsNzUjwq87i6fv/08c=
 github.com/aws/aws-sdk-go-v2/service/cloudformation v1.74.0 h1:mWbzz2E7by3nkSxvYngjI2TH98LYLcPthkXbJNtSb3A=
 github.com/aws/aws-sdk-go-v2/service/cloudformation v1.74.0/go.mod h1:CbJ+8eU/zw2k8QilzLNmJvqn5ExnhtcdV1yPr4HmMYA=
-github.com/aws/aws-sdk-go-v2/service/codebuild v1.71.0 h1:1owpvMLjLDdCy+NKM+JC8oFIHkLvZKwDZJONUHqXLaY=
-github.com/aws/aws-sdk-go-v2/service/codebuild v1.71.0/go.mod h1:1ZCte/owHgsdIv9R0IbrVTtv/orZ/KcZoo0l9/QhTKg=
+github.com/aws/aws-sdk-go-v2/service/codebuild v1.71.1 h1:bXBQEh1Ztl4VTgnKyRsXKXfvA5PVfIM5gI+vQk5haFU=
+github.com/aws/aws-sdk-go-v2/service/codebuild v1.71.1/go.mod h1:1ZCte/owHgsdIv9R0IbrVTtv/orZ/KcZoo0l9/QhTKg=
 github.com/aws/aws-sdk-go-v2/service/codedeploy v1.22.2 h1:3b8fwDhM0bJoOVglvM1w4665Ry6mrb3Rp+AH8iGI6qg=
 github.com/aws/aws-sdk-go-v2/service/codedeploy v1.22.2/go.mod h1:RiusqJl55/p7S8LNMh2J3ZsDHDqxRiPdsfIaZRKeEUo=
 github.com/aws/aws-sdk-go-v2/service/cognitoidentity v1.35.0 h1:aOS3ytKxApw56mkmXys3r3mCZGtdCxADXHv/Kv3JRsY=
