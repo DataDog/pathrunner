@@ -1,0 +1,90 @@
+# GoReleaser configuration for pathrunner CLI
+# Documentation: https://goreleaser.com
+
+version: 2
+
+project_name: pathrunner
+
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./pkg/exploits/
+
+builds:
+  - id: pathrunner
+    main: ./cmd/pathrunner
+    binary: pathrunner
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X github.com/DataDog/pathrunner/pkg/version.Version={{.Version}}
+      - -X github.com/DataDog/pathrunner/pkg/version.GitCommit={{.Commit}}
+      - -X github.com/DataDog/pathrunner/pkg/version.BuildDate={{.Date}}
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - README.md
+      - LICENSE*
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-dev"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - Merge pull request
+      - Merge branch
+
+release:
+  github:
+    owner: DataDog
+    name: pathrunner
+  draft: false
+  prerelease: auto
+  mode: replace
+  name_template: "v{{.Version}}"
+
+brews:
+  - name: pathrunner
+    repository:
+      owner: DataDog
+      name: pathrunner
+      branch: "homebrew-update-{{ .Version }}"
+      pull_request:
+        enabled: true
+        base:
+          owner: DataDog
+          name: pathrunner
+          branch: main
+    directory: Formula
+    homepage: "https://github.com/DataDog/pathrunner"
+    description: "AWS post-exploitation framework for automating privilege escalation paths"
+    license: "Apache-2.0"
+    install: |
+      bin.install "pathrunner"
+    test: |
+      assert_match version.to_s, shell_output("#{bin}/pathrunner version")

@@ -2,7 +2,8 @@ package resources
 
 import "time"
 
-// Resource is the normalized representation of any AWS resource from cloudfox output.
+// Resource is the normalized representation of any AWS resource.
+// Resources come from cloudfox imports or live module discovery API calls.
 type Resource struct {
 	AccountID    string            `json:"account_id"`
 	Name         string            `json:"name"`
@@ -14,15 +15,18 @@ type Resource struct {
 	IsAdmin      string            `json:"is_admin,omitempty"`
 	CanPrivEsc   string            `json:"can_privesc,omitempty"`
 	Public       string            `json:"public,omitempty"`
+	Source       string            `json:"source,omitempty"`
 	Properties   map[string]string `json:"properties,omitempty"`
 }
 
-// ImportRecord tracks a single cloudfox import (one run, one identity, one source dir).
+// ImportRecord tracks a single import event (cloudfox import or discovery API call).
 type ImportRecord struct {
-	SourceDir   string    `json:"source_dir"`
+	SourceType  string    `json:"source_type"`
+	SourceDir   string    `json:"source_dir,omitempty"`
+	SourceInfo  string    `json:"source_info,omitempty"`
 	Profile     string    `json:"profile,omitempty"`
 	ImportedAt  time.Time `json:"imported_at"`
-	FilesParsed []string  `json:"files_parsed"`
+	FilesParsed []string  `json:"files_parsed,omitempty"`
 }
 
 // AccountResources holds all resources for one AWS account, merged across multiple imports.
@@ -45,4 +49,18 @@ type ImportStatus struct {
 	Imports       []ImportRecord
 	ResourceCount int
 	ServiceCounts map[string]int
+}
+
+// DiscoverySuggestion is a resource-store suggestion for a module option value.
+type DiscoverySuggestion struct {
+	Value  string
+	Label  string
+	Source string
+}
+
+// OptionResourceMapping defines how a module option name maps to resource queries.
+type OptionResourceMapping struct {
+	Service      string
+	ResourceType string
+	ReturnField  string // "arn" or "name"
 }

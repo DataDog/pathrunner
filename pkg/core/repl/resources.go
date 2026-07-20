@@ -2,11 +2,75 @@ package repl
 
 import (
 	"fmt"
+	"path/filepath"
+	"sort"
+	"strings"
+
 	"github.com/DataDog/pathrunner/pkg/pmapper"
 	"github.com/DataDog/pathrunner/pkg/resources"
 	"github.com/DataDog/pathrunner/pkg/ui"
-	"strings"
 )
+
+// promptCloudfoxDir finds the default cloudfox output directory, lists available
+// profile subdirectories, and asks the user which one to import.
+func (r *REPL) promptCloudfoxDir() (string, error) {
+	baseDir := resources.DefaultCloudfoxDir()
+	if baseDir == "" {
+		return "", NewExecutionError("could not find cloudfox output directory (~/.cloudfox/cloudfox-output/aws/). Use --path to specify", nil)
+	}
+
+	profileDirs, err := resources.ListProfileDirs(baseDir)
+	if err != nil || len(profileDirs) == 0 {
+		// No profile subdirectories found; import from the base directory directly.
+		return baseDir, nil
+	}
+
+	options := make([]string, 0, len(profileDirs)+1)
+	options = append(options, fmt.Sprintf("All profiles (%s)", baseDir))
+	for _, dir := range profileDirs {
+		label := dir.Profile
+		if dir.AccountID != "" {
+			label = fmt.Sprintf("%s (%s)", dir.Profile, dir.AccountID)
+		}
+		options = append(options, label)
+	}
+
+	idx, err := ui.Select("Select cloudfox profile to import:", options)
+	if err != nil {
+		return "", NewExecutionError("profile selection cancelled", err)
+	}
+
+	if idx == 0 {
+		return baseDir, nil
+	}
+	return filepath.Join(baseDir, filepath.Base(profileDirs[idx-1].Path)), nil
+}
+
+// promptCacheAccount finds available accounts in the cloudfox cached-data directory
+// and asks the user which one to import. Returns the account ID and its cache directory path.
+func (r *REPL) promptCacheAccount() (accountID string, accountDir string, err error) {
+	cacheBase := resources.DefaultCloudfoxCacheDir()
+	if cacheBase == "" {
+		return "", "", nil // no cache dir, signal caller to fall back
+	}
+
+	accounts, err := resources.ListCacheAccounts(cacheBase)
+	if err != nil || len(accounts) == 0 {
+		return "", "", nil // no accounts, signal caller to fall back
+	}
+
+	if len(accounts) == 1 {
+		id := accounts[0]
+		return id, filepath.Join(cacheBase, id), nil
+	}
+
+	idx, err := ui.Select("Select account to import from cloudfox cache:", accounts)
+	if err != nil {
+		return "", "", NewExecutionError("account selection cancelled", err)
+	}
+	id := accounts[idx]
+	return id, filepath.Join(cacheBase, id), nil
+}
 
 // cmdCloudfox handles cloudfox commands
 func (r *REPL) cmdCloudfox(repl *REPL, args []string) error {
@@ -39,6 +103,8 @@ func (r *REPL) cmdResources(repl *REPL, args []string) error {
 		return r.resourcesSummary(args[1:])
 	case "status":
 		return r.resourcesStatus(args[1:])
+	case "clear":
+		return r.resourcesClear(args[1:])
 	case "help":
 		return r.showResourcesHelp()
 	default:
@@ -83,11 +149,29 @@ func (r *REPL) cloudfoxImport(args []string) error {
 		}
 	}
 
+	// When no explicit path is given, prefer the cloudfox cached-data directory (raw SDK
+	// responses) over the cloudfox-output directory (pre-rendered JSON/loot files).
 	if dirPath == "" {
-		dirPath = resources.DefaultCloudfoxDir()
-		if dirPath == "" {
-			return NewExecutionError("could not find cloudfox output directory. Use --path to specify", nil)
+		accountID, accountDir, err := r.promptCacheAccount()
+		if err != nil {
+			return err
 		}
+		if accountDir != "" {
+			// Cache path: import a single account from the gob cache.
+			fmt.Printf("Importing cloudfox cached-data for account %s...\n", accountID)
+			importedID, err := r.resourcesManager.ImportCache(accountDir, accountID)
+			if err != nil {
+				return NewExecutionError("cache import failed", err)
+			}
+			return r.printImportSummary([]string{importedID}, nil)
+		}
+
+		// Fall back to the cloudfox-output directory.
+		selected, err := r.promptCloudfoxDir()
+		if err != nil {
+			return err
+		}
+		dirPath = selected
 	}
 
 	fmt.Printf("Importing cloudfox data from %s...\n", dirPath)
@@ -97,37 +181,7 @@ func (r *REPL) cloudfoxImport(args []string) error {
 		return NewExecutionError("import failed", err)
 	}
 
-	for _, accountID := range imported {
-		ar, err := r.resourcesManager.GetAccount(accountID)
-		if err != nil {
-			continue
-		}
-		// Count by service
-		serviceCounts := make(map[string]int)
-		for _, res := range ar.Resources {
-			serviceCounts[res.Service]++
-		}
-		fmt.Printf("Imported account %s: %d resources", accountID, len(ar.Resources))
-		if len(serviceCounts) > 0 {
-			var parts []string
-			for svc, count := range serviceCounts {
-				parts = append(parts, fmt.Sprintf("%s(%d)", svc, count))
-			}
-			fmt.Printf(" [%s]", strings.Join(parts, ", "))
-		}
-		fmt.Println()
-	}
-
-	if len(accessKeyIDs) > 0 {
-		fmt.Println()
-		fmt.Printf("Found %d access key ID(s) in access-keys.txt (no secret keys available)\n", len(accessKeyIDs))
-		fmt.Println("Use 'identity add' with the corresponding secrets to add them manually")
-	}
-
-	fmt.Println()
-	fmt.Println("Run 'resources list' to view imported resources or 'resources summary' for an overview.")
-
-	return nil
+	return r.printImportSummary(imported, accessKeyIDs)
 }
 
 // resourcesList lists imported resources
@@ -258,6 +312,65 @@ func (r *REPL) resourcesStatus(args []string) error {
 	return nil
 }
 
+// resourcesClear removes imported resource data from memory and disk.
+func (r *REPL) resourcesClear(args []string) error {
+	if len(args) > 0 && args[0] == "help" {
+		return r.showResourcesClearHelp()
+	}
+
+	all := false
+	accountID := ""
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--all":
+			all = true
+		case "--account":
+			if i+1 < len(args) {
+				i++
+				accountID = args[i]
+			} else {
+				return NewInvalidArgumentsError("--account requires an account ID")
+			}
+		}
+	}
+
+	if all {
+		n, err := r.resourcesManager.ClearAll()
+		if err != nil {
+			return NewExecutionError("failed to clear resources", err)
+		}
+		if n == 0 {
+			fmt.Println("No resources to clear.")
+		} else {
+			fmt.Printf("Cleared resources for %d account(s).\n", n)
+		}
+		return nil
+	}
+
+	if accountID == "" {
+		accountID = r.getCurrentAccountID()
+	}
+	if accountID == "" {
+		// Fall back to any loaded account if there is exactly one
+		ids := r.resourcesManager.LoadedAccountIDs()
+		if len(ids) == 1 {
+			accountID = ids[0]
+		} else if len(ids) > 1 {
+			return NewInvalidArgumentsError("multiple accounts loaded — use --account <id> or --all")
+		} else {
+			fmt.Println("No resources loaded.")
+			return nil
+		}
+	}
+
+	if err := r.resourcesManager.ClearAccount(accountID); err != nil {
+		return NewExecutionError("failed to clear resources", err)
+	}
+	fmt.Printf("Cleared resources for account %s.\n", accountID)
+	return nil
+}
+
 // getCurrentAccountID extracts the account ID from the current identity, if any.
 func (r *REPL) getCurrentAccountID() string {
 	identity := r.identityManager.GetCurrent()
@@ -265,6 +378,44 @@ func (r *REPL) getCurrentAccountID() string {
 		return ""
 	}
 	return pmapper.ExtractAccountIDFromARN(identity.CallerARN)
+}
+
+// printImportSummary prints a per-account resource count after a successful import.
+func (r *REPL) printImportSummary(imported []string, accessKeyIDs []string) error {
+	for _, accountID := range imported {
+		ar, err := r.resourcesManager.GetAccount(accountID)
+		if err != nil {
+			continue
+		}
+		serviceCounts := make(map[string]int)
+		for _, res := range ar.Resources {
+			serviceCounts[res.Service]++
+		}
+		fmt.Printf("Imported account %s: %d resources", accountID, len(ar.Resources))
+		if len(serviceCounts) > 0 {
+			services := make([]string, 0, len(serviceCounts))
+			for svc := range serviceCounts {
+				services = append(services, svc)
+			}
+			sort.Strings(services)
+			var parts []string
+			for _, svc := range services {
+				parts = append(parts, fmt.Sprintf("%s(%d)", svc, serviceCounts[svc]))
+			}
+			fmt.Printf(" [%s]", strings.Join(parts, ", "))
+		}
+		fmt.Println()
+	}
+
+	if len(accessKeyIDs) > 0 {
+		fmt.Println()
+		fmt.Printf("Found %d access key ID(s) in access-keys.txt (no secret keys available)\n", len(accessKeyIDs))
+		fmt.Println("Use 'identity add' with the corresponding secrets to add them manually")
+	}
+
+	fmt.Println()
+	fmt.Println("Run 'resources list' to view imported resources or 'resources summary' for an overview.")
+	return nil
 }
 
 // Help functions
@@ -303,13 +454,25 @@ func (r *REPL) showCloudfoxImportHelp() error {
 	return nil
 }
 
+func (r *REPL) showResourcesClearHelp() error {
+	fmt.Println("Resources Clear Command:")
+	fmt.Println("  resources clear                  - Clear resources for the current account")
+	fmt.Println("  resources clear --account <id>   - Clear resources for a specific account")
+	fmt.Println("  resources clear --all            - Clear resources for all accounts")
+	fmt.Println()
+	fmt.Println("Removes resource data from memory and from disk (~/.pathrunner/resources/).")
+	fmt.Println("After clearing, re-import with 'resources import'.")
+	return nil
+}
+
 func (r *REPL) showResourcesHelp() error {
 	fmt.Println("Resources Commands:")
 	fmt.Println("  resources list [service]         - List imported resources, optionally filtered by service")
-	fmt.Println("  resources list --wide             - List with ARN and type columns")
+	fmt.Println("  resources list --wide             - List with type and name columns")
 	fmt.Println("  resources summary                - Show resource counts by service and region")
 	fmt.Println("  resources status                 - Show import status and history")
 	fmt.Println("  resources import [--path <dir>]  - Import cloudfox output (alias for 'cloudfox import')")
+	fmt.Println("  resources clear                  - Remove imported resource data")
 	fmt.Println("  resources help                   - Show this help message")
 	fmt.Println()
 	fmt.Println("Service filter examples:")

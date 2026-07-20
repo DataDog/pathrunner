@@ -431,6 +431,285 @@ func TestFormatStatusReport_Empty(t *testing.T) {
 	}
 }
 
+func TestResourcesSourceFieldCloudfox(t *testing.T) {
+	profileDir := filepath.Join(cloudfoxFixtureDir, "testprofile-123456789012")
+	ar, _, err := resources.ImportFromDir(profileDir)
+	if err != nil {
+		t.Fatalf("ImportFromDir failed: %v", err)
+	}
+
+	for _, r := range ar.Resources {
+		if r.Source != "cloudfox" {
+			t.Errorf("expected Source='cloudfox' for resource %s, got '%s'", r.Name, r.Source)
+		}
+	}
+}
+
+func TestResourcesSourceFieldDiscover(t *testing.T) {
+	tmpDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", origHome)
+
+	m := resources.NewManager()
+
+	discovered := []resources.Resource{
+		{
+			Name:         "test-role",
+			ARN:          "arn:aws:iam::123456789012:role/test-role",
+			Service:      "IAM",
+			ResourceType: "role",
+		},
+	}
+
+	err := m.AddDiscoveredResources("123456789012", discovered, "lambda-001:ROLE_ARN")
+	if err != nil {
+		t.Fatalf("AddDiscoveredResources failed: %v", err)
+	}
+
+	allResources := m.ListResources("123456789012", "")
+	if len(allResources) != 1 {
+		t.Fatalf("expected 1 resource, got %d", len(allResources))
+	}
+	if allResources[0].Source != "discover" {
+		t.Errorf("expected Source='discover', got '%s'", allResources[0].Source)
+	}
+}
+
+func TestResourcesAddDiscoveredResources(t *testing.T) {
+	tmpDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", origHome)
+
+	m := resources.NewManager()
+
+	// Add discovered resources
+	discovered := []resources.Resource{
+		{Name: "admin-role", ARN: "arn:aws:iam::123456789012:role/admin-role", Service: "IAM", ResourceType: "role", IsAdmin: "Yes"},
+		{Name: "dev-role", ARN: "arn:aws:iam::123456789012:role/dev-role", Service: "IAM", ResourceType: "role"},
+	}
+
+	err := m.AddDiscoveredResources("123456789012", discovered, "lambda-001:ROLE_ARN")
+	if err != nil {
+		t.Fatalf("AddDiscoveredResources failed: %v", err)
+	}
+
+	allResources := m.ListResources("123456789012", "IAM")
+	if len(allResources) != 2 {
+		t.Fatalf("expected 2 IAM resources, got %d", len(allResources))
+	}
+
+	// Verify persistence
+	persistPath := filepath.Join(tmpDir, ".pathrunner", "resources", "123456789012.json")
+	if _, err := os.Stat(persistPath); os.IsNotExist(err) {
+		t.Error("expected persisted file after AddDiscoveredResources")
+	}
+
+	// Verify import record
+	ar, err := m.GetAccount("123456789012")
+	if err != nil {
+		t.Fatalf("GetAccount failed: %v", err)
+	}
+	if len(ar.Imports) != 1 {
+		t.Fatalf("expected 1 import record, got %d", len(ar.Imports))
+	}
+	if ar.Imports[0].SourceType != "discover" {
+		t.Errorf("expected SourceType='discover', got '%s'", ar.Imports[0].SourceType)
+	}
+	if ar.Imports[0].SourceInfo != "lambda-001:ROLE_ARN" {
+		t.Errorf("expected SourceInfo='lambda-001:ROLE_ARN', got '%s'", ar.Imports[0].SourceInfo)
+	}
+}
+
+func TestResourcesAddDiscoveredEmptySkipped(t *testing.T) {
+	m := resources.NewManager()
+	err := m.AddDiscoveredResources("123456789012", nil, "test")
+	if err != nil {
+		t.Errorf("expected no error for empty resources, got: %v", err)
+	}
+	if m.IsLoaded("123456789012") {
+		t.Error("expected no data loaded for empty resources")
+	}
+}
+
+func TestResourcesFindChoicesForOption(t *testing.T) {
+	tmpDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", origHome)
+
+	m := resources.NewManager()
+
+	// Import cloudfox data first
+	profileDir := filepath.Join(cloudfoxFixtureDir, "testprofile-123456789012")
+	_, _, err := m.Import(profileDir, nil)
+	if err != nil {
+		t.Fatalf("Import failed: %v", err)
+	}
+
+	// Query for ROLE_ARN - should find IAM roles
+	suggestions := m.FindChoicesForOption("123456789012", "ROLE_ARN")
+	if len(suggestions) == 0 {
+		t.Fatal("expected suggestions for ROLE_ARN")
+	}
+	for _, s := range suggestions {
+		if s.Source == "" {
+			t.Error("expected non-empty source on suggestion")
+		}
+		if s.Value == "" {
+			t.Error("expected non-empty value on suggestion")
+		}
+	}
+
+	// Query for unmapped option - should return nil
+	unmapped := m.FindChoicesForOption("123456789012", "SOME_RANDOM_OPTION")
+	if unmapped != nil {
+		t.Errorf("expected nil for unmapped option, got %d suggestions", len(unmapped))
+	}
+
+	// Query for nonexistent account - should return nil
+	noAccount := m.FindChoicesForOption("999999999999", "ROLE_ARN")
+	if noAccount != nil {
+		t.Errorf("expected nil for nonexistent account, got %d", len(noAccount))
+	}
+}
+
+func TestResourcesFindChoicesForOptionMultipleTypes(t *testing.T) {
+	tmpDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", origHome)
+
+	m := resources.NewManager()
+	profileDir := filepath.Join(cloudfoxFixtureDir, "testprofile-123456789012")
+	_, _, err := m.Import(profileDir, nil)
+	if err != nil {
+		t.Fatalf("Import failed: %v", err)
+	}
+
+	// FUNCTION_NAME should find Lambda functions
+	lambdaSuggestions := m.FindChoicesForOption("123456789012", "FUNCTION_NAME")
+	for _, s := range lambdaSuggestions {
+		if s.Source != "cloudfox" {
+			t.Errorf("expected source 'cloudfox', got '%s'", s.Source)
+		}
+	}
+
+	// INSTANCE_ID should find EC2 instances
+	ec2Suggestions := m.FindChoicesForOption("123456789012", "INSTANCE_ID")
+	if len(ec2Suggestions) == 0 {
+		t.Error("expected EC2 instance suggestions for INSTANCE_ID")
+	}
+
+	// BUCKET_NAME should find S3 buckets
+	s3Suggestions := m.FindChoicesForOption("123456789012", "BUCKET_NAME")
+	if len(s3Suggestions) == 0 {
+		t.Error("expected S3 bucket suggestions for BUCKET_NAME")
+	}
+}
+
+func TestResourcesMergedDiscoverAndCloudfox(t *testing.T) {
+	tmpDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", origHome)
+
+	m := resources.NewManager()
+
+	// Import cloudfox data
+	profileDir := filepath.Join(cloudfoxFixtureDir, "testprofile-123456789012")
+	_, _, err := m.Import(profileDir, nil)
+	if err != nil {
+		t.Fatalf("Import failed: %v", err)
+	}
+
+	// Add discovered resources (some overlapping by ARN, some new)
+	discovered := []resources.Resource{
+		{Name: "new-role", ARN: "arn:aws:iam::123456789012:role/new-role", Service: "IAM", ResourceType: "role"},
+	}
+	err = m.AddDiscoveredResources("123456789012", discovered, "iam-001:ROLE_ARN")
+	if err != nil {
+		t.Fatalf("AddDiscoveredResources failed: %v", err)
+	}
+
+	// Should have both sources represented
+	allResources := m.ListResources("123456789012", "")
+	hasCloudfox := false
+	hasDiscover := false
+	for _, r := range allResources {
+		if r.Source == "cloudfox" {
+			hasCloudfox = true
+		}
+		if r.Source == "discover" {
+			hasDiscover = true
+		}
+	}
+	if !hasCloudfox {
+		t.Error("expected cloudfox-sourced resources")
+	}
+	if !hasDiscover {
+		t.Error("expected discover-sourced resources")
+	}
+}
+
+func TestResourcesImportRecordSourceType(t *testing.T) {
+	profileDir := filepath.Join(cloudfoxFixtureDir, "testprofile-123456789012")
+	ar, _, err := resources.ImportFromDir(profileDir)
+	if err != nil {
+		t.Fatalf("ImportFromDir failed: %v", err)
+	}
+
+	if len(ar.Imports) != 1 {
+		t.Fatalf("expected 1 import record, got %d", len(ar.Imports))
+	}
+	if ar.Imports[0].SourceType != "cloudfox" {
+		t.Errorf("expected SourceType='cloudfox', got '%s'", ar.Imports[0].SourceType)
+	}
+}
+
+func TestResourcesSourcePersistenceRoundTrip(t *testing.T) {
+	tmpDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", origHome)
+
+	m1 := resources.NewManager()
+
+	// Add discovered resources
+	discovered := []resources.Resource{
+		{Name: "persist-role", ARN: "arn:aws:iam::123456789012:role/persist-role", Service: "IAM", ResourceType: "role"},
+	}
+	err := m1.AddDiscoveredResources("123456789012", discovered, "test:ROLE_ARN")
+	if err != nil {
+		t.Fatalf("AddDiscoveredResources failed: %v", err)
+	}
+
+	// Load in a new manager
+	m2 := resources.NewManager()
+	loaded := m2.TryAutoLoad("123456789012")
+	if !loaded {
+		t.Fatal("expected TryAutoLoad to succeed")
+	}
+
+	allResources := m2.ListResources("123456789012", "")
+	if len(allResources) != 1 {
+		t.Fatalf("expected 1 resource after load, got %d", len(allResources))
+	}
+	if allResources[0].Source != "discover" {
+		t.Errorf("expected Source='discover' after persistence round-trip, got '%s'", allResources[0].Source)
+	}
+
+	// Verify import record survived
+	ar, err := m2.GetAccount("123456789012")
+	if err != nil {
+		t.Fatalf("GetAccount failed: %v", err)
+	}
+	if ar.Imports[0].SourceType != "discover" {
+		t.Errorf("expected SourceType='discover' after round-trip, got '%s'", ar.Imports[0].SourceType)
+	}
+}
+
 func TestAccountResourcesSerialization(t *testing.T) {
 	profileDir := filepath.Join(cloudfoxFixtureDir, "testprofile-123456789012")
 	ar, _, err := resources.ImportFromDir(profileDir)

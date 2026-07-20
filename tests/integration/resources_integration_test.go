@@ -348,6 +348,57 @@ func TestResourcesListNonExistentService(t *testing.T) {
 	}
 }
 
+// Test that resources list shows Source column after import
+func TestResourcesListShowsSourceColumn(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	absFixturePath, err := filepath.Abs(filepath.Join(cloudfoxIntFixtureDir, "testprofile-123456789012"))
+	if err != nil {
+		t.Fatalf("Failed to get absolute fixture path: %v", err)
+	}
+
+	// Import
+	err = r.ExecuteCommand("cloudfox import --path " + absFixturePath)
+	if err != nil {
+		t.Fatalf("Import failed: %v", err)
+	}
+
+	// List should work (Source column is now part of the table)
+	err = r.ExecuteCommand("resources list")
+	if err != nil {
+		t.Errorf("Expected no error for 'resources list', got: %v", err)
+	}
+
+	// Wide list should also work
+	err = r.ExecuteCommand("resources list --wide")
+	if err != nil {
+		t.Errorf("Expected no error for 'resources list --wide', got: %v", err)
+	}
+}
+
+// Test that resources status shows import type for cloudfox imports
+func TestResourcesStatusShowsSourceType(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	absFixturePath, err := filepath.Abs(filepath.Join(cloudfoxIntFixtureDir, "testprofile-123456789012"))
+	if err != nil {
+		t.Fatalf("Failed to get absolute fixture path: %v", err)
+	}
+
+	err = r.ExecuteCommand("cloudfox import --path " + absFixturePath)
+	if err != nil {
+		t.Fatalf("Import failed: %v", err)
+	}
+
+	// Status should show import type
+	err = r.ExecuteCommand("resources status")
+	if err != nil {
+		t.Errorf("Expected no error for 'resources status', got: %v", err)
+	}
+}
+
 // Test resources import works as alias for cloudfox import
 func TestResourcesImportAlias(t *testing.T) {
 	r, _, _, cleanup := setupTest(t)

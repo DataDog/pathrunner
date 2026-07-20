@@ -237,4 +237,5 @@ type DiscoveryChoice struct {
 	Value    string            // The actual value to set (ARN, name, etc.)
 	Label    string            // Human-readable display label
 	Metadata map[string]string // Extra info for display (e.g., attached policies)
+	Source   string            // Provenance: "discover" (live API), "cloudfox" (imported), etc.
 }

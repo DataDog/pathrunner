@@ -30,6 +30,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.94.0
 	github.com/aws/aws-sdk-go-v2/service/omics v1.38.7
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.104.1
+	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.43.1
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.69.5
 	github.com/aws/aws-sdk-go-v2/service/sts v1.43.4
 	github.com/charmbracelet/bubbletea v1.3.10

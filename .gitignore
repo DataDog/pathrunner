@@ -35,5 +35,14 @@ tmp/
 temp/
 test-results/**
 
+# GoReleaser output
+dist/
+
 *.code-workspace
 .pathfinder
+.agents
+AGENTS.md
+
+# Node.js (should not exist here; guards against accidental npm runs)
+package-lock.json
+node_modules/

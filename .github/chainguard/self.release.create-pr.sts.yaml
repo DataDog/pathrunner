@@ -1,0 +1,12 @@
+issuer: https://token.actions.githubusercontent.com
+
+subject_pattern: repo:DataDog/pathrunner:ref:refs/(heads/main|tags/.*)
+
+claim_pattern:
+  event_name: push
+  ref: refs/(heads/main|tags/.*)
+  job_workflow_ref: DataDog/pathrunner/.github/workflows/release.yml@refs/(heads/main|tags/.*)
+
+permissions:
+  contents: write
+  pull_requests: write
