@@ -32,6 +32,8 @@ github.com/aws/aws-sdk-go-v2/service/braket v1.42.1 h1:Fr0PvM8fZFvz5OD8w9feG8Ksi
 github.com/aws/aws-sdk-go-v2/service/braket v1.42.1/go.mod h1:ww4t+gT1gtUVkCmOxPt6FTwLILsNzUjwq87i6fv/08c=
 github.com/aws/aws-sdk-go-v2/service/cloudformation v1.74.1 h1:3qjmF5nGL+RluWO6vkf8ZkRMg2bYTgLE1eUFn2VGwc4=
 github.com/aws/aws-sdk-go-v2/service/cloudformation v1.74.1/go.mod h1:CbJ+8eU/zw2k8QilzLNmJvqn5ExnhtcdV1yPr4HmMYA=
+github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.79.1 h1:VX6iCY+H/xWsd9Xyb+EnSl6GSgN/MNyc21wNkZk0EXk=
+github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.79.1/go.mod h1:h1Iw2nkdpmAUJaa89RvX3cg/HGLgdSkCWpMNgKvBSHA=
 github.com/aws/aws-sdk-go-v2/service/codebuild v1.71.1 h1:bXBQEh1Ztl4VTgnKyRsXKXfvA5PVfIM5gI+vQk5haFU=
 github.com/aws/aws-sdk-go-v2/service/codebuild v1.71.1/go.mod h1:1ZCte/owHgsdIv9R0IbrVTtv/orZ/KcZoo0l9/QhTKg=
 github.com/aws/aws-sdk-go-v2/service/codedeploy v1.37.1 h1:OYNFt5S1sB2ldpFc/WbwDQBQNXT3ehjcG8/smBatYqw=

@@ -1,7 +1,13 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package glue
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/DataDog/pathrunner/pkg/modules"
 	"github.com/DataDog/pathrunner/pkg/payloads"
 )
@@ -174,6 +180,22 @@ except Exception as e:
 }
 
 func (p *BackdoorCreateRolePayload) ProcessResult(result string) (string, error) {
+	if result == "" {
+		return "", nil
+	}
+
+	var roleARN string
+	for _, line := range strings.Split(result, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "Created role: ") {
+			roleARN = strings.TrimPrefix(line, "Created role: ")
+			break
+		}
+	}
+
+	if roleARN != "" {
+		return fmt.Sprintf("%s\nNext steps:\n  use sts-001\n  set ROLE_ARN %s\n  exploit\n", result, roleARN), nil
+	}
 	return result, nil
 }
 

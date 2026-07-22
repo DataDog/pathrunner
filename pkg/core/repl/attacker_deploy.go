@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package repl
 
 import (
@@ -24,6 +28,14 @@ func (r *REPL) cmdAttackerDeploy(args []string) error {
 	case "status":
 		return r.deployGlobalStatus()
 	case "destroy":
+		if len(args) > 1 {
+			fmt.Printf("Error: 'attacker infra destroy' takes no arguments (got %q).\n", args[1])
+			fmt.Println("To destroy a specific resource, use:")
+			fmt.Println("  attacker infra ec2 destroy")
+			fmt.Println("  attacker infra bucket destroy")
+			fmt.Println("  attacker infra ecr destroy")
+			return nil
+		}
 		return r.deployGlobalDestroy()
 	case "help":
 		return r.showAttackerDeployHelp()
@@ -203,6 +215,8 @@ func (r *REPL) cmdDeployBucket(args []string) error {
 		return r.deployBucketCreate(args[1:])
 	case "status":
 		return r.deployBucketStatus()
+	case "collect":
+		return r.deployBucketCollect()
 	case "destroy":
 		return r.deployBucketDestroy(args[1:])
 	case "help":
@@ -314,6 +328,103 @@ func (r *REPL) deployBucketDestroy(args []string) error {
 	}
 	fmt.Println("[*] All buckets destroyed.")
 
+	return nil
+}
+
+func (r *REPL) deployBucketCollect() error {
+	attackerIdentity := r.identityManager.GetAttackerIdentity()
+	if attackerIdentity == nil {
+		return fmt.Errorf("attacker identity required. Use 'attacker set profile <name>' first")
+	}
+
+	bucketName, region := attacker.GetExfilBucketInfo()
+	if bucketName == "" {
+		return fmt.Errorf("no exfil bucket deployed. Use 'attacker infra bucket create' first")
+	}
+
+	cfg := attackerIdentity.GetConfig()
+	cfg.Region = region
+
+	fmt.Printf("[*] Scanning exfil bucket: %s\n", bucketName)
+
+	artifacts, err := attacker.ListExfilArtifacts(cfg, bucketName)
+	if err != nil {
+		return fmt.Errorf("failed to list exfil artifacts: %v", err)
+	}
+
+	if len(artifacts) == 0 {
+		fmt.Println("[*] No artifacts found in exfil bucket.")
+		return nil
+	}
+
+	// Build a set of already-processed keys to skip on re-runs.
+	collected := attacker.GetCollectedExfilKeys()
+
+	newArtifacts := make([]string, 0, len(artifacts))
+	for _, key := range artifacts {
+		if collected[key] {
+			fmt.Printf("[*] Skipping (already collected): %s\n", key)
+		} else {
+			newArtifacts = append(newArtifacts, key)
+		}
+	}
+
+	if len(newArtifacts) == 0 {
+		fmt.Println("[*] No new artifacts to collect.")
+		return nil
+	}
+
+	fmt.Printf("[*] Found %d new artifact(s)\n\n", len(newArtifacts))
+
+	imported := 0
+	updated := 0
+	for _, key := range newArtifacts {
+		fmt.Printf("[*] Retrieving: %s\n", key)
+
+		content, err := attacker.DownloadExfilArtifact(cfg, bucketName, key)
+		if err != nil {
+			fmt.Printf("[!] Failed to download %s: %v\n", key, err)
+			continue
+		}
+
+		parsed, err := attacker.ParseExfilArtifact(content)
+		if err != nil {
+			fmt.Printf("[!] No credential data in %s: %v\n", key, err)
+			continue
+		}
+
+		// ARN-based dedup: if we already have an identity for this ARN, update
+		// its credentials in-place rather than creating a duplicate entry.
+		if parsed.CallerARN != "" {
+			if existing := r.identityManager.FindIdentityByARN(parsed.CallerARN); existing != nil {
+				fmt.Printf("[*] Identity '%s' already exists for this ARN — updating credentials\n", existing.Name)
+				// Lambda artifact: credentials are embedded in the identity_data block.
+				// Parse them out to call UpdateIdentityCredentials directly.
+				creds := attacker.ExtractCredentialsFromIdentityData(parsed.IdentityData)
+				if creds != nil {
+					if err := r.identityManager.UpdateIdentityCredentials(existing.Name, creds.AccessKeyID, creds.SecretAccessKey, creds.SessionToken); err != nil {
+						fmt.Printf("[!] Failed to update credentials for '%s': %v\n", existing.Name, err)
+						continue
+					}
+					fmt.Printf("[+] Updated credentials for '%s'\n", existing.Name)
+					r.UpdatePrompt()
+					updated++
+					attacker.MarkExfilKeyCollected(key)
+					continue
+				}
+			}
+		}
+
+		// No existing identity — create a new one via the normal import path.
+		if err := r.handleStructuredIdentityData(parsed.IdentityData); err != nil {
+			fmt.Printf("[!] Failed to import credentials from %s: %v\n", key, err)
+			continue
+		}
+		imported++
+		attacker.MarkExfilKeyCollected(key)
+	}
+
+	fmt.Printf("\n[*] Done. Imported %d new, updated %d existing credential set(s).\n", imported, updated)
 	return nil
 }
 
@@ -589,6 +700,7 @@ func (r *REPL) showAttackerDeployHelp() error {
 	fmt.Println()
 	fmt.Println("  attacker infra bucket [create] [--region <region>] - Create code + exfil buckets")
 	fmt.Println("  attacker infra bucket status                       - Show deployed buckets")
+	fmt.Println("  attacker infra bucket collect                      - Download exfil artifacts and import credentials")
 	fmt.Println("  attacker infra bucket destroy                      - Destroy all buckets")
 	fmt.Println()
 	fmt.Println("  attacker infra ecr [create] [--region <region>]    - Create ECR repo + push container image")
@@ -633,6 +745,7 @@ func (r *REPL) showDeployBucketHelp() error {
 	fmt.Println("Deploy Bucket Command:")
 	fmt.Println("  attacker infra bucket [create] [--region <region>]  - Create code + exfil buckets")
 	fmt.Println("  attacker infra bucket status                        - Show deployed buckets")
+	fmt.Println("  attacker infra bucket collect                       - Download exfil artifacts and import credentials")
 	fmt.Println("  attacker infra bucket destroy                       - Destroy all buckets")
 	fmt.Println("  attacker infra bucket help                          - Show this help message")
 	fmt.Println()

@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package cli
 
 import (
@@ -25,12 +29,21 @@ func (c *CLI) createIdentityCmd() *cobra.Command {
 		},
 	})
 
-	// identity current
+	// identity current (alias for show)
 	identityCmd.AddCommand(&cobra.Command{
 		Use:   "current",
 		Short: "Show current identity details",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("identity current")
+			c.executeREPLCommand("identity show")
+		},
+	})
+
+	// identity show
+	identityCmd.AddCommand(&cobra.Command{
+		Use:   "show",
+		Short: "Show current identity details",
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("identity show")
 		},
 	})
 
@@ -146,6 +159,15 @@ func (c *CLI) createIdentityCmd() *cobra.Command {
 	clearCmd.Flags().Bool("expired", false, "Remove all expired identities")
 	identityCmd.AddCommand(clearCmd)
 
+	// identity refresh
+	identityCmd.AddCommand(&cobra.Command{
+		Use:   "refresh",
+		Short: "Refresh current identity credentials",
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("identity refresh")
+		},
+	})
+
 	return identityCmd
 }
 
@@ -222,12 +244,16 @@ func (c *CLI) createWorkspaceCmd() *cobra.Command {
 			if module, _ := cmd.Flags().GetString("module"); module != "" {
 				replArgs = append(replArgs, "--module", module)
 			}
+			if yes, _ := cmd.Flags().GetBool("yes"); yes {
+				replArgs = append(replArgs, "--yes")
+			}
 
 			c.executeREPLCommand(strings.Join(replArgs, " "))
 		},
 	}
 	cleanupCmd.Flags().Bool("all", false, "Clean up all resources without interactive prompt")
 	cleanupCmd.Flags().String("module", "", "Only clean up resources created by a specific module ID")
+	cleanupCmd.Flags().BoolP("yes", "y", false, "Skip interactive confirmation prompt")
 	workspaceCmd.AddCommand(cleanupCmd)
 
 	// workspace report
@@ -330,13 +356,19 @@ func (c *CLI) createModulesCmd() *cobra.Command {
 		},
 	}
 
-	modulesCmd.AddCommand(&cobra.Command{
+	listModulesCmd := &cobra.Command{
 		Use:   "list",
 		Short: "List all available modules",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("modules list")
+			if wide, _ := cmd.Flags().GetBool("wide"); wide {
+				c.executeREPLCommand("modules list --wide")
+			} else {
+				c.executeREPLCommand("modules list")
+			}
 		},
-	})
+	}
+	listModulesCmd.Flags().Bool("wide", false, "Include description column")
+	modulesCmd.AddCommand(listModulesCmd)
 
 	modulesCmd.AddCommand(&cobra.Command{
 		Use:   "summary",
@@ -515,10 +547,16 @@ func (c *CLI) createWhoamiCmd() *cobra.Command {
 // Info command
 func (c *CLI) createInfoCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "info",
+		Use:   "info [module-id]",
 		Short: "Show detailed module and path information",
+		Long:  "Show path metadata for the current module, or any module by ID without selecting it",
+		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("info")
+			if len(args) > 0 {
+				c.executeREPLCommand("info " + args[0])
+			} else {
+				c.executeREPLCommand("info")
+			}
 		},
 	}
 }
@@ -679,6 +717,9 @@ func (c *CLI) createResourcesCmd() *cobra.Command {
 		Use:   "resources",
 		Short: "List and explore imported AWS resources",
 		Long:  "View AWS resources imported from cloudfox output",
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("resources list")
+		},
 	}
 
 	importCmd := &cobra.Command{
@@ -738,6 +779,25 @@ func (c *CLI) createResourcesCmd() *cobra.Command {
 			c.executeREPLCommand("resources status")
 		},
 	})
+
+	clearCmd := &cobra.Command{
+		Use:   "clear",
+		Short: "Remove imported resources from the resource store",
+		Run: func(cmd *cobra.Command, args []string) {
+			var replArgs []string
+			replArgs = append(replArgs, "resources", "clear")
+			if account, _ := cmd.Flags().GetString("account"); account != "" {
+				replArgs = append(replArgs, "--account", account)
+			}
+			if all, _ := cmd.Flags().GetBool("all"); all {
+				replArgs = append(replArgs, "--all")
+			}
+			c.executeREPLCommand(strings.Join(replArgs, " "))
+		},
+	}
+	clearCmd.Flags().String("account", "", "Clear resources for a specific AWS account ID")
+	clearCmd.Flags().Bool("all", false, "Clear all imported resources")
+	resourcesCmd.AddCommand(clearCmd)
 
 	return resourcesCmd
 }
@@ -1339,6 +1399,17 @@ func (c *CLI) createInfraCmd() *cobra.Command {
 	})
 
 	return infraCmd
+}
+
+// Options command
+func (c *CLI) createOptionsCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "options",
+		Short: "Show current module options",
+		Run: func(cmd *cobra.Command, args []string) {
+			c.executeREPLCommand("options")
+		},
+	}
 }
 
 // buildInfraECRCmd builds the "infra ecr" Cobra command subtree, shared by

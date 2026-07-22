@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package unit
 
 import (
@@ -202,13 +206,12 @@ func TestBatchSubmitJobReferences(t *testing.T) {
 	}
 }
 
-func TestBatchSubmitJobNoPayloadCompatible(t *testing.T) {
+func TestBatchSubmitJobPayloadCompatible(t *testing.T) {
 	mod := batch_submitjob.NewModule()
 
-	// batch-002 uses hardcoded container command overrides, not the payload registry
 	_, isPayloadCompatible := interface{}(mod).(modules.PayloadCompatible)
-	if isPayloadCompatible {
-		t.Error("batch-002 should not implement PayloadCompatible — it uses fixed ContainerOverrides.Command, not the payload registry")
+	if !isPayloadCompatible {
+		t.Error("batch-002 should implement PayloadCompatible")
 	}
 }
 

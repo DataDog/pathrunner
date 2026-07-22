@@ -1,5 +1,10 @@
 //go:build ignore
 
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
+
 // gen_register.go generates register.go files that contain blank imports for
 // auto-registering exploit modules and payload packages. Run via go generate.
 package main

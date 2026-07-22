@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package attacker
 
 import (
@@ -30,10 +34,11 @@ type EC2DeployState struct {
 
 // BucketDeployState tracks a deployed attacker S3 bucket.
 type BucketDeployState struct {
-	Name       string   `json:"name"`
-	Type       string   `json:"type"` // "code" or "exfil"
-	Region     string   `json:"region"`
-	AccountIDs []string `json:"account_ids"` // victim account IDs granted access via resource policy
+	Name          string   `json:"name"`
+	Type          string   `json:"type"` // "code" or "exfil"
+	Region        string   `json:"region"`
+	AccountIDs    []string `json:"account_ids"`     // victim account IDs granted access via resource policy
+	CollectedKeys []string `json:"collected_keys"`  // exfil artifact keys already imported
 }
 
 // ECRRepoDeployState tracks a deployed attacker ECR repository. The repo is
@@ -99,6 +104,46 @@ func SaveDeployState(state *DeployState) error {
 		return fmt.Errorf("failed to write deploy state: %v", err)
 	}
 
+	return nil
+}
+
+// GetCollectedExfilKeys returns the set of S3 object keys already imported by
+// bucket collect, so subsequent runs can skip them.
+func GetCollectedExfilKeys() map[string]bool {
+	state, err := LoadDeployState()
+	if err != nil {
+		return nil
+	}
+	for _, b := range state.Buckets {
+		if b.Type == "exfil" {
+			set := make(map[string]bool, len(b.CollectedKeys))
+			for _, k := range b.CollectedKeys {
+				set[k] = true
+			}
+			return set
+		}
+	}
+	return nil
+}
+
+// MarkExfilKeyCollected records that an exfil artifact has been imported so
+// subsequent bucket collect runs skip it.
+func MarkExfilKeyCollected(key string) error {
+	state, err := LoadDeployState()
+	if err != nil {
+		return err
+	}
+	for i, b := range state.Buckets {
+		if b.Type == "exfil" {
+			for _, k := range b.CollectedKeys {
+				if k == key {
+					return nil // already recorded
+				}
+			}
+			state.Buckets[i].CollectedKeys = append(state.Buckets[i].CollectedKeys, key)
+			return SaveDeployState(state)
+		}
+	}
 	return nil
 }
 

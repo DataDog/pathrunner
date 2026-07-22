@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package unit
 
 import (
@@ -73,7 +77,7 @@ func TestEMRServerlessPassroleOptions(t *testing.T) {
 	}
 
 	// Optional options.
-	expectedOptional := []string{"SCRIPT_BUCKET", "SCRIPT_BUCKET_REGION", "TARGET_USER", "REGION", "APP_NAME", "CLEANUP"}
+	expectedOptional := []string{"TARGET_USER", "REGION", "APP_NAME", "CLEANUP"}
 	for _, name := range expectedOptional {
 		if !optionalOptions[name] {
 			t.Errorf("Expected %s to be optional", name)

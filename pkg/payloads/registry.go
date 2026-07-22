@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package payloads
 
 import (
@@ -34,6 +38,7 @@ func extractServiceTag(tags []string) string {
 		TagServiceAppRunner, TagServiceBatch, TagServiceCodeBuild, TagServiceGlue,
 		TagServiceSageMaker, TagServiceCloudFormation, TagServiceSSM,
 		TagServiceBedrock, TagServiceBraket, TagServiceImageBuilder, TagServiceGameLift, TagServiceEMR,
+		TagServiceSSMAutomation,
 	}
 	for _, tag := range tags {
 		for _, st := range serviceTags {

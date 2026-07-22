@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package unit
 
 import (
@@ -61,17 +65,16 @@ func TestSSMStartSessionOptions(t *testing.T) {
 		}
 	}
 
-	// INSTANCE_ID is the only required option.
-	if !requiredOptions["INSTANCE_ID"] {
-		t.Error("Expected INSTANCE_ID to be required")
+	// INSTANCE_ID and PAYLOAD are required.
+	for _, name := range []string{"INSTANCE_ID", "PAYLOAD"} {
+		if !requiredOptions[name] {
+			t.Errorf("Expected %s to be required", name)
+		}
 	}
 
-	// These should be optional.
-	expectedOptional := []string{"REGION", "TARGET_USER"}
-	for _, name := range expectedOptional {
-		if !optionalOptions[name] {
-			t.Errorf("Expected %s to be optional", name)
-		}
+	// REGION should be optional.
+	if !optionalOptions["REGION"] {
+		t.Error("Expected REGION to be optional")
 	}
 }
 

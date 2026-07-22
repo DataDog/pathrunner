@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package unit
 
 import (
@@ -70,6 +74,14 @@ func (m *MockIdentityManager) ClearAttackerIdentity() {
 }
 
 func (m *MockIdentityManager) ClearIdentity() {
+}
+
+func (m *MockIdentityManager) FindIdentityByARN(arn string) *modules.Identity {
+	return nil
+}
+
+func (m *MockIdentityManager) UpdateIdentityCredentials(name, accessKeyID, secretKey, sessionToken string) error {
+	return nil
 }
 
 type MockSessionManager struct{}

@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package unit
 
 import (
@@ -144,8 +148,8 @@ func TestPayloadRegistry(t *testing.T) {
 		if exfilHTTPSCount != 3 {
 			t.Errorf("Expected 3 exfil/https payloads (Lambda + EC2 + Glue), got %d", exfilHTTPSCount)
 		}
-		if backdoorAPCount != 4 {
-			t.Errorf("Expected 4 backdoor/attach-policy payloads (Lambda + EC2 + Glue + ECS), got %d", backdoorAPCount)
+		if backdoorAPCount != 12 {
+			t.Errorf("Expected 12 backdoor/attach-policy payloads (all service payload packages imported by unit tests), got %d", backdoorAPCount)
 		}
 	})
 

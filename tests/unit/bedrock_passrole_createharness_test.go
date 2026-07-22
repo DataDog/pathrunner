@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package unit
 
 import (
@@ -159,13 +163,12 @@ func TestBedrockPassroleCreateHarnessAliasRegistration(t *testing.T) {
 	}
 }
 
-func TestBedrockPassroleCreateHarnessNoPayloads(t *testing.T) {
+func TestBedrockPassroleCreateHarnessPayloadCompatible(t *testing.T) {
 	mod := bedrock_passrole_createharness.NewModule()
 
-	// This module does not use payloads — it directly steals credentials
-	payloadList := mod.ListPayloads()
-	if len(payloadList) != 0 {
-		t.Errorf("Expected no payloads for bedrock-005 (credential theft module), got %d", len(payloadList))
+	_, isPayloadCompatible := interface{}(mod).(modules.PayloadCompatible)
+	if !isPayloadCompatible {
+		t.Error("bedrock-005 should implement PayloadCompatible")
 	}
 }
 

@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package unit
 
 import (
@@ -228,6 +232,11 @@ func TestFindProfileDirs_WithFilter(t *testing.T) {
 }
 
 func TestManagerImportAndQuery(t *testing.T) {
+	tmpDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", origHome)
+
 	m := resources.NewManager()
 	profileDir := filepath.Join(cloudfoxFixtureDir, "testprofile-123456789012")
 
@@ -362,6 +371,11 @@ func TestManagerMultiImportMerge(t *testing.T) {
 }
 
 func TestManagerAvailableServices(t *testing.T) {
+	tmpDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", origHome)
+
 	m := resources.NewManager()
 	profileDir := filepath.Join(cloudfoxFixtureDir, "testprofile-123456789012")
 	_, _, err := m.Import(profileDir, nil)

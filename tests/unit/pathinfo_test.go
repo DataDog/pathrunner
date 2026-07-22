@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package unit
 
 import (
@@ -1330,8 +1334,8 @@ func TestIAM001Module(t *testing.T) {
 		if len(info.Permissions.Required) != 1 {
 			t.Errorf("Expected 1 required permission, got %d", len(info.Permissions.Required))
 		}
-		if len(info.Permissions.Additional) != 2 {
-			t.Errorf("Expected 2 additional permissions, got %d", len(info.Permissions.Additional))
+		if len(info.Permissions.Additional) != 3 {
+			t.Errorf("Expected 3 additional permissions, got %d", len(info.Permissions.Additional))
 		}
 		if info.MITRE == nil {
 			t.Error("Expected non-nil MITRE mapping")
@@ -1395,8 +1399,8 @@ func TestIAM001Module(t *testing.T) {
 			t.Fatalf("Failed to load iam-001: %v", err)
 		}
 		opts := mod.Options()
-		if len(opts) != 4 {
-			t.Errorf("Expected 4 options, got %d", len(opts))
+		if len(opts) != 6 {
+			t.Errorf("Expected 6 options, got %d", len(opts))
 		}
 		// POLICY_ARN should be required
 		foundRequired := false

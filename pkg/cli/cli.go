@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package cli
 
 import (
@@ -120,6 +124,7 @@ func (c *CLI) CreateRootCommand() *cobra.Command {
 	rootCmd.AddCommand(addToGroup(c.createShowCmd(), "module"))
 	rootCmd.AddCommand(addToGroup(c.createSetCmd(), "module"))
 	rootCmd.AddCommand(addToGroup(c.createUnsetCmd(), "module"))
+	rootCmd.AddCommand(addToGroup(c.createOptionsCmd(), "module"))
 	rootCmd.AddCommand(addToGroup(c.createPayloadsCmd(), "module"))
 	rootCmd.AddCommand(addToGroup(c.createDiscoverCmd(), "module"))
 	rootCmd.AddCommand(addToGroup(c.createExploitCmd(), "module"))

@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package bedrock
 
 import (
@@ -27,7 +31,7 @@ func init() {
 }
 
 func (p *ExfilMMDSPayload) GetName() string {
-	return "exfil/response"
+	return "exfil/mmds"
 }
 
 func (p *ExfilMMDSPayload) GetDescription() string {

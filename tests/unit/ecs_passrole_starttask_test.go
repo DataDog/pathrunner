@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package unit
 
 import (
@@ -64,16 +68,18 @@ func TestEcsPassroleStarttaskOptions(t *testing.T) {
 	}
 
 	// These are all required for ecs-009
-	expectedRequired := []string{"ROLE_ARN", "CLUSTER_NAME", "CONTAINER_INSTANCE_ARN", "TASK_DEFINITION", "CONTAINER_NAME", "PAYLOAD"}
+	expectedRequired := []string{"ROLE_ARN", "CLUSTER_NAME", "CONTAINER_INSTANCE_ARN", "TASK_DEFINITION", "PAYLOAD"}
 	for _, name := range expectedRequired {
 		if !requiredOptions[name] {
 			t.Errorf("Expected %s to be required", name)
 		}
 	}
 
-	// REGION should be optional
-	if !optionalOptions["REGION"] {
-		t.Error("Expected REGION to be optional")
+	// CONTAINER_NAME and REGION should be optional (CONTAINER_NAME is auto-discovered)
+	for _, name := range []string{"CONTAINER_NAME", "REGION"} {
+		if !optionalOptions[name] {
+			t.Errorf("Expected %s to be optional", name)
+		}
 	}
 }
 
@@ -134,6 +140,7 @@ func TestEcsPassroleStarttaskDiscoverableOptions(t *testing.T) {
 		"CLUSTER_NAME":           true,
 		"CONTAINER_INSTANCE_ARN": true,
 		"TASK_DEFINITION":        true,
+		"CONTAINER_NAME":         true,
 	}
 
 	for _, opt := range options {

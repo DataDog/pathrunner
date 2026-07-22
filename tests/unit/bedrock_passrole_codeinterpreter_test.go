@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package unit
 
 import (
@@ -96,8 +100,8 @@ func TestBedrockPassroleCodeInterpreterPayloadDefaults(t *testing.T) {
 	for _, opt := range options {
 		switch opt.Name {
 		case "PAYLOAD":
-			if opt.Default != "exfil/response" {
-				t.Errorf("Expected PAYLOAD default to be 'exfil/response', got '%s'", opt.Default)
+			if opt.Default != "exfil/mmds" {
+				t.Errorf("Expected PAYLOAD default to be 'exfil/mmds', got '%s'", opt.Default)
 			}
 		case "REGION":
 			if opt.Default != "us-east-1" {
@@ -182,7 +186,7 @@ func TestBedrockPassroleCodeInterpreterListPayloads(t *testing.T) {
 	mod := bedrock_passrole_codeinterpreter.NewModule()
 	payloadInfos := mod.ListPayloads()
 
-	// Should list at least the exfil/response and backdoor/attach-policy payloads.
+	// Should list at least the exfil/mmds and backdoor/attach-policy payloads.
 	if len(payloadInfos) == 0 {
 		t.Error("Expected at least one payload to be listed")
 	}
@@ -192,8 +196,8 @@ func TestBedrockPassroleCodeInterpreterListPayloads(t *testing.T) {
 		payloadNames[p.Name] = true
 	}
 
-	if !payloadNames["exfil/response"] {
-		t.Error("Expected exfil/response payload to be listed")
+	if !payloadNames["exfil/mmds"] {
+		t.Error("Expected exfil/mmds payload to be listed")
 	}
 
 	if !payloadNames["backdoor/attach-policy"] {

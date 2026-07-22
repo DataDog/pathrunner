@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package attacker
 
 import (
@@ -7,6 +11,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -307,6 +313,206 @@ func TrackAttackerBucket(bucketName string, region string, moduleID string) modu
 		ModuleID:       moduleID,
 		AccountContext: "attacker",
 	}
+}
+
+// ListExfilArtifacts returns all object keys in the exfil bucket, sorted
+// by last-modified (oldest first) so credentials are imported in order.
+func ListExfilArtifacts(cfg aws.Config, bucketName string) ([]string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	s3Client := s3.NewFromConfig(cfg)
+	out, err := s3Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+		Bucket: aws.String(bucketName),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list objects in %s: %v", bucketName, err)
+	}
+
+	keys := make([]string, 0, len(out.Contents))
+	for _, obj := range out.Contents {
+		keys = append(keys, aws.ToString(obj.Key))
+	}
+	return keys, nil
+}
+
+// DownloadExfilArtifact downloads a single object from the exfil bucket and
+// returns its raw bytes.
+func DownloadExfilArtifact(cfg aws.Config, bucketName, key string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	s3Client := s3.NewFromConfig(cfg)
+	out, err := s3Client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(bucketName),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to download %s: %v", key, err)
+	}
+	defer out.Body.Close()
+
+	return io.ReadAll(out.Body)
+}
+
+// ParsedArtifact holds the credential data extracted from any exfil/s3 artifact,
+// regardless of whether it came from a Lambda or EC2/bash payload.
+type ParsedArtifact struct {
+	// CallerARN is the STS caller ARN from the artifact, used for deduplication
+	// against existing identities. Empty for EC2 artifacts (ARN not in JSON).
+	CallerARN       string
+	Name            string
+	AccessKeyID     string
+	SecretAccessKey string
+	SessionToken    string
+	// IdentityData is the pre-built PATHFINDER_IDENTITY_DATA block when present
+	// (Lambda format). Empty for EC2 format — the block is constructed from the
+	// credential fields instead.
+	IdentityData string
+}
+
+// ParseExfilArtifact extracts all credential and identity fields from an exfil
+// artifact, handling both the Lambda JSON format (has identity_data + caller_identity)
+// and the EC2/bash format (has credentials object + role_name).
+func ParseExfilArtifact(content []byte) (*ParsedArtifact, error) {
+	var raw struct {
+		CallerIdentity struct {
+			ARN string `json:"arn"`
+		} `json:"caller_identity"`
+		IdentityData string `json:"identity_data"`
+		RoleName     string `json:"role_name"`
+		Credentials  struct {
+			AccessKeyID     string `json:"access_key_id"`
+			SecretAccessKey string `json:"secret_access_key"`
+			SessionToken    string `json:"session_token"`
+		} `json:"credentials"`
+	}
+	if err := json.Unmarshal(content, &raw); err != nil {
+		return nil, fmt.Errorf("failed to parse artifact JSON: %v", err)
+	}
+
+	// Lambda format: pre-built identity block + caller ARN
+	if raw.IdentityData != "" {
+		return &ParsedArtifact{
+			CallerARN:    raw.CallerIdentity.ARN,
+			IdentityData: raw.IdentityData,
+		}, nil
+	}
+
+	// EC2/bash format: construct identity block from raw credential fields
+	if raw.Credentials.AccessKeyID == "" || raw.Credentials.SecretAccessKey == "" {
+		return nil, fmt.Errorf("artifact contains no usable credential data")
+	}
+
+	name := "ec2-role"
+	if raw.RoleName != "" {
+		name = "ec2-role/" + raw.RoleName
+	}
+
+	var block strings.Builder
+	block.WriteString("--- PATHFINDER_IDENTITY_DATA ---\n")
+	fmt.Fprintf(&block, "NAME=%s\n", name)
+	block.WriteString("TYPE=keys\n")
+	fmt.Fprintf(&block, "ACCESS_KEY_ID=%s\n", raw.Credentials.AccessKeyID)
+	fmt.Fprintf(&block, "SECRET_ACCESS_KEY=%s\n", raw.Credentials.SecretAccessKey)
+	if raw.Credentials.SessionToken != "" {
+		fmt.Fprintf(&block, "SESSION_TOKEN=%s\n", raw.Credentials.SessionToken)
+	}
+	block.WriteString("AUTO_SWITCH=false\n")
+	block.WriteString("--- END_PATHFINDER_IDENTITY_DATA ---")
+
+	return &ParsedArtifact{
+		Name:            name,
+		AccessKeyID:     raw.Credentials.AccessKeyID,
+		SecretAccessKey: raw.Credentials.SecretAccessKey,
+		SessionToken:    raw.Credentials.SessionToken,
+		IdentityData:    block.String(),
+	}, nil
+}
+
+// ExtractIdentityDataFromArtifact parses an exfil/s3 JSON artifact and returns
+// a PATHFINDER_IDENTITY_DATA block suitable for handleStructuredIdentityData.
+//
+// Two formats are supported:
+//   - Lambda format: artifact has an "identity_data" field already containing the
+//     PATHFINDER_IDENTITY_DATA block (written by pkg/payloads/lambda/exfil_s3.go)
+//   - EC2/bash format: artifact has a "credentials" object with access_key_id,
+//     secret_access_key, session_token and a top-level "role_name" field
+//     (written by pkg/payloads/ec2/exfil_s3.go)
+func ExtractIdentityDataFromArtifact(content []byte) (string, error) {
+	var artifact struct {
+		IdentityData string `json:"identity_data"`
+		RoleName     string `json:"role_name"`
+		Credentials  struct {
+			AccessKeyID     string `json:"access_key_id"`
+			SecretAccessKey string `json:"secret_access_key"`
+			SessionToken    string `json:"session_token"`
+		} `json:"credentials"`
+	}
+	if err := json.Unmarshal(content, &artifact); err != nil {
+		return "", fmt.Errorf("failed to parse artifact JSON: %v", err)
+	}
+
+	// Lambda format: pre-built identity block
+	if artifact.IdentityData != "" {
+		return artifact.IdentityData, nil
+	}
+
+	// EC2/bash format: construct identity block from raw credential fields
+	if artifact.Credentials.AccessKeyID == "" || artifact.Credentials.SecretAccessKey == "" {
+		return "", fmt.Errorf("artifact contains no usable credential data")
+	}
+
+	name := "ec2-role"
+	if artifact.RoleName != "" {
+		name = "ec2-role/" + artifact.RoleName
+	}
+
+	var block strings.Builder
+	block.WriteString("--- PATHFINDER_IDENTITY_DATA ---\n")
+	fmt.Fprintf(&block, "NAME=%s\n", name)
+	block.WriteString("TYPE=keys\n")
+	fmt.Fprintf(&block, "ACCESS_KEY_ID=%s\n", artifact.Credentials.AccessKeyID)
+	fmt.Fprintf(&block, "SECRET_ACCESS_KEY=%s\n", artifact.Credentials.SecretAccessKey)
+	if artifact.Credentials.SessionToken != "" {
+		fmt.Fprintf(&block, "SESSION_TOKEN=%s\n", artifact.Credentials.SessionToken)
+	}
+	block.WriteString("AUTO_SWITCH=false\n")
+	block.WriteString("--- END_PATHFINDER_IDENTITY_DATA ---")
+	return block.String(), nil
+}
+
+// RawCredentials holds the raw credential fields extracted from a PATHFINDER_IDENTITY_DATA block.
+type RawCredentials struct {
+	AccessKeyID     string
+	SecretAccessKey string
+	SessionToken    string
+}
+
+// ExtractCredentialsFromIdentityData parses the key=value pairs inside a
+// PATHFINDER_IDENTITY_DATA block and returns the access key fields. Returns nil
+// if any required field is missing.
+func ExtractCredentialsFromIdentityData(identityData string) *RawCredentials {
+	creds := &RawCredentials{}
+	for _, line := range strings.Split(identityData, "\n") {
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		key, value := strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+		switch key {
+		case "ACCESS_KEY_ID":
+			creds.AccessKeyID = value
+		case "SECRET_ACCESS_KEY":
+			creds.SecretAccessKey = value
+		case "SESSION_TOKEN":
+			creds.SessionToken = value
+		}
+	}
+	if creds.AccessKeyID == "" || creds.SecretAccessKey == "" {
+		return nil
+	}
+	return creds
 }
 
 func generateBucketName(prefix string) (string, error) {

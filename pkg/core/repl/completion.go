@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package repl
 
 import (
@@ -149,9 +153,7 @@ func (r *REPL) getCompleter() readline.AutoCompleter {
 			readline.PcItem("help"),
 		),
 		r.buildDiscoverCompleter(),
-		readline.PcItem("info",
-			readline.PcItem("help"),
-		),
+		r.buildInfoCompleter(),
 		r.buildPmapperCompleter(),
 		r.buildCloudfoxCompleter(),
 		r.buildResourcesCompleter(),
@@ -160,6 +162,25 @@ func (r *REPL) getCompleter() readline.AutoCompleter {
 		),
 		readline.PcItem("version"),
 	)
+}
+
+// buildInfoCompleter builds completion for the info command.
+// Shows all modules as "id/short-name" so you can tab-complete to browse any module.
+func (r *REPL) buildInfoCompleter() readline.PrefixCompleterInterface {
+	infos := modules.ListPathInfos()
+
+	items := make([]readline.PrefixCompleterInterface, 0, len(infos)+1)
+	items = append(items, readline.PcItem("help"))
+
+	for _, info := range infos {
+		label := info.ID
+		if len(info.Aliases) > 0 {
+			label = info.ID + "/" + info.Aliases[0]
+		}
+		items = append(items, readline.PcItem(label))
+	}
+
+	return readline.PcItem("info", items...)
 }
 
 // buildUseCompleter builds completion for the use command
@@ -409,6 +430,7 @@ func (r *REPL) buildInfraSubtree() readline.PrefixCompleterInterface {
 				readline.PcItem("--region"),
 			),
 			readline.PcItem("status"),
+			readline.PcItem("collect"),
 			readline.PcItem("destroy",
 				readline.PcItem("--name"),
 			),

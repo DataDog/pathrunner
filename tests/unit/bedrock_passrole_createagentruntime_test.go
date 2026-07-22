@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package unit
 
 import (
@@ -62,16 +66,13 @@ func TestBedrockPassroleCreateAgentRuntimeOptions(t *testing.T) {
 		}
 	}
 
-	// EXECUTION_ROLE_ARN and CONTAINER_URI are required
+	// EXECUTION_ROLE_ARN is required; CONTAINER_URI is optional (auto-finds/creates ECR repo)
 	if !requiredOptions["EXECUTION_ROLE_ARN"] {
 		t.Error("Expected EXECUTION_ROLE_ARN to be required")
 	}
-	if !requiredOptions["CONTAINER_URI"] {
-		t.Error("Expected CONTAINER_URI to be required")
-	}
 
-	// REGION, RUNTIME_NAME, CLEANUP are optional
-	for _, opt := range []string{"REGION", "RUNTIME_NAME", "CLEANUP"} {
+	// CONTAINER_URI, REGION, RUNTIME_NAME, CLEANUP are optional
+	for _, opt := range []string{"CONTAINER_URI", "REGION", "RUNTIME_NAME", "CLEANUP"} {
 		if !optionalOptions[opt] {
 			t.Errorf("Expected %s to be optional", opt)
 		}
@@ -165,13 +166,12 @@ func TestBedrockPassroleCreateAgentRuntimeAliasRegistration(t *testing.T) {
 	}
 }
 
-func TestBedrockPassroleCreateAgentRuntimeNoPayloads(t *testing.T) {
+func TestBedrockPassroleCreateAgentRuntimePayloadCompatible(t *testing.T) {
 	mod := bedrock_passrole_createagentruntime.NewModule()
 
-	// This module does not use payloads — it directly steals credentials via MMDS
-	payloadList := mod.ListPayloads()
-	if len(payloadList) != 0 {
-		t.Errorf("Expected no payloads for bedrock-003 (credential theft module), got %d", len(payloadList))
+	_, isPayloadCompatible := interface{}(mod).(modules.PayloadCompatible)
+	if !isPayloadCompatible {
+		t.Error("bedrock-003 should implement PayloadCompatible")
 	}
 }
 

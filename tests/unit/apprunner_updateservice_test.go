@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package unit
 
 import (
@@ -62,16 +66,13 @@ func TestAppRunnerUpdateServiceOptions(t *testing.T) {
 		}
 	}
 
-	// SERVICE_ARN and PAYLOAD are required
-	if !requiredOptions["SERVICE_ARN"] {
-		t.Error("Expected SERVICE_ARN to be required")
-	}
+	// PAYLOAD is required; SERVICE_ARN is optional (auto-discovered)
 	if !requiredOptions["PAYLOAD"] {
 		t.Error("Expected PAYLOAD to be required")
 	}
 
 	// These should be optional
-	expectedOptional := []string{"REGION", "TARGET_ARN", "CONTAINER_IMAGE", "CLEANUP"}
+	expectedOptional := []string{"SERVICE_ARN", "REGION", "TARGET_ARN", "CONTAINER_IMAGE", "CLEANUP"}
 	for _, name := range expectedOptional {
 		if !optionalOptions[name] {
 			t.Errorf("Expected %s to be optional", name)

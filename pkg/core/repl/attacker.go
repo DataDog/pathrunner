@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package repl
 
 import (
@@ -283,6 +287,16 @@ func (r *REPL) showAttackerHelp() error {
 	fmt.Println("  attacker infra ec2 update                                - Update binary on existing EC2 instance")
 	fmt.Println("  attacker infra ec2 status                                - Show EC2 instance state")
 	fmt.Println("  attacker infra ec2 destroy                               - Tear down EC2 deployment")
+	fmt.Println()
+	fmt.Println("  attacker infra bucket [create] [--region <region>]       - Create code + exfil S3 buckets")
+	fmt.Println("  attacker infra bucket status                             - Show deployed buckets")
+	fmt.Println("  attacker infra bucket collect                            - Download exfil artifacts and import credentials")
+	fmt.Println("  attacker infra bucket destroy                            - Destroy all buckets")
+	fmt.Println()
+	fmt.Println("  attacker infra ecr [create] [--region <region>]          - Create ECR repo + push container image")
+	fmt.Println("  attacker infra ecr status                                - Show deployed ECR repos")
+	fmt.Println("  attacker infra ecr destroy                               - Destroy all ECR repos")
+	fmt.Println()
 	fmt.Println("  attacker infra status                                    - Show all deployed infrastructure")
 	fmt.Println("  attacker infra destroy                                   - Tear down ALL deployed infrastructure")
 	fmt.Println()

@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package unit
 
 import (
@@ -72,7 +76,7 @@ func TestEcsPassroleOptions(t *testing.T) {
 	}
 
 	// These should be optional (CLUSTER_NAME is now optional since the module creates it)
-	expectedOptional := []string{"REGION", "SUBNET_ID", "TASK_FAMILY", "CONTAINER_IMAGE", "CLEANUP", "CLUSTER_NAME", "SERVICE_NAME"}
+	expectedOptional := []string{"REGION", "SUBNET_ID", "TASK_FAMILY", "CONTAINER_IMAGE", "CLEANUP", "CLUSTER_NAME"}
 	for _, name := range expectedOptional {
 		if !optionalOptions[name] {
 			t.Errorf("Expected %s to be optional", name)

@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package repl
 
 import (
@@ -73,7 +77,7 @@ func (r *REPL) getCommands() map[string]*Command {
 		},
 		"context": {
 			Name:        "context",
-			Description: "Show current context (session, identity, module, options)",
+			Description: "Show full context: workspace, identity, module, options, pmapper, resources",
 			Handler:     r.cmdContext,
 		},
 		"aws": {
@@ -157,7 +161,7 @@ func (r *REPL) cmdHelp(repl *REPL, args []string) error {
 	coreOrder := []string{
 		"modules", "search", "use",
 		"identity", "attacker", "sessions", "aws", "whoami",
-		"workspace", "pmapper", "cloudfox", "resources", "context",
+		"workspace", "context", "pmapper", "cloudfox", "resources",
 		"version", "help", "exit",
 	}
 	fmt.Println(ui.BoldCyan.Render("  Core Commands"))
@@ -366,11 +370,14 @@ func (r *REPL) showIdentityClearHelp() error {
 
 func (r *REPL) showShowHelp() error {
 	fmt.Println("Show Command:")
-	fmt.Println("  show <command> [subcommand]   Transparent read-intent prefix for any display command")
+	fmt.Println("  show <command> [subcommand]   Transparent read-only prefix for any display command")
+	fmt.Println()
+	fmt.Println("The 'show' prefix signals read-only intent and lets you prefix any display command")
+	fmt.Println("without side effects. Write operations must be run directly without 'show'.")
 	fmt.Println()
 	fmt.Println("Available targets:")
 	fmt.Println("  show modules [list|summary|status|--wide]")
-	fmt.Println("  show payloads [list]")
+	fmt.Println("  show payloads [list|options]")
 	fmt.Println("  show identity [list|show|check]")
 	fmt.Println("  show workspace [list|report|history]")
 	fmt.Println("  show pmapper [status|analyze]")
@@ -420,7 +427,10 @@ func (r *REPL) showPayloadsHelp() error {
 	fmt.Println("  payloads            - List payloads (current module, or all if no module selected)")
 	fmt.Println("  payloads list       - List payloads (current module, or all if no module selected)")
 	fmt.Println("  payloads list --all - List payloads for all modules regardless of current module")
+	fmt.Println("  payloads options    - Show options for the currently selected payload")
 	fmt.Println("  payloads help       - Show this help message")
+	fmt.Println()
+	fmt.Println("Alias: 'payload' is equivalent to 'payloads'")
 	return nil
 }
 
@@ -654,18 +664,40 @@ func (r *REPL) cmdInfo(repl *REPL, args []string) error {
 	if len(args) > 0 && args[0] == "help" {
 		return r.showInfoHelp()
 	}
+
+	// Optional module name argument: info <module-id> browses without selecting
+	if len(args) > 0 {
+		moduleID := args[0]
+		// Support "id/short-name" format from tab completion, same as use
+		if idx := strings.Index(moduleID, "/"); idx != -1 {
+			moduleID = moduleID[:idx]
+		}
+		mod, err := modules.LoadModule(moduleID)
+		if err != nil {
+			return NewModuleNotFoundError(moduleID)
+		}
+		return r.showInfoForModule(mod)
+	}
+
 	return r.showInfo()
 }
 
 func (r *REPL) showInfoHelp() error {
 	fmt.Println("Info Command:")
-	fmt.Println("  info    - Show detailed path metadata for the current module")
+	fmt.Println("  info                - Show detailed path metadata for the current module")
+	fmt.Println("  info <module-id>    - Show path metadata for any module without selecting it")
 	fmt.Println()
 	fmt.Println("Displays path ID, name, category, services, permissions,")
 	fmt.Println("prerequisites, related paths, references, and aliases.")
 	fmt.Println()
-	fmt.Println("Requires a module to be selected with 'use <module>'.")
-	fmt.Println("Equivalent to 'show info'.")
+	fmt.Println("With no argument, requires a module to be selected with 'use <module>'.")
+	fmt.Println("With a module ID, works without selecting the module first.")
+	fmt.Println("Equivalent to 'show info' when no argument is provided.")
+	fmt.Println()
+	fmt.Println("Examples:")
+	fmt.Println("  info               # Info on current module")
+	fmt.Println("  info ssm-003       # Info on ssm-003 without selecting it")
+	fmt.Println("  info lambda-001    # Info on lambda-001")
 	return nil
 }
 

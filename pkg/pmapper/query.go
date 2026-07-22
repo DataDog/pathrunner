@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package pmapper
 
 import (
@@ -76,6 +80,21 @@ func (g *PrivescGraph) FindPathsToAdmin(principalARN string) []PrivescPath {
 		}
 
 		privescPath := g.buildPrivescPath(normalizedARN, adminARN, path)
+
+		// Append self-escalation steps for the target node so callers can see
+		// why that node is privileged (e.g., it holds iam:CreatePolicyVersion on itself).
+		for _, result := range g.analyzeSelfEscalation(adminARN) {
+			r := result
+			privescPath.Steps = append(privescPath.Steps, PrivescStep{
+				Source:         adminARN,
+				Destination:    adminARN,
+				ShortReason:    "Self-Escalation",
+				Reason:         result.Description,
+				ModuleIDs:      []string{result.ModuleID},
+				SelfEscalation: &r,
+			})
+		}
+
 		paths = append(paths, privescPath)
 	}
 

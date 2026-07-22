@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package repl
 
 import (
@@ -55,6 +59,8 @@ type IdentityManager interface {
 	SetAttackerIdentity(identity *modules.Identity)
 	ClearAttackerIdentity()
 	ClearIdentity()
+	FindIdentityByARN(arn string) *modules.Identity
+	UpdateIdentityCredentials(name, accessKeyID, secretKey, sessionToken string) error
 }
 
 // SessionManager interface for dependency injection
@@ -129,6 +135,7 @@ func NewREPL(identityManager IdentityManager, sessionManager SessionManager) *RE
 	r.aliases["workspaces"] = "workspace"
 	r.aliases["quit"] = "exit"
 	r.aliases["session"] = "sessions"
+	r.aliases["payload"] = "payloads"
 	r.aliases["listener"] = "attacker listener"
 	r.aliases["infra"] = "attacker infra"
 	r.aliases["run"] = "exploit"

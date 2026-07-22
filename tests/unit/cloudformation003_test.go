@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package unit
 
 import (
@@ -66,7 +70,7 @@ func TestCloudformation003Options(t *testing.T) {
 		t.Error("Expected EXECUTION_ROLE_NAME to be required")
 	}
 
-	expectedOptional := []string{"ROLE_ARN", "STACKSET_NAME", "ESCALATED_ROLE_NAME", "TRUST_PRINCIPAL", "REGION", "ASSUME_ROLE", "AUTO_SWITCH", "CLEANUP"}
+	expectedOptional := []string{"ROLE_ARN", "STACKSET_NAME", "ESCALATED_ROLE_NAME", "TRUST_PRINCIPAL", "REGION", "ASSUME_ROLE", "CLEANUP"}
 	for _, name := range expectedOptional {
 		if !optionalOptions[name] {
 			t.Errorf("Expected %s to be optional", name)

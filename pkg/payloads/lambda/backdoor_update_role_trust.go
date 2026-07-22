@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package lambda
 
 import (
@@ -107,6 +111,7 @@ def lambda_handler(event, context):
                 'status': 'success',
                 'message': f'Added {trust_principal} to trust policy of {role_name}',
                 'role_name': role_name,
+                'role_arn': role_response['Role']['Arn'],
                 'trust_principal': trust_principal,
                 'principal_type': principal_key,
                 'original_policy': original_policy,
@@ -177,20 +182,20 @@ func (p *BackdoorUpdateRoleTrustPayload) ProcessResult(result string) (string, e
 				output.WriteString("Role: " + roleName + "\n")
 			}
 
+			roleARN, _ := parsedBody["role_arn"].(string)
+			if roleARN != "" {
+				output.WriteString("Role ARN: " + roleARN + "\n")
+			}
+
 			if principal, ok := parsedBody["trust_principal"].(string); ok {
 				output.WriteString("Added Principal: " + principal + "\n")
 			}
 
-			if principalType, ok := parsedBody["principal_type"].(string); ok {
-				output.WriteString("Principal Type: " + principalType + "\n")
-			}
-
-			if originalPolicy, ok := parsedBody["original_policy"].(string); ok {
-				output.WriteString("\nOriginal Trust Policy:\n" + originalPolicy + "\n")
-			}
-
-			if newPolicy, ok := parsedBody["new_policy"].(string); ok {
-				output.WriteString("\nNew Trust Policy:\n" + newPolicy + "\n")
+			if roleARN != "" {
+				output.WriteString("\nNext steps:\n")
+				output.WriteString("  use sts-001\n")
+				output.WriteString("  set ROLE_ARN " + roleARN + "\n")
+				output.WriteString("  exploit\n")
 			}
 
 		} else {

@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package repl
 
 import (
@@ -91,7 +95,7 @@ func (r *REPL) cmdCloudfox(repl *REPL, args []string) error {
 // cmdResources handles resources commands
 func (r *REPL) cmdResources(repl *REPL, args []string) error {
 	if len(args) == 0 {
-		return r.showResourcesHelp()
+		return r.resourcesList(nil)
 	}
 
 	switch args[0] {

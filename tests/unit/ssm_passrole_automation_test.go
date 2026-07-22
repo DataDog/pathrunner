@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package unit
 
 import (
@@ -66,13 +70,15 @@ func TestSSMPassroleAutomationOptions(t *testing.T) {
 		}
 	}
 
-	// AUTOMATION_ROLE_ARN is the only required option
-	if !requiredOptions["AUTOMATION_ROLE_ARN"] {
-		t.Error("Expected AUTOMATION_ROLE_ARN to be required")
+	// ROLE_ARN and PAYLOAD are required.
+	for _, name := range []string{"ROLE_ARN", "PAYLOAD"} {
+		if !requiredOptions[name] {
+			t.Errorf("Expected %s to be required", name)
+		}
 	}
 
-	// These should be optional
-	expectedOptional := []string{"TARGET_USER", "DOCUMENT_NAME", "REGION", "CLEANUP"}
+	// These should be optional.
+	expectedOptional := []string{"DOCUMENT_NAME", "REGION", "CLEANUP"}
 	for _, name := range expectedOptional {
 		if !optionalOptions[name] {
 			t.Errorf("Expected %s to be optional", name)
@@ -211,9 +217,9 @@ func TestSSMPassroleAutomationRelatedPaths(t *testing.T) {
 func TestSSMPassroleAutomationExecuteMissingRoleARN(t *testing.T) {
 	mod := ssm_passrole_automation.NewModule()
 
-	// Execute without AUTOMATION_ROLE_ARN should fail with a credential/network error
-	// since AUTOMATION_ROLE_ARN has no default. In practice the module will try to call
-	// GetCallerIdentity and fail on network, but validation happens before that.
+	// Execute without ROLE_ARN should fail since it has no default. In practice
+	// the module will try to call GetCallerIdentity and fail on network, but
+	// validation happens before that.
 	ectx := modules.ExecutionContext{
 		Identity: &modules.Identity{
 			Name:   "test-victim",
@@ -221,15 +227,15 @@ func TestSSMPassroleAutomationExecuteMissingRoleARN(t *testing.T) {
 			Region: "us-east-1",
 		},
 		Options: map[string]string{
-			// AUTOMATION_ROLE_ARN intentionally omitted
-			"TARGET_USER": "test-user",
+			// ROLE_ARN intentionally omitted
+			"PAYLOAD": "backdoor/attach-policy",
 		},
 	}
 
-	// An empty AUTOMATION_ROLE_ARN will cause the SSM API call to fail.
+	// An empty ROLE_ARN will cause the SSM API call to fail.
 	// The test verifies the module does not panic.
 	_, err := mod.Execute(ectx)
 	if err == nil {
-		t.Error("Expected an error when AUTOMATION_ROLE_ARN is empty (should fail on AWS API call)")
+		t.Error("Expected an error when ROLE_ARN is empty (should fail on AWS API call)")
 	}
 }

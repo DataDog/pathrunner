@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package core
 
 import (
@@ -64,6 +68,57 @@ func (im *IdentityManager) storeIdentity(identity *modules.Identity) {
 	if im.onIdentityAdded != nil {
 		im.onIdentityAdded(identity)
 	}
+}
+
+// FindIdentityByARN returns the first identity whose CallerARN matches the given
+// ARN, or nil if none exists. Used by bucket collect to detect re-imports of the
+// same underlying AWS identity so credentials can be updated in-place rather than
+// creating a duplicate entry.
+func (im *IdentityManager) FindIdentityByARN(arn string) *modules.Identity {
+	if arn == "" {
+		return nil
+	}
+	for _, identity := range im.identities {
+		if identity.CallerARN == arn {
+			return identity
+		}
+	}
+	return nil
+}
+
+// UpdateIdentityCredentials replaces the credentials of an existing identity and
+// re-validates them. The identity's name and other metadata are preserved.
+func (im *IdentityManager) UpdateIdentityCredentials(name, accessKeyID, secretKey, sessionToken string) error {
+	identity, exists := im.identities[name]
+	if !exists {
+		return fmt.Errorf("identity '%s' not found", name)
+	}
+
+	creds := credentials.NewStaticCredentialsProvider(accessKeyID, secretKey, sessionToken)
+	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithCredentialsProvider(creds))
+	if err != nil {
+		return fmt.Errorf("failed to build config from updated credentials: %v", err)
+	}
+	cfg.Region = identity.Region
+
+	identity.AccessKeyID = accessKeyID
+	identity.SecretKey = secretKey
+	identity.SessionToken = sessionToken
+	identity.SetConfig(cfg)
+
+	if sessionToken != "" {
+		expiresAt := time.Now().Add(1 * time.Hour)
+		identity.ExpiresAt = &expiresAt
+	} else {
+		identity.ExpiresAt = nil
+	}
+
+	if err := identity.Validate(); err != nil {
+		return fmt.Errorf("updated credentials failed validation: %v", err)
+	}
+
+	im.storeIdentity(identity)
+	return nil
 }
 
 func (im *IdentityManager) GetCurrent() *modules.Identity {

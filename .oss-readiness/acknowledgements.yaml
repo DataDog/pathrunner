@@ -1,0 +1,902 @@
+version: 1
+acknowledgements:
+- id: a9bd5a0f7ca387c11accc678b224b5eac08ac6cd920b3d5c1179815becd1e028
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: pkg/utils/credentials_test.go — matched pattern 'AWS Access Key'
+  reason: AWS documentation example key AKIAIOSFODNN7EXAMPLE - not a real credential,
+    used in tests for credential parsing
+  acknowledged_at: '2026-07-22T18:57:31.627888+00:00'
+  acknowledged_by: Seth Art
+- id: eb9c8b5b239304ff7bf405ce6c310564c60fd6ff46dc7a8d1d7bc450fc825190
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: pkg/utils/credentials_test.go — matched pattern 'AWS Access Key'
+  reason: AWS documentation example secret key wJalrXUtnFEMI - not a real credential,
+    used in tests
+  acknowledged_at: '2026-07-22T18:57:31.985168+00:00'
+  acknowledged_by: Seth Art
+- id: eabebf9f4d7878c3fb7deae433d177a54f7bd40753f34915bd2c91a4da3fc6ad
+  check_id: no_secrets_patterns
+  title: 'Potential secret: Generic token'
+  evidence_pattern: pkg/utils/credentials_test.go — matched pattern 'Generic token'
+  reason: Generic test token value in credentials_test.go - not a real secret
+  acknowledged_at: '2026-07-22T18:57:32.673692+00:00'
+  acknowledged_by: Seth Art
+- id: 1657dbf2e11801d2c3da284450861da1872d51c7c3a327694463b87f92efae05
+  check_id: no_secrets_patterns
+  title: 'Potential secret: Generic token'
+  evidence_pattern: pkg/utils/credentials_test.go — matched pattern 'Generic token'
+  reason: Generic test token value in credentials_test.go - not a real secret
+  acknowledged_at: '2026-07-22T18:57:33.045707+00:00'
+  acknowledged_by: Seth Art
+- id: ca59c800e4169e3c57dd3e017a244869c240ec30405314d3ed9dad285a4badea
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: pkg/core/repl/commands.go — matched pattern 'AWS Access Key'
+  reason: Example key shown in REPL help text - not a real credential
+  acknowledged_at: '2026-07-22T18:57:33.403366+00:00'
+  acknowledged_by: Seth Art
+- id: ecfadcf68b45087001c23fa24787f032bd86c0ff5e895af8b7efecfcff96048e
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: tests/unit/attacker_listener_test.go — matched pattern 'AWS Access
+    Key'
+  reason: Mock AWS credential in attacker_listener_test.go - not a real secret
+  acknowledged_at: '2026-07-22T18:57:33.761443+00:00'
+  acknowledged_by: Seth Art
+- id: 70ae2b1ca2c78816c874bee7c1a3e2f7c05de891cf39c86668e7780b75bc7950
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: tests/unit/attacker_listener_test.go — matched pattern 'AWS Access
+    Key'
+  reason: Mock AWS credential in attacker_listener_test.go - not a real secret
+  acknowledged_at: '2026-07-22T18:57:34.122390+00:00'
+  acknowledged_by: Seth Art
+- id: 7bf1b784b79c97c54084ff29abcc9a3203f404c140a8fa9686fd73f369d9805a
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: tests/unit/attacker_listener_test.go — matched pattern 'AWS Access
+    Key'
+  reason: Mock AWS credential in attacker_listener_test.go - not a real secret
+  acknowledged_at: '2026-07-22T18:57:34.483074+00:00'
+  acknowledged_by: Seth Art
+- id: 3b7e2e75ce4ce76848accae51db17781b90740ac8f0cbc205728083bdfd321fa
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: tests/unit/attacker_listener_test.go — matched pattern 'AWS Access
+    Key'
+  reason: Mock AWS credential in attacker_listener_test.go - not a real secret
+  acknowledged_at: '2026-07-22T18:57:34.854407+00:00'
+  acknowledged_by: Seth Art
+- id: d81c3d96e056e37fe5985110fc05793ff0881da620889618bf83eb1d47f1dbf0
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: tests/unit/attacker_listener_test.go — matched pattern 'AWS Access
+    Key'
+  reason: Mock AWS credential in attacker_listener_test.go - not a real secret
+  acknowledged_at: '2026-07-22T18:57:35.234451+00:00'
+  acknowledged_by: Seth Art
+- id: 2eee64593e43eb643f3ef1375fd530b8ff558c2ee3b756310bf4191e69eaddd8
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: tests/unit/attacker_listener_test.go — matched pattern 'AWS Access
+    Key'
+  reason: Mock AWS credential in attacker_listener_test.go - not a real secret
+  acknowledged_at: '2026-07-22T18:57:35.597285+00:00'
+  acknowledged_by: Seth Art
+- id: ca9562a4734bed4382b45b93ab76ee34a1ddb61f4a54fab6fe368902bc47135e
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: tests/unit/attacker_listener_test.go — matched pattern 'AWS Access
+    Key'
+  reason: Mock AWS credential in attacker_listener_test.go - not a real secret
+  acknowledged_at: '2026-07-22T18:57:35.957611+00:00'
+  acknowledged_by: Seth Art
+- id: 6c5bb6fd36517be759c473402b369bc800f2630a315f7b2ee58a8ba8b5205d0a
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: tests/unit/attacker_listener_test.go — matched pattern 'AWS Access
+    Key'
+  reason: Mock AWS credential in attacker_listener_test.go - not a real secret
+  acknowledged_at: '2026-07-22T18:57:36.320133+00:00'
+  acknowledged_by: Seth Art
+- id: 6add8afe82d81ee46ae7533d68c52fb519a95e0f7b5e61a336ea268e61f350a9
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: tests/unit/attacker_listener_test.go — matched pattern 'AWS Access
+    Key'
+  reason: Mock AWS credential in attacker_listener_test.go - not a real secret
+  acknowledged_at: '2026-07-22T18:57:36.678666+00:00'
+  acknowledged_by: Seth Art
+- id: e02f1539f1a5600c8d2b5ec895115c6acbbe547d46d4114ea050ecaa50e93434
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: tests/unit/attacker_listener_test.go — matched pattern 'AWS Access
+    Key'
+  reason: Mock AWS credential in attacker_listener_test.go - not a real secret
+  acknowledged_at: '2026-07-22T18:57:37.037994+00:00'
+  acknowledged_by: Seth Art
+- id: 7d66bdce9bde5047472e86d59a150e9efbf58f7a2d11155189d2bf6719245bef
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: tests/integration/cleanup_integration_test.go — matched pattern
+    'AWS Access Key'
+  reason: Mock AWS credential in integration tests - not a real secret
+  acknowledged_at: '2026-07-22T18:58:01.406438+00:00'
+  acknowledged_by: Seth Art
+- id: 2be04f5b318a990d6941a86d38e8ebacfb09c2c35f8fb7df0986cb31d0885a47
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: tests/integration/discovery_integration_test.go — matched pattern
+    'AWS Access Key'
+  reason: Mock AWS credential in discovery integration tests - not a real secret
+  acknowledged_at: '2026-07-22T18:58:01.772430+00:00'
+  acknowledged_by: Seth Art
+- id: 75c3062fdbaa5dbb4b1a5fbe1ec51ba63ad087544bab1b3fa9761c7b243bffb3
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: tests/integration/attacker_listener_integration_test.go — matched
+    pattern 'AWS Access Key'
+  reason: Mock AWS credential in attacker_listener integration test - not a real secret
+  acknowledged_at: '2026-07-22T18:58:02.140464+00:00'
+  acknowledged_by: Seth Art
+- id: bc3b4330219eae980e2982ba844d5d99116420453e9b4271f696fc424432021e
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: tests/fixtures/cloudfox/testprofile-123456789012/loot/access-keys.txt
+    — matched pattern 'AWS Access Key'
+  reason: Test fixture simulating cloudfox loot output - AKIAIOSFODNN7EXAMPLE is AWS
+    documentation example key
+  acknowledged_at: '2026-07-22T18:58:02.511811+00:00'
+  acknowledged_by: Seth Art
+- id: 572f6990fa0e859a3511948caea5e4aa119dad9cfcea9805c5843846c0652afb
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: tests/fixtures/cloudfox/testprofile-123456789012/loot/access-keys.txt
+    — matched pattern 'AWS Access Key'
+  reason: Test fixture simulating cloudfox loot output - AKIAI44QH8DHBEXAMPLE is AWS
+    documentation example key
+  acknowledged_at: '2026-07-22T18:58:02.904232+00:00'
+  acknowledged_by: Seth Art
+- id: 75c11def24259ac9d83af7c1b7e12345e7645caba71b96c8c56ec75a3cbbd282
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: tests/fixtures/cloudfox/testprofile-123456789012/json/access-keys.json
+    — matched pattern 'AWS Access Key'
+  reason: Test fixture simulating cloudfox JSON output - mock AWS key for testing
+    import functionality
+  acknowledged_at: '2026-07-22T18:58:03.276023+00:00'
+  acknowledged_by: Seth Art
+- id: a141e2a7142524825433480d748e0765ee9be7d16d0c129594d17f472e5e0739
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: test-results/iam-003-final.log — matched pattern 'AWS Access Key'
+  reason: Gitignored local test log file (test-results/**) - real credentials captured
+    during lab testing, not committed to repo
+  acknowledged_at: '2026-07-22T18:58:18.128814+00:00'
+  acknowledged_by: Seth Art
+- id: 9f393b2005c4570bab76055821ed6175de0b0ac1bec0d37780e0a8f368c75c8d
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: test-results/iam-003-final.log — matched pattern 'AWS Access Key'
+  reason: Gitignored local test log file (test-results/**) - real credentials captured
+    during lab testing, not committed to repo
+  acknowledged_at: '2026-07-22T18:58:18.506868+00:00'
+  acknowledged_by: Seth Art
+- id: 4f39627bc8da824976198926cda037282b43262128456f50dfc74fc536bad4bd
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: test-results/iam-003-final.log — matched pattern 'AWS Access Key'
+  reason: Gitignored local test log file (test-results/**) - real credentials captured
+    during lab testing, not committed to repo
+  acknowledged_at: '2026-07-22T18:58:18.870569+00:00'
+  acknowledged_by: Seth Art
+- id: 1136ce2023257d58755e013a4e1327b4d7db2b52a6d14c99638bd060aa515357
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: test-results/iam-003-final.log — matched pattern 'AWS Access Key'
+  reason: Gitignored local test log file (test-results/**) - real credentials captured
+    during lab testing, not committed to repo
+  acknowledged_at: '2026-07-22T18:58:19.238142+00:00'
+  acknowledged_by: Seth Art
+- id: 2ba73ec349966c02c1527a1e57b96e7280f4c7a63e466c05864187fa5eeaf32a
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .pathfinder/history — matched pattern 'AWS Access Key'
+  reason: Gitignored local test log file (test-results/**) - real credentials captured
+    during lab testing, not committed to repo
+  acknowledged_at: '2026-07-22T18:58:19.612144+00:00'
+  acknowledged_by: Seth Art
+- id: 0170abd2b7d5595d0243c486a6e5d9d7ab8ae4c4dc55c28dc9abec6663299802
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: unit.test — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:11.998282+00:00'
+  acknowledged_by: Seth Art
+- id: 035a9fa6fd6af239a0e88f92d793fd2b9122633d61c2ee5bb3977de0def22ef4
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .crush/crush.db — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:12.386644+00:00'
+  acknowledged_by: Seth Art
+- id: 066abd3aa8249a97dc331dd30c2fb68a380fdbb8fe772360a08f1e4de82d0966
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: unit.test — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:12.762298+00:00'
+  acknowledged_by: Seth Art
+- id: 0b6955965906e26f17386304a1cff1345bcdd47c73ab2034615c95b3b4bed8ec
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .crush/crush.db — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:13.142132+00:00'
+  acknowledged_by: Seth Art
+- id: 13f43d1b04b9dc6462ccbe48f5e637a749ae9e0db654717bf5e7710e7e3e6677
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .claude/settings.local.json — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:13.543361+00:00'
+  acknowledged_by: Seth Art
+- id: 1528fb1dcd19ef44fec5f56dce8e6582cd0613b9d4964c82db4976ef21872424
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .claude/settings.local.json — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:13.921945+00:00'
+  acknowledged_by: Seth Art
+- id: 16023775c632bf455bfa78749fc1714d696a6daf3dd87d02dc8a4d9d882eaf8d
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .claude/settings.local.json — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:14.316737+00:00'
+  acknowledged_by: Seth Art
+- id: 19493e58b4a808253ac2ff227b9ca86a2cf38ef94fd17b2372d3fab151aafff8
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Secret Key'
+  evidence_pattern: .claude/settings.local.json — matched pattern 'AWS Secret Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:14.707092+00:00'
+  acknowledged_by: Seth Art
+- id: 1c2e83230b5ae91bfdc3e42ed5d03800637366cd64a07084d51275c7943a591b
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .crush/crush.db — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:15.087256+00:00'
+  acknowledged_by: Seth Art
+- id: 1fb44930c9ae1c5626e04d1f3390e037463a9a47a539938dbf0a6498a9557ef3
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: unit.test — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:15.465949+00:00'
+  acknowledged_by: Seth Art
+- id: 20cdb4a7eba7491ba6e06a7888bad659787768efb121f3cf86c6a5d0b4e474d5
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .claude/settings.local.json — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:15.838113+00:00'
+  acknowledged_by: Seth Art
+- id: 2a64cbe475a159090aa36af76ebce3f6923463d0bde63db1e83cb11a29b4af70
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .claude/settings.local.json — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:16.216748+00:00'
+  acknowledged_by: Seth Art
+- id: 2d5e0f88e8d3563df591dd9e9d35c07301a1dc6ea9b93a311bdc80c48c50df3c
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .claude/settings.local.json — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:16.589517+00:00'
+  acknowledged_by: Seth Art
+- id: 2ed477e6c2543486128384ea58657fa609d455cbb522f75a7c3ae8879937cc7b
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .crush/crush.db — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:16.959011+00:00'
+  acknowledged_by: Seth Art
+- id: 4225ba24b24c54fa3e11b87369ad52f360004916fdc7c5835cd5ac4ec1ce8e1a
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .claude/settings.local.json — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:17.331216+00:00'
+  acknowledged_by: Seth Art
+- id: 48843cf10774c3cafbb9a632a73d10915fb7031aa9e7083cc42768befb8b4c7e
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .claude/settings.local.json — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:17.699118+00:00'
+  acknowledged_by: Seth Art
+- id: 48de884c8ba84e2732f0fa8da02a90e281241bab71f6508ebec291a423579730
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .crush/crush.db — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:18.067088+00:00'
+  acknowledged_by: Seth Art
+- id: 509b085f4b44d137571790d72c0952412d0a7d51ad6597b852aac6a4c06a1887
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .claude/settings.local.json — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:18.433195+00:00'
+  acknowledged_by: Seth Art
+- id: 560ee9926554d9936ee88aa183753a398bf0bbf38cd2aa432022576d6acd71ac
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .crush/crush.db — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:18.802913+00:00'
+  acknowledged_by: Seth Art
+- id: 639133ae3ba2aeaf159f81dab57f18651cbfd7d5409ccc8b2852d1a9377433c7
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .crush/crush.db — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:19.181679+00:00'
+  acknowledged_by: Seth Art
+- id: 65bfb371398eec6016aeacdb2e13edc1c223e43f1058688ddc828277857d3ad2
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .claude/settings.local.json — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:19.562944+00:00'
+  acknowledged_by: Seth Art
+- id: 6821982e87f03f750085d6c3da4a8e99fadab026a49a182e53d10b41e51698cb
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Secret Key'
+  evidence_pattern: .claude/settings.local.json — matched pattern 'AWS Secret Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:19.948894+00:00'
+  acknowledged_by: Seth Art
+- id: 68bd3b53f9f7637eff592c1726ccb79a140d572ab290addb81de53ed87a31d39
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .crush/crush.db — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:20.327850+00:00'
+  acknowledged_by: Seth Art
+- id: 68f1ee6dabd3b77b228160cb5f2036cc237b20a4eca7c0c425e48270e6e74b64
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .crush/crush.db — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:20.699190+00:00'
+  acknowledged_by: Seth Art
+- id: 6ba4fa9360b993f0d3b987f00f2dceae22840422f508a45f6939fb84860854a1
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Secret Key'
+  evidence_pattern: .claude/settings.local.json — matched pattern 'AWS Secret Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:21.072420+00:00'
+  acknowledged_by: Seth Art
+- id: 6c5ae76ba81d1c6153aac4d08551db20817ea904207b84a9f7b6bb2db8bc5179
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: unit.test — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:21.444855+00:00'
+  acknowledged_by: Seth Art
+- id: 6ed31cafecce7ac6e1702e6941ad95632d816abf8de600fd81c2e2c75ac28b0e
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .crush/crush.db — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:21.817745+00:00'
+  acknowledged_by: Seth Art
+- id: 79b6c015397ce3dc022021fff5edbc360f9de1182ebe71995ac739d0a19b7a4f
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: unit.test — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:22.193670+00:00'
+  acknowledged_by: Seth Art
+- id: 7a9abb001b603d94394ac2a697e340cdf7ceff7bd04167005badeb7660d3f004
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .claude/settings.local.json — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:22.581051+00:00'
+  acknowledged_by: Seth Art
+- id: 7c2ca22e9ae964d3795897f294d72f10176ae2a4b14bd31453e4fb3684f0a9c9
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .claude/settings.local.json — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:22.958917+00:00'
+  acknowledged_by: Seth Art
+- id: 7ce125d5f524d39d749bbd48273bdd0b89ed16cd82ffaf9f16bec1b05aa54b42
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .crush/crush.db — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:23.345183+00:00'
+  acknowledged_by: Seth Art
+- id: 85a5401beaf87eb90bd50ace2c9d1e3de321bd63b7590530a799d5b827492744
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Secret Key'
+  evidence_pattern: .claude/settings.local.json — matched pattern 'AWS Secret Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:23.724606+00:00'
+  acknowledged_by: Seth Art
+- id: 867afef6e15a9a9e350ebc004c4cde3da8e58fc2b5dee522ddb54c013e7156f2
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .crush/crush.db — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:24.106624+00:00'
+  acknowledged_by: Seth Art
+- id: 8c708e63d063f90af4500ef38ecad19d017d0053c828d78250ba35b41bbf313f
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .crush/crush.db — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:24.497840+00:00'
+  acknowledged_by: Seth Art
+- id: 92b1d9e887c135664b06517bb289e7dd6f560703fcc45ea18a6b64088b366f17
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Secret Key'
+  evidence_pattern: .claude/settings.local.json — matched pattern 'AWS Secret Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:24.904902+00:00'
+  acknowledged_by: Seth Art
+- id: 937c122fecd629b78a9812dc95ec76ba28995bb8a7d3591d4234b3e71819b3ad
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Secret Key'
+  evidence_pattern: .claude/settings.local.json — matched pattern 'AWS Secret Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:25.298516+00:00'
+  acknowledged_by: Seth Art
+- id: 957de7c279b2cdca363e8a6a2b4c7c9585ab8879cc3186462469212adc616005
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .crush/crush.db — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:25.701593+00:00'
+  acknowledged_by: Seth Art
+- id: 990c2b3cb68ac7f61bba8884d9050db70eef4f10ef28789c7f41473054fd1b13
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: unit.test — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:26.080820+00:00'
+  acknowledged_by: Seth Art
+- id: 9e861334e79355e76568bc86b0434454069384f9e838058116956f0f021ed14b
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: unit.test — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:26.461170+00:00'
+  acknowledged_by: Seth Art
+- id: 9f17e57963a8032407bba7ca5c185927107150db1c882aa0f61d083234a7f236
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: pathrunner — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:26.845862+00:00'
+  acknowledged_by: Seth Art
+- id: a3d4163061961f177e44fa03d5684201e7a4a3619b28b0d6a82a8c1bff231c5c
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Secret Key'
+  evidence_pattern: .claude/settings.local.json — matched pattern 'AWS Secret Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:27.249396+00:00'
+  acknowledged_by: Seth Art
+- id: a902db718e5f4f3728db47eaecc88ad22710a28aa3c46a371b0c18925088ea16
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .crush/crush.db — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:27.649847+00:00'
+  acknowledged_by: Seth Art
+- id: aab6719eee63ee672fc5c2f57b48754e68027799cc667895a42ff5e01fd566d6
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .crush/crush.db — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:28.032551+00:00'
+  acknowledged_by: Seth Art
+- id: bd43863652c85b4fcbdaa58ab152dc58b669f919b523a2cc1f0d195b17d71eb3
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: unit.test — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:28.419342+00:00'
+  acknowledged_by: Seth Art
+- id: bdd89dac90d7bd584b10b6bde7ade57c586a456a689a46bfdecffcd3f3673ed5
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .crush/crush.db — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:28.806548+00:00'
+  acknowledged_by: Seth Art
+- id: c372461031d50f802930fbdda84bd7a423e6d24bfdb492a9359780f2dafe2803
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Secret Key'
+  evidence_pattern: .claude/settings.local.json — matched pattern 'AWS Secret Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:29.187694+00:00'
+  acknowledged_by: Seth Art
+- id: cb44b4123ea755ec79025a5c91675699a45f41eddfb79a2f689ba2a8369f4cd9
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .claude/settings.local.json — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:29.603375+00:00'
+  acknowledged_by: Seth Art
+- id: ddd94234a545e3e4007cc58a54b54daa0fb313fd9b9f454f8950530a181cda11
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: unit.test — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:30.011208+00:00'
+  acknowledged_by: Seth Art
+- id: de9f9f11da52138c49752e47f84916d498b8356bf6928413f04e312317b78f7f
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: unit.test — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:30.415183+00:00'
+  acknowledged_by: Seth Art
+- id: e70a06096fa989ac3233c4816993829f4d832af6ad43ec00aec056075f2c5d4b
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Secret Key'
+  evidence_pattern: .claude/settings.local.json — matched pattern 'AWS Secret Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:30.808821+00:00'
+  acknowledged_by: Seth Art
+- id: e7a80218135ad447497bcd425e9eebc1388d2435e6670b2a8f94ef3dab4b7fc1
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Secret Key'
+  evidence_pattern: .claude/settings.local.json — matched pattern 'AWS Secret Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:31.204687+00:00'
+  acknowledged_by: Seth Art
+- id: ef9d1e524a652df5f1c2538068cdf677e93845131658e2f12ceb385b469a9cb5
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .claude/settings.local.json — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:31.606220+00:00'
+  acknowledged_by: Seth Art
+- id: efce7d45bf5f0727324e04ddb85b8bcfbdcb6dc349ebd477ecc5f5c0ff9e8e1c
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .crush/crush.db — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:31.993886+00:00'
+  acknowledged_by: Seth Art
+- id: f4c262179fdc7ea89949d45a17667b1ba11fbd3b29fd174657e3482f0462850c
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .claude/settings.local.json — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:32.383096+00:00'
+  acknowledged_by: Seth Art
+- id: f7a034e253925bb871c5404b069d1c420932b1ea5a7e56cac65e566493c5198c
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Secret Key'
+  evidence_pattern: .claude/settings.local.json — matched pattern 'AWS Secret Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:32.776084+00:00'
+  acknowledged_by: Seth Art
+- id: f83b7f0ca1711b073543e9742d77e7c30813da0ec24247373ffa87c32e1f96c6
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .claude/settings.local.json — matched pattern 'AWS Access Key'
+  reason: Gitignored file (unit.test binary, .claude/settings.local.json, .crush/crush.db,
+    or compiled pathrunner binary) - never committed to repo
+  acknowledged_at: '2026-07-22T19:00:33.166468+00:00'
+  acknowledged_by: Seth Art
+- id: 02c152fd18edab40c044f4a2756e75cf37573af49beb2e76d3e3ed1cba88bb4c
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T190041Z/run_summary.md
+    — matched pattern 'AWS Access Key'
+  reason: Tool scanning its own acknowledgements.yaml output file - the file contains
+    finding titles like 'AWS Access Key' but no actual secret values
+  acknowledged_at: '2026-07-22T19:01:41.752904+00:00'
+  acknowledged_by: Seth Art
+- id: 1e70d595d5fe777b15361401e533217f15c18fd9ab7c9743714be75c8040cec5
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T185825Z/findings.json
+    — matched pattern 'AWS Access Key'
+  reason: Tool scanning its own acknowledgements.yaml output file - the file contains
+    finding titles like 'AWS Access Key' but no actual secret values
+  acknowledged_at: '2026-07-22T19:01:42.175059+00:00'
+  acknowledged_by: Seth Art
+- id: 2c9b62d306ee73a68bda09f63b9196d20293d23054abd4e4ca0cec0bc1120f6c
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T190041Z/findings.json
+    — matched pattern 'AWS Access Key'
+  reason: Tool scanning its own acknowledgements.yaml output file - the file contains
+    finding titles like 'AWS Access Key' but no actual secret values
+  acknowledged_at: '2026-07-22T19:01:42.591754+00:00'
+  acknowledged_by: Seth Art
+- id: 2d6b939d0a2ccd24aef12023e67632eeed5fe70837b2c066d9125c4475210aae
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T190041Z/run_summary.md
+    — matched pattern 'AWS Access Key'
+  reason: Tool scanning its own acknowledgements.yaml output file - the file contains
+    finding titles like 'AWS Access Key' but no actual secret values
+  acknowledged_at: '2026-07-22T19:01:43.013725+00:00'
+  acknowledged_by: Seth Art
+- id: 33ff5cf727ebd5dcb4ba0a5117cbe5f0fe81fbee604669bd11d31514a8a3ec25
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T185844Z/run_summary.md
+    — matched pattern 'AWS Access Key'
+  reason: Tool scanning its own acknowledgements.yaml output file - the file contains
+    finding titles like 'AWS Access Key' but no actual secret values
+  acknowledged_at: '2026-07-22T19:01:43.448831+00:00'
+  acknowledged_by: Seth Art
+- id: 41641159c8be212172073db1bfd6e27b641f8d3bbbc060117319d1e5fdff6254
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T185825Z/run_summary.md
+    — matched pattern 'AWS Access Key'
+  reason: Tool scanning its own acknowledgements.yaml output file - the file contains
+    finding titles like 'AWS Access Key' but no actual secret values
+  acknowledged_at: '2026-07-22T19:01:43.845127+00:00'
+  acknowledged_by: Seth Art
+- id: 497b9af29df0896e1867031e1bd11098f96150293a3296e6e3a9d6095d6f66a7
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T185825Z/findings.json
+    — matched pattern 'AWS Access Key'
+  reason: Tool scanning its own acknowledgements.yaml output file - the file contains
+    finding titles like 'AWS Access Key' but no actual secret values
+  acknowledged_at: '2026-07-22T19:01:44.253335+00:00'
+  acknowledged_by: Seth Art
+- id: 514c25716418289b773c78f8c28fbe37e684af3b40427d17b5b08c174b31262a
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T190041Z/run_summary.md
+    — matched pattern 'AWS Access Key'
+  reason: Tool scanning its own acknowledgements.yaml output file - the file contains
+    finding titles like 'AWS Access Key' but no actual secret values
+  acknowledged_at: '2026-07-22T19:01:44.674937+00:00'
+  acknowledged_by: Seth Art
+- id: 5252236eddda6ad3c84138a19203305956a2a186170ccdcd0e04f290477f7243
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T185844Z/run_summary.md
+    — matched pattern 'AWS Access Key'
+  reason: Tool scanning its own acknowledgements.yaml output file - the file contains
+    finding titles like 'AWS Access Key' but no actual secret values
+  acknowledged_at: '2026-07-22T19:01:45.070857+00:00'
+  acknowledged_by: Seth Art
+- id: 58008d3c5b63bff6e7dbc4b0f2d73c34bb13b0741ef975180f5038450323c520
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/acknowledgements.yaml — matched pattern 'AWS Access
+    Key'
+  reason: Tool scanning its own acknowledgements.yaml output file - the file contains
+    finding titles like 'AWS Access Key' but no actual secret values
+  acknowledged_at: '2026-07-22T19:01:45.476925+00:00'
+  acknowledged_by: Seth Art
+- id: 59360ba3c6b15e19feb6197c7c6c1d74d7863b0212778d6d38b390ab2db7f247
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/acknowledgements.yaml — matched pattern 'AWS Access
+    Key'
+  reason: Tool scanning its own acknowledgements.yaml output file - the file contains
+    finding titles like 'AWS Access Key' but no actual secret values
+  acknowledged_at: '2026-07-22T19:01:45.869543+00:00'
+  acknowledged_by: Seth Art
+- id: 612c97db693d0e9cce25bd2cf6b53aa84d27a5059ca90a44148c222928d619de
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T185844Z/findings.json
+    — matched pattern 'AWS Access Key'
+  reason: Tool scanning its own acknowledgements.yaml output file - the file contains
+    finding titles like 'AWS Access Key' but no actual secret values
+  acknowledged_at: '2026-07-22T19:01:46.261359+00:00'
+  acknowledged_by: Seth Art
+- id: 6c3265e3bb198e6259141226ce2a08d34ace3398a02947c076fd8f235f50e1d6
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T185825Z/run_summary.md
+    — matched pattern 'AWS Access Key'
+  reason: Tool scanning its own acknowledgements.yaml output file - the file contains
+    finding titles like 'AWS Access Key' but no actual secret values
+  acknowledged_at: '2026-07-22T19:01:46.655196+00:00'
+  acknowledged_by: Seth Art
+- id: 9676e52a54f8578cc121266dfdcb356039feaff59d102b3e65ff90e0ab4c0231
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T185825Z/findings.json
+    — matched pattern 'AWS Access Key'
+  reason: Tool scanning its own acknowledgements.yaml output file - the file contains
+    finding titles like 'AWS Access Key' but no actual secret values
+  acknowledged_at: '2026-07-22T19:01:47.076436+00:00'
+  acknowledged_by: Seth Art
+- id: 97541f02fe2ba71ae857b719304244bf5052f40649f102058a3861adbf3e770a
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T185825Z/run_summary.md
+    — matched pattern 'AWS Access Key'
+  reason: Tool scanning its own acknowledgements.yaml output file - the file contains
+    finding titles like 'AWS Access Key' but no actual secret values
+  acknowledged_at: '2026-07-22T19:01:47.469676+00:00'
+  acknowledged_by: Seth Art
+- id: 9cc83edd2ab2b213e5c71a09030124920a5d58dcbc8f2f6ca18294bb26469b70
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/acknowledgements.yaml — matched pattern 'AWS Access
+    Key'
+  reason: Tool scanning its own acknowledgements.yaml output file - the file contains
+    finding titles like 'AWS Access Key' but no actual secret values
+  acknowledged_at: '2026-07-22T19:01:47.869582+00:00'
+  acknowledged_by: Seth Art
+- id: ad4afb804d575344125605be06709cf037fd04a5948b9b766c9ddf847042cf46
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T185844Z/run_summary.md
+    — matched pattern 'AWS Access Key'
+  reason: Tool scanning its own acknowledgements.yaml output file - the file contains
+    finding titles like 'AWS Access Key' but no actual secret values
+  acknowledged_at: '2026-07-22T19:01:48.292317+00:00'
+  acknowledged_by: Seth Art
+- id: bbc4ded0afaee1571604a693b53a961076dc38f1506cca47f52ee17f9cc78f56
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T185844Z/findings.json
+    — matched pattern 'AWS Access Key'
+  reason: Tool scanning its own acknowledgements.yaml output file - the file contains
+    finding titles like 'AWS Access Key' but no actual secret values
+  acknowledged_at: '2026-07-22T19:01:48.701006+00:00'
+  acknowledged_by: Seth Art
+- id: c0be4a09057b67f78c6c3a70d79f6b160c72c9047ad9c84160d55337b13f8f97
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T190041Z/findings.json
+    — matched pattern 'AWS Access Key'
+  reason: Tool scanning its own acknowledgements.yaml output file - the file contains
+    finding titles like 'AWS Access Key' but no actual secret values
+  acknowledged_at: '2026-07-22T19:01:49.100681+00:00'
+  acknowledged_by: Seth Art
+- id: eec545ec6d01964b5cbe3ebeb8200977ac34c07be2b5b1cab39f32b9b909d68a
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T190041Z/findings.json
+    — matched pattern 'AWS Access Key'
+  reason: Tool scanning its own acknowledgements.yaml output file - the file contains
+    finding titles like 'AWS Access Key' but no actual secret values
+  acknowledged_at: '2026-07-22T19:01:49.506604+00:00'
+  acknowledged_by: Seth Art
+- id: ffb1c1d1a6102639344887834769e8ca0afca2699fa34b8ea27b09ad24cee6c4
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T185844Z/findings.json
+    — matched pattern 'AWS Access Key'
+  reason: Tool scanning its own acknowledgements.yaml output file - the file contains
+    finding titles like 'AWS Access Key' but no actual secret values
+  acknowledged_at: '2026-07-22T19:01:49.904366+00:00'
+  acknowledged_by: Seth Art
+- id: 3cbf6983af6f144f43498a438a90446d9cff0ebe1a405e6caad287f0e58b106d
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T190102Z/run_summary.md
+    — matched pattern 'AWS Access Key'
+  reason: Tool scanning its own log/output files - gitignored artifact directory
+  acknowledged_at: '2026-07-22T19:03:08.809574+00:00'
+  acknowledged_by: Seth Art
+- id: 3d62f5f158f07125e107e0c312103dc2d9895a9a64cfb030266d93e0b4856dee
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: pkg/utils/credentials_test.go — matched pattern 'AWS Access Key'
+  reason: Tool scanning its own log/output files - gitignored artifact directory
+  acknowledged_at: '2026-07-22T19:03:09.233849+00:00'
+  acknowledged_by: Seth Art
+- id: 3dbe63dd6d55693c631b70a13c16c2c160bbdad99edcc5b034774695a824bafc
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T190102Z/findings.json
+    — matched pattern 'AWS Access Key'
+  reason: Tool scanning its own log/output files - gitignored artifact directory
+  acknowledged_at: '2026-07-22T19:03:09.657684+00:00'
+  acknowledged_by: Seth Art
+- id: 461010d0da0e934a40493f87f8a07a338c409853741f0eb264994e00407118eb
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T190102Z/findings.json
+    — matched pattern 'AWS Access Key'
+  reason: Tool scanning its own log/output files - gitignored artifact directory
+  acknowledged_at: '2026-07-22T19:03:10.083403+00:00'
+  acknowledged_by: Seth Art
+- id: 7593e224890b396be172ff03732717679d85211b3d542173fb500a1521010464
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T190102Z/run_summary.md
+    — matched pattern 'AWS Access Key'
+  reason: Tool scanning its own log/output files - gitignored artifact directory
+  acknowledged_at: '2026-07-22T19:03:10.480983+00:00'
+  acknowledged_by: Seth Art
+- id: df4e058f54ff462e18b3867fe4a0d28d26ced1e5bd96a5a7a98e29366451919c
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T190102Z/findings.json
+    — matched pattern 'AWS Access Key'
+  reason: Tool scanning its own log/output files - gitignored artifact directory
+  acknowledged_at: '2026-07-22T19:03:10.882447+00:00'
+  acknowledged_by: Seth Art
+- id: e6a87477adb208f1cfa3355ac34ce429e7c22afa62a420deeabf552609649961
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T190102Z/run_summary.md
+    — matched pattern 'AWS Access Key'
+  reason: Tool scanning its own log/output files - gitignored artifact directory
+  acknowledged_at: '2026-07-22T19:03:11.289504+00:00'
+  acknowledged_by: Seth Art

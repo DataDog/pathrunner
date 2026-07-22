@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package unit
 
 import (
@@ -92,10 +96,10 @@ func TestShowCommand(t *testing.T) {
 		t.Fatal("Expected show command to exist")
 	}
 
-	// Test show with no arguments (should error)
+	// Test show with no arguments (should show help, not error)
 	err := showCmd.Handler(r, []string{})
-	if err == nil {
-		t.Error("Expected error when calling 'show' with no arguments")
+	if err != nil {
+		t.Errorf("Expected no error when calling 'show' with no arguments, got: %v", err)
 	}
 }
 

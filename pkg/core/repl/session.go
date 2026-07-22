@@ -1,13 +1,19 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package repl
 
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/pathrunner/pkg/modules"
-	"github.com/DataDog/pathrunner/pkg/ui"
+	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/DataDog/pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/ui"
 
 	"github.com/DataDog/pathrunner/pkg/attacker"
 
@@ -192,11 +198,14 @@ func (r *REPL) sessionCleanup(args []string) error {
 
 	// Parse flags
 	cleanAll := false
+	autoYes := false
 	moduleFilter := ""
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--all":
 			cleanAll = true
+		case "--yes", "-y":
+			autoYes = true
 		case "--module":
 			if i+1 < len(args) {
 				i++
@@ -303,9 +312,14 @@ func (r *REPL) sessionCleanup(args []string) error {
 	fmt.Printf("\nCleaning up %d resources...\n", len(resourcesToCleanup))
 	fmt.Println()
 
-	var cleaned, failed int
+	var cleaned, gone, failed int
 	permissionFailures := 0
+	quit := false
 	for _, resource := range resourcesToCleanup {
+		if quit {
+			break
+		}
+
 		regionInfo := ""
 		if resource.Region != "" {
 			regionInfo = fmt.Sprintf(" [%s]", resource.Region)
@@ -324,10 +338,45 @@ func (r *REPL) sessionCleanup(args []string) error {
 		}
 
 		if err := r.cleanupResource(resource, cleanupIdentity); err != nil {
-			fmt.Printf(" FAILED (%v)\n", err)
-			failed++
-			if isPermissionError(err) {
-				permissionFailures++
+			if isNotFoundError(err) {
+				// Resource no longer exists in AWS. Remove it from tracking rather
+				// than leaving it as a permanent failure in the workspace state.
+				fmt.Printf(" NOT FOUND\n")
+				fmt.Printf("    AWS error: %v\n", err)
+				removeIt := autoYes
+				if !autoYes && ui.IsTTY() {
+					choice, promptErr := ui.Select("Remove from workspace tracking?", []string{
+						"Yes — remove this entry",
+						"Yes to all — remove all not-found resources without asking",
+						"No — keep in workspace",
+						"Quit — stop cleanup",
+					})
+					if promptErr == nil {
+						switch choice {
+						case 0:
+							removeIt = true
+						case 1:
+							removeIt = true
+							autoYes = true
+						case 2:
+							removeIt = false
+						case 3:
+							quit = true
+						}
+					}
+				}
+				if removeIt {
+					r.sessionManager.RemoveCreatedResource(resource.Name)
+					gone++
+				} else if !quit {
+					failed++
+				}
+			} else {
+				fmt.Printf(" FAILED (%v)\n", err)
+				failed++
+				if isPermissionError(err) {
+					permissionFailures++
+				}
 			}
 		} else {
 			fmt.Printf(" OK\n")
@@ -337,7 +386,14 @@ func (r *REPL) sessionCleanup(args []string) error {
 	}
 
 	fmt.Println()
-	fmt.Printf("Cleanup complete: %d cleaned, %d failed\n", cleaned, failed)
+	summary := fmt.Sprintf("Cleanup complete: %d cleaned", cleaned)
+	if gone > 0 {
+		summary += fmt.Sprintf(", %d removed from tracking (already gone)", gone)
+	}
+	if failed > 0 {
+		summary += fmt.Sprintf(", %d failed", failed)
+	}
+	fmt.Println(summary)
 
 	if permissionFailures > 0 {
 		fmt.Println()
@@ -351,7 +407,7 @@ func (r *REPL) sessionCleanup(args []string) error {
 		fmt.Println("Use 'workspace report' to generate a cleanup report you can hand off.")
 	}
 
-	if cleaned > 0 {
+	if cleaned > 0 || gone > 0 {
 		r.sessionSave()
 	}
 
@@ -365,6 +421,19 @@ func isPermissionError(err error) bool {
 		strings.Contains(msg, "UnauthorizedAccess") ||
 		strings.Contains(msg, "is not authorized to perform") ||
 		strings.Contains(msg, "AccessDeniedException")
+}
+
+// isNotFoundError checks if an error indicates the resource no longer exists in AWS.
+// These are safe to remove from tracking — the resource was deleted outside pathrunner.
+func isNotFoundError(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "NotFound") ||
+		strings.Contains(msg, "NoSuchEntity") ||
+		strings.Contains(msg, "does not exist") ||
+		strings.Contains(msg, "ResourceNotFoundException") ||
+		strings.Contains(msg, "InvalidInstanceID.NotFound") ||
+		strings.Contains(msg, "NoSuchBucket") ||
+		strings.Contains(msg, "ResourceNotFound")
 }
 
 // sessionReport generates a cleanup report for handoff to a client or admin.
@@ -584,6 +653,8 @@ func printManualCleanupCommand(res CreatedResource) {
 	case "s3_bucket":
 		fmt.Printf("    aws s3 rm s3://%s --recursive --region %s\n", res.Name, region)
 		fmt.Printf("    aws s3api delete-bucket --bucket %s --region %s\n", res.Name, region)
+	case "glue:dev-endpoint":
+		fmt.Printf("    aws glue delete-dev-endpoint --endpoint-name %s --region %s\n", res.Name, region)
 	case "glue:job":
 		fmt.Printf("    aws glue delete-job --job-name %s --region %s\n", res.Name, region)
 	case "glue:session":
@@ -622,6 +693,12 @@ func printManualCleanupCommand(res CreatedResource) {
 		fmt.Printf("    # First stop the application, then delete it using its original CreateTimestamp\n")
 		fmt.Printf("    aws kinesisanalyticsv2 stop-application --application-name %s --force --region %s 2>/dev/null || true\n", res.Name, region)
 		fmt.Printf("    aws kinesisanalyticsv2 delete-application --application-name %s --create-timestamp %s --region %s\n", res.Name, createTimestamp, region)
+	case "local:file":
+		path := res.Metadata["path"]
+		if path == "" {
+			path = res.Name
+		}
+		fmt.Printf("    rm -f %s\n", path)
 	default:
 		fmt.Printf("    # %s: %s (manual cleanup required)\n", res.Type, res.Name)
 	}
@@ -849,6 +926,15 @@ func (r *REPL) cleanupResource(resource CreatedResource, identity *modules.Ident
 		return r.cleanupGameLiftFleet(ctx, config, resource)
 	case "gamelift:build":
 		return r.cleanupGameLiftBuild(ctx, config, resource)
+	case "local:file":
+		path := resource.Metadata["path"]
+		if path == "" {
+			return fmt.Errorf("local:file resource missing 'path' metadata")
+		}
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("failed to remove %s: %w", path, err)
+		}
+		return nil
 	default:
 		return fmt.Errorf("unsupported resource type: %s", resource.Type)
 	}

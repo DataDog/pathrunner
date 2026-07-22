@@ -26,6 +26,7 @@ Modules reference a pathfinding.cloud path ID when they implement a documented p
 - **Resource Tracking**: Automatic tracking of created AWS resources with interactive cleanup when permissions allow
 - **Auto-Discovery**: Modules automatically enumerate valid option values (roles, subnets, instance profiles) via AWS APIs when permissions allow
 - **PMapper Integration**: Import pmapper graph data to see which possible paths you can currently exploit with pathrunner
+- **CloudFox Integration**: Import cloudfox output to browse discovered AWS resources and use them as module option values
 - **Credential Auto-Import**: When a payload captures new credentials, they're automatically extracted and added to your identity store for continued escalation
 
 ### Coverage
@@ -110,6 +111,22 @@ pathrunner> pmapper status           # Graph metadata and module coverage
 
 For each escalation hop, pathrunner shows the matching module and suggested commands to execute it.
 
+## CloudFox Integration
+
+Import [CloudFox](https://github.com/BishopFox/cloudfox) output to browse discovered AWS resources and populate module options:
+
+```bash
+pathrunner> cloudfox import          # Auto-detects ~/.cloudfox/cloudfox-output/aws/
+pathrunner> cloudfox import --path /path/to/cloudfox-output
+pathrunner> resources list           # List all imported resources
+pathrunner> resources list ec2       # Filter by service (ec2, lambda, iam, s3, ...)
+pathrunner> resources list --wide    # Include ARN and resource type columns
+pathrunner> resources summary        # Overview of imported resource counts by service
+pathrunner> resources clear          # Remove all imported resources for current workspace
+```
+
+Resources are workspace-scoped and auto-populated as available option values when setting module options.
+
 ## Architecture
 
 ```
@@ -121,6 +138,7 @@ pkg/
 ├── exploits/    # Exploit modules (83), each embedding BaseModule
 ├── discovery/   # Reusable AWS enumeration (roles, subnets, streams, etc.)
 ├── pmapper/     # PMapper graph import, querying, and module mapping
+├── resources/   # CloudFox output import, resource store, and service-filtered display
 ├── utils/       # Credential extraction from env vars, JSON, Python dicts
 └── config/      # Application configuration
 ```
@@ -155,6 +173,7 @@ The developers assume no liability for misuse of this tool.
 
 **Other tools:**
 - [PMapper](https://github.com/nccgroup/PMapper) - AWS IAM privilege escalation analysis; pathrunner can import its graph output
+- [CloudFox](https://github.com/BishopFox/cloudfox) - AWS attack surface enumeration; pathrunner can import its output as a resource store
 - [Pacu](https://github.com/RhinoSecurityLabs/pacu) - AWS exploitation framework
 - [Stratus Red Team](https://github.com/DataDog/stratus-red-team) - Adversary emulation for cloud, by Datadog
 

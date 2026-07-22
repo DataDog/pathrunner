@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// Copyright 2026 Datadog, Inc.
+
 package repl
 
 import (
@@ -244,6 +248,15 @@ func (r *REPL) cmdPayloads(repl *REPL, args []string) error {
 			return r.showAllPayloads()
 		}
 		return r.showPayloads()
+	case "options":
+		if r.currentModule == nil {
+			return NewValidationError("no module selected. Use 'use <module>' to select one", nil)
+		}
+		payload, exists := r.options["PAYLOAD"]
+		if !exists || payload == "" {
+			return NewValidationError("no payload selected. Use 'set PAYLOAD <name>' to select one", nil)
+		}
+		return r.showPayloadOptions(payload)
 	case "help":
 		return r.showPayloadsHelp()
 	default:
@@ -950,12 +963,16 @@ func (r *REPL) cmdExploit(repl *REPL, args []string) error {
 // showInfo displays detailed PathInfo for the current module
 func (r *REPL) showInfo() error {
 	if r.currentModule == nil {
-		return NewValidationError("no module selected. Use 'use <module>' to select one", nil)
+		return NewValidationError("no module selected. Use 'use <module>' to select one, or 'info <module-id>' to browse any module", nil)
 	}
+	return r.showInfoForModule(r.currentModule)
+}
 
-	info := r.currentModule.PathInfo()
+// showInfoForModule displays detailed PathInfo for any module without selecting it
+func (r *REPL) showInfoForModule(mod modules.Module) error {
+	info := mod.PathInfo()
 	if info.ID == "" {
-		fmt.Printf("Module %s has no path metadata.\n", r.currentModule.Name())
+		fmt.Printf("Module %s has no path metadata.\n", mod.Name())
 		return nil
 	}
 
@@ -1031,19 +1048,25 @@ func (r *REPL) showInfo() error {
 	ui.KeyValueTable("", kvPairs)
 	fmt.Println()
 
-	options := r.currentModule.Options()
+	options := mod.Options()
 	if len(options) > 0 {
 		var discoverableSet map[string]bool
-		if discoverable, ok := r.currentModule.(modules.Discoverable); ok {
+		if discoverable, ok := mod.(modules.Discoverable); ok {
 			discoverableSet = make(map[string]bool)
 			for _, opt := range discoverable.DiscoverableOptions() {
 				discoverableSet[opt] = true
 			}
 		}
 
+		// Only show current values when displaying the currently selected module
+		currentValues := make(map[string]string)
+		if mod == r.currentModule {
+			currentValues = r.options
+		}
+
 		rows := make([][]string, 0, len(options))
 		for _, option := range options {
-			value := r.options[option.Name]
+			value := currentValues[option.Name]
 			if value == "" && option.Default != "" {
 				value = option.Default + " (default)"
 			}
@@ -1077,6 +1100,14 @@ func (r *REPL) showInfo() error {
 		fmt.Println()
 		ui.Table([]string{"Option", "Value", "Required", "Description"}, rows)
 		fmt.Println()
+
+		// Show discover tip only for the currently selected module — browsing a different module
+		// with `info <id>` should not suggest running discover/exploit on the wrong module.
+		if discoverableSet != nil && mod == r.currentModule {
+			fmt.Println(ui.Muted.Render("  Tip: run 'discover' to auto-populate options (requires appropriate IAM permissions)"))
+			fmt.Println(ui.Muted.Render("  Run 'exploit' to execute the attack (will run `discover` if all required values are not populated)"))
+			fmt.Println()
+		}
 	}
 
 	return nil
@@ -1299,20 +1330,10 @@ func (r *REPL) showOptions() error {
 	ui.Table([]string{"Option", "Value", "Required", "Description"}, rows)
 	fmt.Println()
 
-	// Hint about discover command if there are missing required options
-	hasMissingRequired := false
-	for _, option := range options {
-		if option.Required && r.options[option.Name] == "" && option.Default == "" {
-			hasMissingRequired = true
-			break
-		}
-	}
-	if hasMissingRequired {
-		if _, ok := r.currentModule.(modules.Discoverable); ok {
-			fmt.Println(ui.Muted.Render("  Tip: run 'discover' to auto-populate options (requires appropriate IAM permissions)"))
-			fmt.Println(ui.Muted.Render("  Run 'exploit' to execute the attack (will run `discover` if all required values are not populated)"))
-			fmt.Println()
-		}
+	if _, ok := r.currentModule.(modules.Discoverable); ok {
+		fmt.Println(ui.Muted.Render("  Tip: run 'discover' to auto-populate options (requires appropriate IAM permissions)"))
+		fmt.Println(ui.Muted.Render("  Run 'exploit' to execute the attack (will run `discover` if all required values are not populated)"))
+		fmt.Println()
 	}
 
 	// Show payload options if payload is selected
