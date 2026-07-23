@@ -297,8 +297,8 @@ func TestPromptBuilding(t *testing.T) {
 	}
 
 	// Create and switch workspace
-	r.ExecuteCommand("workspace create prompt-test")
-	r.ExecuteCommand("workspace switch prompt-test")
+	_ = r.ExecuteCommand("workspace create prompt-test")
+	_ = r.ExecuteCommand("workspace switch prompt-test")
 
 	prompt = stripAnsi(r.BuildContextualPrompt())
 	if !strings.Contains(prompt, "prompt-test") {
@@ -331,7 +331,7 @@ func TestInitialPromptShowsWorkspace(t *testing.T) {
 	currentSession := sm.GetCurrentSession()
 	currentSession.Identities = identities
 	currentSession.CurrentIdentity = "test-identity"
-	sm.SaveSession(currentSession)
+	_ = sm.SaveSession(currentSession)
 
 	// Build prompt and verify it contains both workspace and identity (strip ANSI)
 	prompt := stripAnsi(r.BuildContextualPrompt())

@@ -64,7 +64,7 @@ func TestDeployGlobalDestroyRequiresAttackerWhenResourcesExist(t *testing.T) {
 	state := &attacker.DeployState{
 		EC2: &attacker.EC2DeployState{InstanceID: "i-test", Region: "us-east-1"},
 	}
-	attacker.SaveDeployState(state)
+	_ = attacker.SaveDeployState(state)
 
 	err := r.ExecuteCommand("attacker infra destroy")
 	if err == nil {
@@ -72,7 +72,7 @@ func TestDeployGlobalDestroyRequiresAttackerWhenResourcesExist(t *testing.T) {
 	}
 
 	// Clean up
-	attacker.RemoveDeployState()
+	_ = attacker.RemoveDeployState()
 }
 
 func TestDeployEC2StatusWithSavedStateIntegration(t *testing.T) {
@@ -90,8 +90,8 @@ func TestDeployEC2StatusWithSavedStateIntegration(t *testing.T) {
 			KeyFilePath:     "/tmp/test.pem",
 		},
 	}
-	attacker.SaveDeployState(state)
-	defer attacker.RemoveDeployState()
+	_ = attacker.SaveDeployState(state)
+	defer func() { _ = attacker.RemoveDeployState() }()
 
 	// Status should show the saved state (status will say "unknown" since no attacker identity)
 	err := r.ExecuteCommand("attacker infra ec2 status")
@@ -150,7 +150,7 @@ func TestDeployStatePersistenceIntegration(t *testing.T) {
 	}
 
 	// Clean up
-	attacker.RemoveDeployState()
+	_ = attacker.RemoveDeployState()
 }
 
 func TestDeployBucketCommandRoutingIntegration(t *testing.T) {
@@ -206,8 +206,8 @@ func TestDeployBucketStatusWithSavedStateIntegration(t *testing.T) {
 			{Name: "test-exfil-abc123", Type: "exfil", Region: "us-east-1"},
 		},
 	}
-	attacker.SaveDeployState(state)
-	defer attacker.RemoveDeployState()
+	_ = attacker.SaveDeployState(state)
+	defer func() { _ = attacker.RemoveDeployState() }()
 
 	err := r.ExecuteCommand("attacker infra bucket status")
 	if err != nil {

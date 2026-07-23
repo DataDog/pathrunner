@@ -15,7 +15,7 @@ import (
 func setupTest(t *testing.T) (*repl.REPL, *core.SessionManager, *core.IdentityManager, func()) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
+	_ = os.Setenv("HOME", tempDir)
 
 	sessionManager := core.NewSessionManager()
 	identityManager := core.NewIdentityManager(
@@ -29,7 +29,7 @@ func setupTest(t *testing.T) (*repl.REPL, *core.SessionManager, *core.IdentityMa
 	r := repl.NewREPL(identityAdapter, sessionAdapter)
 
 	cleanup := func() {
-		os.Setenv("HOME", originalHome)
+		_ = os.Setenv("HOME", originalHome)
 	}
 
 	return r, sessionManager, identityManager, cleanup

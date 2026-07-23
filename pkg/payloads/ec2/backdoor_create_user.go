@@ -15,7 +15,7 @@ import (
 type BackdoorCreateUserPayload struct{}
 
 func init() {
-	payloads.Register(&BackdoorCreateUserPayload{})
+	_ = payloads.Register(&BackdoorCreateUserPayload{})
 }
 
 func (p *BackdoorCreateUserPayload) GetName() string {

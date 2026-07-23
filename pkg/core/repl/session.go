@@ -73,7 +73,7 @@ func (r *REPL) sessionCreate(args []string) error {
 	r.saveCurrentState()
 	current := r.sessionManager.GetCurrentSession()
 	if current != nil {
-		r.sessionManager.SaveSession(current)
+		_ = r.sessionManager.SaveSession(current)
 	}
 
 	sessionName := args[0]
@@ -408,7 +408,7 @@ func (r *REPL) sessionCleanup(args []string) error {
 	}
 
 	if cleaned > 0 || gone > 0 {
-		r.sessionSave()
+		_ = r.sessionSave()
 	}
 
 	return nil
@@ -1040,7 +1040,7 @@ func (r *REPL) cleanupIAMRole(ctx context.Context, config aws.Config, resource C
 		policyList := strings.Split(policies, ",")
 		for _, policyArn := range policyList {
 			if policyArn != "" {
-				client.DetachRolePolicy(ctx, &iam.DetachRolePolicyInput{
+				_, _ = client.DetachRolePolicy(ctx, &iam.DetachRolePolicyInput{
 					RoleName:  aws.String(resource.Name),
 					PolicyArn: aws.String(policyArn),
 				})
@@ -1053,7 +1053,7 @@ func (r *REPL) cleanupIAMRole(ctx context.Context, config aws.Config, resource C
 		policyList := strings.Split(policies, ",")
 		for _, policyName := range policyList {
 			if policyName != "" {
-				client.DeleteRolePolicy(ctx, &iam.DeleteRolePolicyInput{
+				_, _ = client.DeleteRolePolicy(ctx, &iam.DeleteRolePolicyInput{
 					RoleName:   aws.String(resource.Name),
 					PolicyName: aws.String(policyName),
 				})
@@ -1245,7 +1245,7 @@ func (r *REPL) cleanupIAMUser(ctx context.Context, config aws.Config, resource C
 	})
 	if err == nil {
 		for _, key := range listKeysResult.AccessKeyMetadata {
-			client.DeleteAccessKey(ctx, &iam.DeleteAccessKeyInput{
+			_, _ = client.DeleteAccessKey(ctx, &iam.DeleteAccessKeyInput{
 				UserName:    aws.String(resource.Name),
 				AccessKeyId: key.AccessKeyId,
 			})
@@ -1257,7 +1257,7 @@ func (r *REPL) cleanupIAMUser(ctx context.Context, config aws.Config, resource C
 		policyList := strings.Split(policies, ",")
 		for _, policyArn := range policyList {
 			if policyArn != "" {
-				client.DetachUserPolicy(ctx, &iam.DetachUserPolicyInput{
+				_, _ = client.DetachUserPolicy(ctx, &iam.DetachUserPolicyInput{
 					UserName:  aws.String(resource.Name),
 					PolicyArn: aws.String(policyArn),
 				})
@@ -1270,7 +1270,7 @@ func (r *REPL) cleanupIAMUser(ctx context.Context, config aws.Config, resource C
 		policyList := strings.Split(policies, ",")
 		for _, policyName := range policyList {
 			if policyName != "" {
-				client.DeleteUserPolicy(ctx, &iam.DeleteUserPolicyInput{
+				_, _ = client.DeleteUserPolicy(ctx, &iam.DeleteUserPolicyInput{
 					UserName:   aws.String(resource.Name),
 					PolicyName: aws.String(policyName),
 				})

@@ -88,9 +88,9 @@ func (c *CLI) createIdentityCmd() *cobra.Command {
 			}
 
 			if len(replArgs) == 0 {
-				c.executeREPLCommand("identity add")
+				_ = c.executeREPLCommand("identity add")
 			} else {
-				c.executeREPLCommand("identity add " + strings.Join(replArgs, " "))
+				_ = c.executeREPLCommand("identity add " + strings.Join(replArgs, " "))
 			}
 		},
 	}
@@ -112,7 +112,7 @@ func (c *CLI) createIdentityCmd() *cobra.Command {
 		Short: "Switch to different identity",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("identity switch " + args[0])
+			_ = c.executeREPLCommand("identity switch " + args[0])
 		},
 	}
 	identityCmd.AddCommand(switchCmd)
@@ -124,9 +124,9 @@ func (c *CLI) createIdentityCmd() *cobra.Command {
 		Long:  "Uses IAM Policy Simulator to test whether an identity has admin-level access",
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) > 0 {
-				c.executeREPLCommand("identity check " + args[0])
+				_ = c.executeREPLCommand("identity check " + args[0])
 			} else {
-				c.executeREPLCommand("identity check")
+				_ = c.executeREPLCommand("identity check")
 			}
 		},
 	}
@@ -164,7 +164,7 @@ func (c *CLI) createIdentityCmd() *cobra.Command {
 		Use:   "refresh",
 		Short: "Refresh current identity credentials",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("identity refresh")
+			_ = c.executeREPLCommand("identity refresh")
 		},
 	})
 
@@ -185,7 +185,7 @@ func (c *CLI) createWorkspaceCmd() *cobra.Command {
 		Short: "Create new workspace",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("workspace create " + args[0])
+			_ = c.executeREPLCommand("workspace create " + args[0])
 		},
 	}
 	workspaceCmd.AddCommand(createCmd)
@@ -195,7 +195,7 @@ func (c *CLI) createWorkspaceCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List all workspaces",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("workspace list")
+			_ = c.executeREPLCommand("workspace list")
 		},
 	})
 
@@ -205,7 +205,7 @@ func (c *CLI) createWorkspaceCmd() *cobra.Command {
 		Short: "Switch to different workspace",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("workspace switch " + args[0])
+			_ = c.executeREPLCommand("workspace switch " + args[0])
 		},
 	}
 	workspaceCmd.AddCommand(switchCmd)
@@ -215,7 +215,7 @@ func (c *CLI) createWorkspaceCmd() *cobra.Command {
 		Use:   "save",
 		Short: "Save current workspace state",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("workspace save")
+			_ = c.executeREPLCommand("workspace save")
 		},
 	})
 
@@ -225,7 +225,7 @@ func (c *CLI) createWorkspaceCmd() *cobra.Command {
 		Short: "Delete workspace",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("workspace delete " + args[0])
+			_ = c.executeREPLCommand("workspace delete " + args[0])
 		},
 	}
 	workspaceCmd.AddCommand(deleteCmd)
@@ -248,7 +248,7 @@ func (c *CLI) createWorkspaceCmd() *cobra.Command {
 				replArgs = append(replArgs, "--yes")
 			}
 
-			c.executeREPLCommand(strings.Join(replArgs, " "))
+			_ = c.executeREPLCommand(strings.Join(replArgs, " "))
 		},
 	}
 	cleanupCmd.Flags().Bool("all", false, "Clean up all resources without interactive prompt")
@@ -268,7 +268,7 @@ func (c *CLI) createWorkspaceCmd() *cobra.Command {
 				replArgs = append(replArgs, "--module", module)
 			}
 
-			c.executeREPLCommand(strings.Join(replArgs, " "))
+			_ = c.executeREPLCommand(strings.Join(replArgs, " "))
 		},
 	}
 	reportCmd.Flags().String("module", "", "Only report resources from a specific module ID")
@@ -279,7 +279,7 @@ func (c *CLI) createWorkspaceCmd() *cobra.Command {
 		Use:   "history",
 		Short: "Show command history with timestamps",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("workspace history")
+			_ = c.executeREPLCommand("workspace history")
 		},
 	})
 
@@ -298,7 +298,7 @@ func (c *CLI) createShowCmd() *cobra.Command {
 		Use:   "options",
 		Short: "Show current module options",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("show options")
+			_ = c.executeREPLCommand("show options")
 		},
 	})
 
@@ -307,7 +307,7 @@ func (c *CLI) createShowCmd() *cobra.Command {
 		Use:   "modules",
 		Short: "List all available modules",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("show modules")
+			_ = c.executeREPLCommand("show modules")
 		},
 	})
 
@@ -316,7 +316,7 @@ func (c *CLI) createShowCmd() *cobra.Command {
 		Use:   "payloads",
 		Short: "List payloads for current module",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("show payloads")
+			_ = c.executeREPLCommand("show payloads")
 		},
 	})
 
@@ -325,7 +325,7 @@ func (c *CLI) createShowCmd() *cobra.Command {
 		Use:   "info",
 		Short: "Show detailed path metadata for current module",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("show info")
+			_ = c.executeREPLCommand("show info")
 		},
 	})
 
@@ -338,7 +338,7 @@ func (c *CLI) createShowCmd() *cobra.Command {
 		Use:   "options",
 		Short: "Show options for current payload",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("show payload options")
+			_ = c.executeREPLCommand("show payload options")
 		},
 	})
 	showCmd.AddCommand(payloadCmd)
@@ -352,7 +352,7 @@ func (c *CLI) createModulesCmd() *cobra.Command {
 		Use:   "modules",
 		Short: "List and search modules",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("modules list")
+			_ = c.executeREPLCommand("modules list")
 		},
 	}
 
@@ -361,9 +361,9 @@ func (c *CLI) createModulesCmd() *cobra.Command {
 		Short: "List all available modules",
 		Run: func(cmd *cobra.Command, args []string) {
 			if wide, _ := cmd.Flags().GetBool("wide"); wide {
-				c.executeREPLCommand("modules list --wide")
+				_ = c.executeREPLCommand("modules list --wide")
 			} else {
-				c.executeREPLCommand("modules list")
+				_ = c.executeREPLCommand("modules list")
 			}
 		},
 	}
@@ -374,7 +374,7 @@ func (c *CLI) createModulesCmd() *cobra.Command {
 		Use:   "summary",
 		Short: "Show module count by service",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("modules summary")
+			_ = c.executeREPLCommand("modules summary")
 		},
 	})
 
@@ -383,7 +383,7 @@ func (c *CLI) createModulesCmd() *cobra.Command {
 		Short: "Search modules by keyword",
 		Args:  cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("search " + strings.Join(args, " "))
+			_ = c.executeREPLCommand("search " + strings.Join(args, " "))
 		},
 	})
 
@@ -392,9 +392,9 @@ func (c *CLI) createModulesCmd() *cobra.Command {
 		Short: "Show test status for modules",
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) > 0 {
-				c.executeREPLCommand("modules status " + args[0])
+				_ = c.executeREPLCommand("modules status " + args[0])
 			} else {
-				c.executeREPLCommand("modules status")
+				_ = c.executeREPLCommand("modules status")
 			}
 		},
 	})
@@ -404,7 +404,7 @@ func (c *CLI) createModulesCmd() *cobra.Command {
 		Short: "Mark a module as tested",
 		Args:  cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("modules mark-tested " + strings.Join(args, " "))
+			_ = c.executeREPLCommand("modules mark-tested " + strings.Join(args, " "))
 		},
 	})
 
@@ -413,7 +413,7 @@ func (c *CLI) createModulesCmd() *cobra.Command {
 		Short: "Record per-payload test results for a module",
 		Args:  cobra.ExactArgs(3),
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("modules mark-results " + args[0] + " " + args[1] + " " + args[2])
+			_ = c.executeREPLCommand("modules mark-results " + args[0] + " " + args[1] + " " + args[2])
 		},
 	})
 
@@ -422,7 +422,7 @@ func (c *CLI) createModulesCmd() *cobra.Command {
 		Short: "Set module test status (tested|untested|failing|needs-update)",
 		Args:  cobra.ExactArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("modules mark-status " + args[0] + " " + args[1])
+			_ = c.executeREPLCommand("modules mark-status " + args[0] + " " + args[1])
 		},
 	})
 
@@ -438,9 +438,9 @@ func (c *CLI) createPayloadsCmd() *cobra.Command {
 		Short: "List available payloads",
 		Run: func(cmd *cobra.Command, args []string) {
 			if allPayloads {
-				c.executeREPLCommand("payloads list --all")
+				_ = c.executeREPLCommand("payloads list --all")
 			} else {
-				c.executeREPLCommand("payloads list")
+				_ = c.executeREPLCommand("payloads list")
 			}
 		},
 	}
@@ -451,9 +451,9 @@ func (c *CLI) createPayloadsCmd() *cobra.Command {
 		Short: "List all available payloads",
 		Run: func(cmd *cobra.Command, args []string) {
 			if allPayloads {
-				c.executeREPLCommand("payloads list --all")
+				_ = c.executeREPLCommand("payloads list --all")
 			} else {
-				c.executeREPLCommand("payloads list")
+				_ = c.executeREPLCommand("payloads list")
 			}
 		},
 	}
@@ -471,7 +471,7 @@ func (c *CLI) createSearchCmd() *cobra.Command {
 		Short: "Search modules by keyword",
 		Args:  cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("search " + strings.Join(args, " "))
+			_ = c.executeREPLCommand("search " + strings.Join(args, " "))
 		},
 	}
 }
@@ -483,7 +483,7 @@ func (c *CLI) createUseCmd() *cobra.Command {
 		Short: "Select an exploitation module",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("use " + args[0])
+			_ = c.executeREPLCommand("use " + args[0])
 		},
 	}
 }
@@ -495,7 +495,7 @@ func (c *CLI) createSetCmd() *cobra.Command {
 		Short: "Set module or payload options",
 		Args:  cobra.ExactArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("set " + args[0] + " " + args[1])
+			_ = c.executeREPLCommand("set " + args[0] + " " + args[1])
 		},
 	}
 }
@@ -507,7 +507,7 @@ func (c *CLI) createUnsetCmd() *cobra.Command {
 		Short: "Unset module or payload options",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("unset " + args[0])
+			_ = c.executeREPLCommand("unset " + args[0])
 		},
 	}
 }
@@ -518,7 +518,7 @@ func (c *CLI) createExploitCmd() *cobra.Command {
 		Use:   "exploit",
 		Short: "Execute the current module",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("exploit")
+			_ = c.executeREPLCommand("exploit")
 		},
 	}
 }
@@ -529,7 +529,7 @@ func (c *CLI) createContextCmd() *cobra.Command {
 		Use:   "context",
 		Short: "Show current context (workspace, identity, module, options)",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("context")
+			_ = c.executeREPLCommand("context")
 		},
 	}
 }
@@ -540,7 +540,7 @@ func (c *CLI) createWhoamiCmd() *cobra.Command {
 		Use:   "whoami",
 		Short: "Show current AWS identity information",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("whoami")
+			_ = c.executeREPLCommand("whoami")
 		},
 	}
 }
@@ -553,9 +553,9 @@ func (c *CLI) createInfoCmd() *cobra.Command {
 		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) > 0 {
-				c.executeREPLCommand("info " + args[0])
+				_ = c.executeREPLCommand("info " + args[0])
 			} else {
-				c.executeREPLCommand("info")
+				_ = c.executeREPLCommand("info")
 			}
 		},
 	}
@@ -569,9 +569,9 @@ func (c *CLI) createDiscoverCmd() *cobra.Command {
 		Long:  "Uses the current identity's permissions to enumerate valid values for discoverable module options",
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) > 0 {
-				c.executeREPLCommand("discover " + strings.Join(args, " "))
+				_ = c.executeREPLCommand("discover " + strings.Join(args, " "))
 			} else {
-				c.executeREPLCommand("discover")
+				_ = c.executeREPLCommand("discover")
 			}
 		},
 	}
@@ -622,7 +622,7 @@ func (c *CLI) createAWSCmd() *cobra.Command {
 			if len(args) > 0 {
 				cmdStr += " " + strings.Join(args, " ")
 			}
-			c.executeREPLCommand(cmdStr)
+			_ = c.executeREPLCommand(cmdStr)
 		},
 	}
 }
@@ -647,7 +647,7 @@ func (c *CLI) createPmapperCmd() *cobra.Command {
 				replArgs = append(replArgs, "--path", path)
 			}
 
-			c.executeREPLCommand(strings.Join(replArgs, " "))
+			_ = c.executeREPLCommand(strings.Join(replArgs, " "))
 		},
 	}
 	importCmd.Flags().String("path", "", "PMapper data directory path")
@@ -665,7 +665,7 @@ func (c *CLI) createPmapperCmd() *cobra.Command {
 				replArgs = append(replArgs, "--all")
 			}
 
-			c.executeREPLCommand(strings.Join(replArgs, " "))
+			_ = c.executeREPLCommand(strings.Join(replArgs, " "))
 		},
 	}
 	analyzeCmd.Flags().Bool("all", false, "Analyze all workspace identities")
@@ -676,7 +676,7 @@ func (c *CLI) createPmapperCmd() *cobra.Command {
 		Use:   "status",
 		Short: "Show graph metadata and module coverage",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("pmapper status")
+			_ = c.executeREPLCommand("pmapper status")
 		},
 	})
 
@@ -702,7 +702,7 @@ func (c *CLI) createCloudfoxCmd() *cobra.Command {
 				replArgs = append(replArgs, "--path", path)
 			}
 
-			c.executeREPLCommand(strings.Join(replArgs, " "))
+			_ = c.executeREPLCommand(strings.Join(replArgs, " "))
 		},
 	}
 	importCmd.Flags().String("path", "", "Cloudfox output directory path")
@@ -718,7 +718,7 @@ func (c *CLI) createResourcesCmd() *cobra.Command {
 		Short: "List and explore imported AWS resources",
 		Long:  "View AWS resources imported from cloudfox output",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("resources list")
+			_ = c.executeREPLCommand("resources list")
 		},
 	}
 
@@ -733,7 +733,7 @@ func (c *CLI) createResourcesCmd() *cobra.Command {
 				replArgs = append(replArgs, "--path", path)
 			}
 
-			c.executeREPLCommand(strings.Join(replArgs, " "))
+			_ = c.executeREPLCommand(strings.Join(replArgs, " "))
 		},
 	}
 	importCmd.Flags().String("path", "", "Cloudfox output directory path")
@@ -751,7 +751,7 @@ func (c *CLI) createResourcesCmd() *cobra.Command {
 				replArgs = append(replArgs, "--account", account)
 			}
 			replArgs = append(replArgs, args...)
-			c.executeREPLCommand(strings.Join(replArgs, " "))
+			_ = c.executeREPLCommand(strings.Join(replArgs, " "))
 		},
 	}
 	listCmd.Flags().Bool("wide", false, "Show ARN and type columns")
@@ -766,7 +766,7 @@ func (c *CLI) createResourcesCmd() *cobra.Command {
 			if account, _ := cmd.Flags().GetString("account"); account != "" {
 				replArgs = append(replArgs, "--account", account)
 			}
-			c.executeREPLCommand(strings.Join(replArgs, " "))
+			_ = c.executeREPLCommand(strings.Join(replArgs, " "))
 		},
 	}
 	summaryCmd.Flags().String("account", "", "AWS account ID")
@@ -776,7 +776,7 @@ func (c *CLI) createResourcesCmd() *cobra.Command {
 		Use:   "status",
 		Short: "Show import status",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("resources status")
+			_ = c.executeREPLCommand("resources status")
 		},
 	})
 
@@ -792,7 +792,7 @@ func (c *CLI) createResourcesCmd() *cobra.Command {
 			if all, _ := cmd.Flags().GetBool("all"); all {
 				replArgs = append(replArgs, "--all")
 			}
-			c.executeREPLCommand(strings.Join(replArgs, " "))
+			_ = c.executeREPLCommand(strings.Join(replArgs, " "))
 		},
 	}
 	clearCmd.Flags().String("account", "", "Clear resources for a specific AWS account ID")
@@ -819,7 +819,7 @@ func (c *CLI) createAttackerCmd() *cobra.Command {
 		Short: "Manage attacker account identity",
 		Long:  "Configure an attacker-controlled AWS account for deploying resources used during exploitation",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("attacker")
+			_ = c.executeREPLCommand("attacker")
 		},
 	}
 
@@ -828,7 +828,7 @@ func (c *CLI) createAttackerCmd() *cobra.Command {
 		Use:   "identity",
 		Short: "Manage attacker identity",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("attacker identity show")
+			_ = c.executeREPLCommand("attacker identity show")
 		},
 	}
 
@@ -836,7 +836,7 @@ func (c *CLI) createAttackerCmd() *cobra.Command {
 		Use:   "show",
 		Short: "Show current attacker identity",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("attacker identity show")
+			_ = c.executeREPLCommand("attacker identity show")
 		},
 	})
 
@@ -850,7 +850,7 @@ func (c *CLI) createAttackerCmd() *cobra.Command {
 		Short: "Configure from AWS profile",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("attacker identity add profile " + args[0])
+			_ = c.executeREPLCommand("attacker identity add profile " + args[0])
 		},
 	})
 
@@ -871,7 +871,7 @@ func (c *CLI) createAttackerCmd() *cobra.Command {
 			if region, _ := cmd.Flags().GetString("region"); region != "" {
 				replCmd += " --region " + region
 			}
-			c.executeREPLCommand(replCmd)
+			_ = c.executeREPLCommand(replCmd)
 		},
 	}
 	identityAddKeysCmd.Flags().String("access", "", "AWS access key ID")
@@ -886,7 +886,7 @@ func (c *CLI) createAttackerCmd() *cobra.Command {
 		Use:   "remove",
 		Short: "Remove attacker identity",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("attacker identity remove")
+			_ = c.executeREPLCommand("attacker identity remove")
 		},
 	})
 
@@ -894,7 +894,7 @@ func (c *CLI) createAttackerCmd() *cobra.Command {
 		Use:   "validate",
 		Short: "Validate attacker credentials",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("attacker identity validate")
+			_ = c.executeREPLCommand("attacker identity validate")
 		},
 	})
 
@@ -912,7 +912,7 @@ func (c *CLI) createAttackerCmd() *cobra.Command {
 		Short: "Configure from AWS profile",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("attacker identity add profile " + args[0])
+			_ = c.executeREPLCommand("attacker identity add profile " + args[0])
 		},
 	})
 
@@ -933,7 +933,7 @@ func (c *CLI) createAttackerCmd() *cobra.Command {
 			if region, _ := cmd.Flags().GetString("region"); region != "" {
 				replCmd += " --region " + region
 			}
-			c.executeREPLCommand(replCmd)
+			_ = c.executeREPLCommand(replCmd)
 		},
 	}
 	legacyKeysCmd.Flags().String("access", "", "AWS access key ID")
@@ -949,7 +949,7 @@ func (c *CLI) createAttackerCmd() *cobra.Command {
 		Short:      "Show current attacker identity (alias for 'attacker identity show')",
 		Deprecated: "use 'attacker identity show' instead",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("attacker identity show")
+			_ = c.executeREPLCommand("attacker identity show")
 		},
 	})
 
@@ -958,7 +958,7 @@ func (c *CLI) createAttackerCmd() *cobra.Command {
 		Short:      "Validate attacker credentials (alias for 'attacker identity validate')",
 		Deprecated: "use 'attacker identity validate' instead",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("attacker identity validate")
+			_ = c.executeREPLCommand("attacker identity validate")
 		},
 	})
 
@@ -967,7 +967,7 @@ func (c *CLI) createAttackerCmd() *cobra.Command {
 		Short:      "Remove attacker identity (alias for 'attacker identity remove')",
 		Deprecated: "use 'attacker identity remove' instead",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("attacker identity remove")
+			_ = c.executeREPLCommand("attacker identity remove")
 		},
 	})
 
@@ -996,7 +996,7 @@ func (c *CLI) createAttackerCmd() *cobra.Command {
 			if v, _ := cmd.Flags().GetString("public-ip"); v != "" {
 				replArgs = append(replArgs, "--public-ip", v)
 			}
-			c.executeREPLCommand(strings.Join(replArgs, " "))
+			_ = c.executeREPLCommand(strings.Join(replArgs, " "))
 		},
 	}
 	listenerStartCmd.Flags().Int("https-port", 0, "Credential collection port (default: 8443)")
@@ -1009,7 +1009,7 @@ func (c *CLI) createAttackerCmd() *cobra.Command {
 		Use:   "stop",
 		Short: "Stop the listener",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("attacker listener stop")
+			_ = c.executeREPLCommand("attacker listener stop")
 		},
 	})
 
@@ -1017,7 +1017,7 @@ func (c *CLI) createAttackerCmd() *cobra.Command {
 		Use:   "status",
 		Short: "Show listener state and statistics",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("attacker listener status")
+			_ = c.executeREPLCommand("attacker listener status")
 		},
 	})
 
@@ -1029,7 +1029,7 @@ func (c *CLI) createAttackerCmd() *cobra.Command {
 			if v, _ := cmd.Flags().GetInt("count"); v != 0 {
 				replArgs = append(replArgs, "--count", fmt.Sprintf("%d", v))
 			}
-			c.executeREPLCommand(strings.Join(replArgs, " "))
+			_ = c.executeREPLCommand(strings.Join(replArgs, " "))
 		},
 	}
 	listenerLogCmd.Flags().Int("count", 50, "Number of recent events to show")
@@ -1061,7 +1061,7 @@ func (c *CLI) createAttackerCmd() *cobra.Command {
 				replArgs = append(replArgs, "--region", v)
 			}
 
-			c.executeREPLCommand(strings.Join(replArgs, " "))
+			_ = c.executeREPLCommand(strings.Join(replArgs, " "))
 		},
 	}
 	infraEC2CreateCmd.Flags().String("region", "", "AWS region for the EC2 instance")
@@ -1071,7 +1071,7 @@ func (c *CLI) createAttackerCmd() *cobra.Command {
 		Use:   "update",
 		Short: "Update pathrunner binary on existing EC2 instance",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("attacker infra ec2 update")
+			_ = c.executeREPLCommand("attacker infra ec2 update")
 		},
 	})
 
@@ -1079,7 +1079,7 @@ func (c *CLI) createAttackerCmd() *cobra.Command {
 		Use:   "status",
 		Short: "Show EC2 deployment status",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("attacker infra ec2 status")
+			_ = c.executeREPLCommand("attacker infra ec2 status")
 		},
 	})
 
@@ -1087,7 +1087,7 @@ func (c *CLI) createAttackerCmd() *cobra.Command {
 		Use:   "destroy",
 		Short: "Tear down EC2 deployment",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("attacker infra ec2 destroy")
+			_ = c.executeREPLCommand("attacker infra ec2 destroy")
 		},
 	})
 
@@ -1109,7 +1109,7 @@ func (c *CLI) createAttackerCmd() *cobra.Command {
 			if region, _ := cmd.Flags().GetString("region"); region != "" {
 				replArgs = append(replArgs, "--region", region)
 			}
-			c.executeREPLCommand(strings.Join(replArgs, " "))
+			_ = c.executeREPLCommand(strings.Join(replArgs, " "))
 		},
 	}
 	infraBucketCreateCmd.Flags().String("type", "", "Bucket type: code or exfil (default: exfil)")
@@ -1120,7 +1120,7 @@ func (c *CLI) createAttackerCmd() *cobra.Command {
 		Use:   "status",
 		Short: "Show deployed buckets",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("attacker infra bucket status")
+			_ = c.executeREPLCommand("attacker infra bucket status")
 		},
 	})
 
@@ -1132,7 +1132,7 @@ func (c *CLI) createAttackerCmd() *cobra.Command {
 			if name, _ := cmd.Flags().GetString("name"); name != "" {
 				replArgs = append(replArgs, "--name", name)
 			}
-			c.executeREPLCommand(strings.Join(replArgs, " "))
+			_ = c.executeREPLCommand(strings.Join(replArgs, " "))
 		},
 	}
 	infraBucketDestroyCmd.Flags().String("name", "", "Specific bucket name to destroy (destroys all if omitted)")
@@ -1148,7 +1148,7 @@ func (c *CLI) createAttackerCmd() *cobra.Command {
 		Use:   "status",
 		Short: "Show all deployed infrastructure",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("attacker infra status")
+			_ = c.executeREPLCommand("attacker infra status")
 		},
 	})
 
@@ -1157,7 +1157,7 @@ func (c *CLI) createAttackerCmd() *cobra.Command {
 		Use:   "destroy",
 		Short: "Tear down ALL deployed infrastructure",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("attacker infra destroy")
+			_ = c.executeREPLCommand("attacker infra destroy")
 		},
 	})
 
@@ -1171,7 +1171,7 @@ func (c *CLI) createSessionsCmd() *cobra.Command {
 		Use:   "sessions",
 		Short: "Manage reverse shell sessions",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("sessions")
+			_ = c.executeREPLCommand("sessions")
 		},
 	}
 
@@ -1179,7 +1179,7 @@ func (c *CLI) createSessionsCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List all shell sessions",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("sessions list")
+			_ = c.executeREPLCommand("sessions list")
 		},
 	})
 
@@ -1188,7 +1188,7 @@ func (c *CLI) createSessionsCmd() *cobra.Command {
 		Short: "Interact with a session",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand(fmt.Sprintf("sessions interact %s", args[0]))
+			_ = c.executeREPLCommand(fmt.Sprintf("sessions interact %s", args[0]))
 		},
 	})
 
@@ -1197,7 +1197,7 @@ func (c *CLI) createSessionsCmd() *cobra.Command {
 		Short: "Kill a session",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand(fmt.Sprintf("sessions kill %s", args[0]))
+			_ = c.executeREPLCommand(fmt.Sprintf("sessions kill %s", args[0]))
 		},
 	})
 
@@ -1210,7 +1210,7 @@ func (c *CLI) createListenerCmd() *cobra.Command {
 		Use:   "listener",
 		Short: "Manage the unified credential collector and shell listener (alias for attacker listener)",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("attacker listener")
+			_ = c.executeREPLCommand("attacker listener")
 		},
 	}
 
@@ -1233,7 +1233,7 @@ func (c *CLI) createListenerCmd() *cobra.Command {
 			if v, _ := cmd.Flags().GetString("public-ip"); v != "" {
 				replArgs = append(replArgs, "--public-ip", v)
 			}
-			c.executeREPLCommand(strings.Join(replArgs, " "))
+			_ = c.executeREPLCommand(strings.Join(replArgs, " "))
 		},
 	}
 	listenerStartCmd.Flags().Int("https-port", 0, "Credential collection port (default: 8443)")
@@ -1246,7 +1246,7 @@ func (c *CLI) createListenerCmd() *cobra.Command {
 		Use:   "stop",
 		Short: "Stop the listener",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("attacker listener stop")
+			_ = c.executeREPLCommand("attacker listener stop")
 		},
 	})
 
@@ -1254,7 +1254,7 @@ func (c *CLI) createListenerCmd() *cobra.Command {
 		Use:   "status",
 		Short: "Show listener state and statistics",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("attacker listener status")
+			_ = c.executeREPLCommand("attacker listener status")
 		},
 	})
 
@@ -1266,7 +1266,7 @@ func (c *CLI) createListenerCmd() *cobra.Command {
 			if v, _ := cmd.Flags().GetInt("count"); v != 0 {
 				replArgs = append(replArgs, "--count", fmt.Sprintf("%d", v))
 			}
-			c.executeREPLCommand(strings.Join(replArgs, " "))
+			_ = c.executeREPLCommand(strings.Join(replArgs, " "))
 		},
 	}
 	listenerLogCmd.Flags().Int("count", 50, "Number of recent events to show")
@@ -1281,7 +1281,7 @@ func (c *CLI) createInfraCmd() *cobra.Command {
 		Use:   "infra",
 		Short: "Manage attacker infrastructure (alias for attacker infra)",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("attacker infra")
+			_ = c.executeREPLCommand("attacker infra")
 		},
 	}
 
@@ -1299,7 +1299,7 @@ func (c *CLI) createInfraCmd() *cobra.Command {
 			if v, _ := cmd.Flags().GetString("region"); v != "" {
 				replArgs = append(replArgs, "--region", v)
 			}
-			c.executeREPLCommand(strings.Join(replArgs, " "))
+			_ = c.executeREPLCommand(strings.Join(replArgs, " "))
 		},
 	}
 	infraEC2CreateCmd.Flags().String("region", "", "AWS region for the EC2 instance")
@@ -1309,7 +1309,7 @@ func (c *CLI) createInfraCmd() *cobra.Command {
 		Use:   "update",
 		Short: "Update pathrunner binary on existing EC2 instance",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("attacker infra ec2 update")
+			_ = c.executeREPLCommand("attacker infra ec2 update")
 		},
 	})
 
@@ -1317,7 +1317,7 @@ func (c *CLI) createInfraCmd() *cobra.Command {
 		Use:   "status",
 		Short: "Show EC2 deployment status",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("attacker infra ec2 status")
+			_ = c.executeREPLCommand("attacker infra ec2 status")
 		},
 	})
 
@@ -1325,7 +1325,7 @@ func (c *CLI) createInfraCmd() *cobra.Command {
 		Use:   "destroy",
 		Short: "Tear down EC2 deployment",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("attacker infra ec2 destroy")
+			_ = c.executeREPLCommand("attacker infra ec2 destroy")
 		},
 	})
 
@@ -1348,7 +1348,7 @@ func (c *CLI) createInfraCmd() *cobra.Command {
 			if region, _ := cmd.Flags().GetString("region"); region != "" {
 				replArgs = append(replArgs, "--region", region)
 			}
-			c.executeREPLCommand(strings.Join(replArgs, " "))
+			_ = c.executeREPLCommand(strings.Join(replArgs, " "))
 		},
 	}
 	infraBucketCreateCmd.Flags().String("type", "", "Bucket type: code or exfil (default: exfil)")
@@ -1359,7 +1359,7 @@ func (c *CLI) createInfraCmd() *cobra.Command {
 		Use:   "status",
 		Short: "Show deployed buckets",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("attacker infra bucket status")
+			_ = c.executeREPLCommand("attacker infra bucket status")
 		},
 	})
 
@@ -1371,7 +1371,7 @@ func (c *CLI) createInfraCmd() *cobra.Command {
 			if name, _ := cmd.Flags().GetString("name"); name != "" {
 				replArgs = append(replArgs, "--name", name)
 			}
-			c.executeREPLCommand(strings.Join(replArgs, " "))
+			_ = c.executeREPLCommand(strings.Join(replArgs, " "))
 		},
 	}
 	infraBucketDestroyCmd.Flags().String("name", "", "Specific bucket name to destroy (destroys all if omitted)")
@@ -1386,7 +1386,7 @@ func (c *CLI) createInfraCmd() *cobra.Command {
 		Use:   "status",
 		Short: "Show all deployed infrastructure",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("attacker infra status")
+			_ = c.executeREPLCommand("attacker infra status")
 		},
 	})
 
@@ -1394,7 +1394,7 @@ func (c *CLI) createInfraCmd() *cobra.Command {
 		Use:   "destroy",
 		Short: "Tear down ALL deployed infrastructure",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("attacker infra destroy")
+			_ = c.executeREPLCommand("attacker infra destroy")
 		},
 	})
 
@@ -1407,7 +1407,7 @@ func (c *CLI) createOptionsCmd() *cobra.Command {
 		Use:   "options",
 		Short: "Show current module options",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("options")
+			_ = c.executeREPLCommand("options")
 		},
 	}
 }
@@ -1428,7 +1428,7 @@ func (c *CLI) buildInfraECRCmd() *cobra.Command {
 			if region, _ := cmd.Flags().GetString("region"); region != "" {
 				replArgs = append(replArgs, "--region", region)
 			}
-			c.executeREPLCommand(strings.Join(replArgs, " "))
+			_ = c.executeREPLCommand(strings.Join(replArgs, " "))
 		},
 	}
 	infraECRCreateCmd.Flags().String("region", "", "AWS region for the ECR repository")
@@ -1438,7 +1438,7 @@ func (c *CLI) buildInfraECRCmd() *cobra.Command {
 		Use:   "status",
 		Short: "Show deployed ECR repositories",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("attacker infra ecr status")
+			_ = c.executeREPLCommand("attacker infra ecr status")
 		},
 	})
 
@@ -1446,7 +1446,7 @@ func (c *CLI) buildInfraECRCmd() *cobra.Command {
 		Use:   "destroy",
 		Short: "Destroy all deployed ECR repositories",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("attacker infra ecr destroy")
+			_ = c.executeREPLCommand("attacker infra ecr destroy")
 		},
 	})
 

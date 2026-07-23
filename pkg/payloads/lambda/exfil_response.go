@@ -19,7 +19,7 @@ func NewExfilResponsePayload() *ExfilResponsePayload {
 
 func init() {
 	// Auto-register this payload
-	payloads.Register(NewExfilResponsePayload())
+	_ = payloads.Register(NewExfilResponsePayload())
 }
 
 func (p *ExfilResponsePayload) GetName() string {

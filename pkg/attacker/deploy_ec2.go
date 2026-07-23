@@ -93,7 +93,7 @@ func DeployEC2(attackerCfg aws.Config, region string, operatorPublicIP string) (
 	if err != nil {
 		return nil, err
 	}
-	defer os.Remove(binaryPath)
+	defer func() { _ = os.Remove(binaryPath) }()
 
 	ec2Client := ec2.NewFromConfig(attackerCfg, func(o *ec2.Options) {
 		o.Region = region
@@ -888,7 +888,7 @@ func cleanupInstanceProfile(client *iam.Client, profileName string, iamRoleName 
 	})
 
 	// Delete role
-	client.DeleteRole(ctx, &iam.DeleteRoleInput{
+	_, _ = client.DeleteRole(ctx, &iam.DeleteRoleInput{
 		RoleName: aws.String(iamRoleName),
 	})
 }

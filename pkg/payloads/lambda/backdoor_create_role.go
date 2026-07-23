@@ -19,7 +19,7 @@ func NewBackdoorCreateRolePayload() *BackdoorCreateRolePayload {
 }
 
 func init() {
-	payloads.Register(NewBackdoorCreateRolePayload())
+	_ = payloads.Register(NewBackdoorCreateRolePayload())
 }
 
 func (p *BackdoorCreateRolePayload) GetName() string {

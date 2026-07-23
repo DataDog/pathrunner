@@ -35,7 +35,7 @@ func NewConfigManager() *ConfigManager {
 	configPath := filepath.Join(homeDir, ".pathrunner", "config.json")
 
 	// Create .pathrunner directory if it doesn't exist
-	os.MkdirAll(filepath.Dir(configPath), 0700)
+	_ = os.MkdirAll(filepath.Dir(configPath), 0700)
 
 	cm := &ConfigManager{
 		configPath: configPath,
@@ -47,7 +47,7 @@ func NewConfigManager() *ConfigManager {
 		cm.config = &Config{
 			CurrentWorkspace: "default",
 		}
-		cm.Save()
+		_ = cm.Save()
 	}
 
 	return cm

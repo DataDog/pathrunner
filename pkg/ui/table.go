@@ -96,35 +96,35 @@ func plainTable(headers []string, rows [][]string) {
 	// Print header
 	for i, h := range headers {
 		if i > 0 {
-			fmt.Fprint(os.Stdout, "  ")
+			_, _ = fmt.Fprint(os.Stdout, "  ")
 		}
-		fmt.Fprintf(os.Stdout, "%-*s", widths[i], h)
+		_, _ = fmt.Fprintf(os.Stdout, "%-*s", widths[i], h)
 	}
-	fmt.Fprintln(os.Stdout)
+	_, _ = fmt.Fprintln(os.Stdout)
 
 	// Print separator
 	for i, w := range widths {
 		if i > 0 {
-			fmt.Fprint(os.Stdout, "  ")
+			_, _ = fmt.Fprint(os.Stdout, "  ")
 		}
 		for j := 0; j < w; j++ {
-			fmt.Fprint(os.Stdout, "-")
+			_, _ = fmt.Fprint(os.Stdout, "-")
 		}
 	}
-	fmt.Fprintln(os.Stdout)
+	_, _ = fmt.Fprintln(os.Stdout)
 
 	// Print rows
 	for _, row := range rows {
 		for i, cell := range row {
 			if i > 0 {
-				fmt.Fprint(os.Stdout, "  ")
+				_, _ = fmt.Fprint(os.Stdout, "  ")
 			}
 			if i < len(widths) {
-				fmt.Fprintf(os.Stdout, "%-*s", widths[i], cell)
+				_, _ = fmt.Fprintf(os.Stdout, "%-*s", widths[i], cell)
 			} else {
-				fmt.Fprint(os.Stdout, cell)
+				_, _ = fmt.Fprint(os.Stdout, cell)
 			}
 		}
-		fmt.Fprintln(os.Stdout)
+		_, _ = fmt.Fprintln(os.Stdout)
 	}
 }

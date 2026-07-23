@@ -18,7 +18,7 @@ func NewBackdoorCreateUserPayload() *BackdoorCreateUserPayload {
 }
 
 func init() {
-	payloads.Register(NewBackdoorCreateUserPayload())
+	_ = payloads.Register(NewBackdoorCreateUserPayload())
 }
 
 func (p *BackdoorCreateUserPayload) GetName() string {

@@ -96,7 +96,7 @@ func (l *ListenerEventLog) Write(event ListenerEvent) {
 	if err != nil {
 		return
 	}
-	l.file.Write(append(data, '\n'))
+	_, _ = l.file.Write(append(data, '\n'))
 }
 
 // Close closes the log file.
@@ -104,7 +104,7 @@ func (l *ListenerEventLog) Close() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.file != nil {
-		l.file.Close()
+		_ = l.file.Close()
 	}
 }
 

@@ -15,7 +15,7 @@ import (
 type BackdoorUpdateRoleTrustPayload struct{}
 
 func init() {
-	payloads.Register(&BackdoorUpdateRoleTrustPayload{})
+	_ = payloads.Register(&BackdoorUpdateRoleTrustPayload{})
 }
 
 func (p *BackdoorUpdateRoleTrustPayload) GetName() string {

@@ -42,7 +42,7 @@ func (r *REPL) restoreListener() {
 	if err := r.listenerStart(args); err != nil {
 		fmt.Printf("[!] Failed to restore listener: %v\n", err)
 		// Remove the stale state so we don't retry every launch
-		attacker.RemoveListenerState()
+		_ = attacker.RemoveListenerState()
 	}
 }
 
@@ -142,7 +142,7 @@ func (r *REPL) listenerStart(args []string) error {
 
 		// Re-display prompt
 		if r.rl != nil {
-			r.rl.Write([]byte("\n"))
+			_, _ = r.rl.Write([]byte("\n"))
 			r.UpdatePrompt()
 		}
 	}

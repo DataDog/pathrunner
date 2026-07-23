@@ -14,8 +14,8 @@ func TestListenerStateSaveAndLoad(t *testing.T) {
 	// Use temp dir as HOME so we don't pollute real config
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	state := &attacker.ListenerState{
 		Enabled:   true,
@@ -54,8 +54,8 @@ func TestListenerStateSaveAndLoad(t *testing.T) {
 func TestListenerStateLoadNoFile(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	state, err := attacker.LoadListenerState()
 	if err != nil {
@@ -69,8 +69,8 @@ func TestListenerStateLoadNoFile(t *testing.T) {
 func TestListenerStateRemove(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	state := &attacker.ListenerState{
 		Enabled:   true,
@@ -95,8 +95,8 @@ func TestListenerStateRemove(t *testing.T) {
 func TestListenerStateRemoveNoFile(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	// Should not error even if file doesn't exist
 	if err := attacker.RemoveListenerState(); err != nil {
@@ -153,8 +153,8 @@ func TestNewListenerStateFromConfig(t *testing.T) {
 func TestListenerStateRoundTrip(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	// Create from config, save, load, convert back to config
 	originalConfig := attacker.ListenerConfig{

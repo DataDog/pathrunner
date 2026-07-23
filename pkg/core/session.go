@@ -61,7 +61,7 @@ func NewSessionManager() *SessionManager {
 	sessionsDir := filepath.Join(homeDir, ".pathrunner", "sessions")
 
 	// Create sessions directory if it doesn't exist
-	os.MkdirAll(sessionsDir, 0700)
+	_ = os.MkdirAll(sessionsDir, 0700)
 
 	// Create config manager
 	configManager := NewConfigManager()
@@ -102,7 +102,7 @@ func NewSessionManager() *SessionManager {
 				CommandLog:       make([]CommandLogEntry, 0),
 				CreatedResources: make([]CreatedResource, 0),
 			}
-			sm.SaveSession(session)
+			_ = sm.SaveSession(session)
 		} else {
 			// If the configured workspace doesn't exist, fall back to default
 			session, err = sm.LoadSession("default")
@@ -117,10 +117,10 @@ func NewSessionManager() *SessionManager {
 					CommandLog:       make([]CommandLogEntry, 0),
 					CreatedResources: make([]CreatedResource, 0),
 				}
-				sm.SaveSession(session)
+				_ = sm.SaveSession(session)
 			}
 			// Update config to default since the configured one didn't exist
-			configManager.SetCurrentWorkspace("default")
+			_ = configManager.SetCurrentWorkspace("default")
 		}
 	}
 
@@ -169,18 +169,18 @@ func (sm *SessionManager) SwitchSession(name string) error {
 
 	// Save current session before switching
 	if sm.currentSession != nil {
-		sm.SaveSession(sm.currentSession)
+		_ = sm.SaveSession(sm.currentSession)
 	}
 
 	sm.currentSession = session
 	sm.currentSession.LastAccessed = time.Now()
-	sm.SaveSession(sm.currentSession)
+	_ = sm.SaveSession(sm.currentSession)
 
 	// Only update config.json when not using an env-var-forced workspace.
 	// When PATHRUNNER_WORKSPACE is set, we skip config.json writes so that
 	// concurrent agents don't overwrite each other's workspace pointer.
 	if sm.configManager != nil && os.Getenv("PATHRUNNER_WORKSPACE") == "" {
-		sm.configManager.SetCurrentWorkspace(name)
+		_ = sm.configManager.SetCurrentWorkspace(name)
 	}
 
 	return nil

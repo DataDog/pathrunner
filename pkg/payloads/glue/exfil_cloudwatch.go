@@ -16,7 +16,7 @@ import (
 type ExfilCloudWatchPayload struct{}
 
 func init() {
-	payloads.Register(&ExfilCloudWatchPayload{})
+	_ = payloads.Register(&ExfilCloudWatchPayload{})
 }
 
 func (p *ExfilCloudWatchPayload) GetName() string {

@@ -23,7 +23,7 @@ func NewReverseShellTLSPayload() *ReverseShellTLSPayload {
 }
 
 func init() {
-	payloads.Register(NewReverseShellTLSPayload())
+	_ = payloads.Register(NewReverseShellTLSPayload())
 }
 
 func (p *ReverseShellTLSPayload) GetName() string {

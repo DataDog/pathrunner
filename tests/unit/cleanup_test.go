@@ -14,8 +14,8 @@ import (
 func TestModuleIDFieldPersistence(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	sm := core.NewSessionManager()
 
@@ -62,8 +62,8 @@ func TestModuleIDFieldPersistence(t *testing.T) {
 func TestModuleIDFieldEmpty(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	sm := core.NewSessionManager()
 
@@ -90,8 +90,8 @@ func TestModuleIDFieldEmpty(t *testing.T) {
 func TestMultipleResourcesWithModuleFilter(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	sm := core.NewSessionManager()
 

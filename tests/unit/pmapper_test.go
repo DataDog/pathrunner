@@ -359,8 +359,8 @@ func TestGetEdgesBetween(t *testing.T) {
 func TestManagerImportAndPersistence(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	m := pmapper.NewManager()
 
@@ -421,8 +421,8 @@ func TestManagerImportAndPersistence(t *testing.T) {
 func TestManagerTryAutoLoad(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	// Import to create the file
 	m1 := pmapper.NewManager()
@@ -454,8 +454,8 @@ func TestManagerTryAutoLoad(t *testing.T) {
 func TestManagerFindAndCount(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	m := pmapper.NewManager()
 	_, err := m.Import(fixtureDir, nil)
@@ -730,8 +730,8 @@ func moduleIDs(results []pmapper.SelfEscalationResult) []string {
 func TestManagerStatus(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	m := pmapper.NewManager()
 	_, err := m.Import(fixtureDir, nil)

@@ -487,7 +487,7 @@ func TestGetExfilBucket(t *testing.T) {
 			{Name: "test-exfil", Type: "exfil", Region: "us-east-1"},
 		},
 	}
-	attacker.SaveDeployState(state)
+	_ = attacker.SaveDeployState(state)
 
 	if got := attacker.GetExfilBucket(); got != "test-exfil" {
 		t.Errorf("Expected test-exfil, got %s", got)
@@ -513,7 +513,7 @@ func TestHasDeployedBuckets(t *testing.T) {
 			{Name: "test-bucket", Type: "exfil", Region: "us-east-1"},
 		},
 	}
-	attacker.SaveDeployState(state)
+	_ = attacker.SaveDeployState(state)
 
 	if !attacker.HasDeployedBuckets() {
 		t.Error("Expected true with deployed buckets")
@@ -641,7 +641,7 @@ func TestGetECRRepoURI(t *testing.T) {
 			},
 		},
 	}
-	attacker.SaveDeployState(state)
+	_ = attacker.SaveDeployState(state)
 
 	expected := "123456789012.dkr.ecr.us-east-1.amazonaws.com/pathrunner-runtime"
 	if uri := attacker.GetECRRepoURI(); uri != expected {
@@ -664,7 +664,7 @@ func TestHasDeployedECRRepos(t *testing.T) {
 			{RepositoryName: "test", Region: "us-east-1"},
 		},
 	}
-	attacker.SaveDeployState(state)
+	_ = attacker.SaveDeployState(state)
 
 	if !attacker.HasDeployedECRRepos() {
 		t.Error("Expected HasDeployedECRRepos to return true after saving")

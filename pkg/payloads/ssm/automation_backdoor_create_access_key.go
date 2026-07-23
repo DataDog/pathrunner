@@ -17,7 +17,7 @@ import (
 type AutomationBackdoorCreateAccessKeyPayload struct{}
 
 func init() {
-	payloads.Register(&AutomationBackdoorCreateAccessKeyPayload{})
+	_ = payloads.Register(&AutomationBackdoorCreateAccessKeyPayload{})
 }
 
 func (p *AutomationBackdoorCreateAccessKeyPayload) GetName() string {

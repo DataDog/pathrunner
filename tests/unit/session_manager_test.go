@@ -17,8 +17,8 @@ func TestSessionManagerCreation(t *testing.T) {
 	// Create temporary directory for test sessions
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	sm := core.NewSessionManager()
 
@@ -39,8 +39,8 @@ func TestSessionManagerCreation(t *testing.T) {
 func TestCreateSession(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	sm := core.NewSessionManager()
 
@@ -59,8 +59,8 @@ func TestCreateSession(t *testing.T) {
 func TestCreateDuplicateSession(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	sm := core.NewSessionManager()
 
@@ -80,8 +80,8 @@ func TestCreateDuplicateSession(t *testing.T) {
 func TestCreateSessionEmptyName(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	sm := core.NewSessionManager()
 
@@ -94,8 +94,8 @@ func TestCreateSessionEmptyName(t *testing.T) {
 func TestSwitchSession(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	sm := core.NewSessionManager()
 
@@ -120,8 +120,8 @@ func TestSwitchSession(t *testing.T) {
 func TestSwitchSessionNonExistent(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	sm := core.NewSessionManager()
 
@@ -140,8 +140,8 @@ func TestSwitchSessionNonExistent(t *testing.T) {
 func TestListSessions(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	sm := core.NewSessionManager()
 
@@ -177,8 +177,8 @@ func TestListSessions(t *testing.T) {
 func TestDeleteSession(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	sm := core.NewSessionManager()
 
@@ -208,8 +208,8 @@ func TestDeleteSession(t *testing.T) {
 func TestDeleteCurrentSessionFails(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	sm := core.NewSessionManager()
 
@@ -222,8 +222,8 @@ func TestDeleteCurrentSessionFails(t *testing.T) {
 func TestSessionIdentityPersistence(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	sm := core.NewSessionManager()
 
@@ -265,8 +265,8 @@ func TestSessionIdentityPersistence(t *testing.T) {
 func TestSessionCommandLogPersistence(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	sm := core.NewSessionManager()
 
@@ -307,8 +307,8 @@ func TestSessionCommandLogPersistence(t *testing.T) {
 func TestSessionResourceTracking(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	sm := core.NewSessionManager()
 
@@ -345,8 +345,8 @@ func TestSessionResourceTracking(t *testing.T) {
 func TestSessionIsolation(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	sm := core.NewSessionManager()
 
@@ -402,8 +402,8 @@ func TestSessionIsolation(t *testing.T) {
 func TestSessionLastAccessedUpdate(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	sm := core.NewSessionManager()
 

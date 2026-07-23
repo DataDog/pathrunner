@@ -175,9 +175,9 @@ func DestroyAllECRRepos(attackerCfg aws.Config) error {
 
 	state.ECRRepos = nil
 	if state.HasAnyDeployedResources() {
-		SaveDeployState(state)
+		_ = SaveDeployState(state)
 	} else {
-		RemoveDeployState()
+		_ = RemoveDeployState()
 	}
 
 	return lastErr

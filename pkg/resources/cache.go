@@ -177,7 +177,7 @@ func decodeCacheFile(filePath, service, operation, region, accountID string) ([]
 	if err != nil {
 		return nil, false
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var entry cacheEntry
 	if err := gob.NewDecoder(f).Decode(&entry); err != nil {

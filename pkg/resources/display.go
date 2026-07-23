@@ -173,8 +173,8 @@ func FormatStatusReport(statuses []ImportStatus) string {
 	var sb strings.Builder
 
 	for _, status := range statuses {
-		sb.WriteString(fmt.Sprintf("Account: %s\n", status.AccountID))
-		sb.WriteString(fmt.Sprintf("  Resources: %d total\n", status.ResourceCount))
+		fmt.Fprintf(&sb, "Account: %s\n", status.AccountID)
+		fmt.Fprintf(&sb, "  Resources: %d total\n", status.ResourceCount)
 
 		// Service breakdown
 		if len(status.ServiceCounts) > 0 {
@@ -194,7 +194,7 @@ func FormatStatusReport(statuses []ImportStatus) string {
 		}
 
 		// Import history
-		sb.WriteString(fmt.Sprintf("  Imports: %d\n", len(status.Imports)))
+		fmt.Fprintf(&sb, "  Imports: %d\n", len(status.Imports))
 		for i, imp := range status.Imports {
 			sourceType := imp.SourceType
 			if sourceType == "" {
@@ -202,18 +202,18 @@ func FormatStatusReport(statuses []ImportStatus) string {
 			}
 			switch sourceType {
 			case "discover":
-				sb.WriteString(fmt.Sprintf("    %d. [discover] %s at=%s\n",
+				fmt.Fprintf(&sb, "    %d. [discover] %s at=%s\n",
 					i+1, imp.SourceInfo,
-					imp.ImportedAt.Format("2006-01-02 15:04:05")))
+					imp.ImportedAt.Format("2006-01-02 15:04:05"))
 			default:
 				profile := imp.Profile
 				if profile == "" {
 					profile = "unknown"
 				}
-				sb.WriteString(fmt.Sprintf("    %d. [cloudfox] profile=%s dir=%s at=%s files=%d\n",
+				fmt.Fprintf(&sb, "    %d. [cloudfox] profile=%s dir=%s at=%s files=%d\n",
 					i+1, profile, imp.SourceDir,
 					imp.ImportedAt.Format("2006-01-02 15:04:05"),
-					len(imp.FilesParsed)))
+					len(imp.FilesParsed))
 			}
 		}
 	}

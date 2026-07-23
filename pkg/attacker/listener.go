@@ -144,7 +144,7 @@ func (l *UnifiedListener) Start() error {
 	shellListener, err := newShellListener(shellAddr, l.cert)
 	if err != nil {
 		// Clean up HTTPS server if shell listener fails
-		l.httpServer.Close()
+		_ = l.httpServer.Close()
 		return err
 	}
 	l.shellListener = shellListener
@@ -178,12 +178,12 @@ func (l *UnifiedListener) Stop() error {
 	if l.httpServer != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		l.httpServer.Shutdown(ctx)
+		_ = l.httpServer.Shutdown(ctx)
 	}
 
 	// Close shell listener
 	if l.shellListener != nil {
-		l.shellListener.Close()
+		_ = l.shellListener.Close()
 	}
 
 	// Close event log

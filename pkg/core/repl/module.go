@@ -317,7 +317,7 @@ func (r *REPL) cmdSet(repl *REPL, args []string) error {
 		r.autoPopulatePayloadDefaults(value)
 		fmt.Println()
 		if r.currentModule != nil {
-			r.showPayloadOptions(value)
+			_ = r.showPayloadOptions(value)
 		}
 	}
 
@@ -810,7 +810,7 @@ func (r *REPL) promptPayloadSelection() error {
 
 	// Show payload options after selection
 	fmt.Println()
-	r.showPayloadOptions(selected.Name)
+	_ = r.showPayloadOptions(selected.Name)
 
 	return nil
 }

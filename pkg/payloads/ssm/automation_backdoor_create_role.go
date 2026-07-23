@@ -17,7 +17,7 @@ import (
 type AutomationBackdoorCreateRolePayload struct{}
 
 func init() {
-	payloads.Register(&AutomationBackdoorCreateRolePayload{})
+	_ = payloads.Register(&AutomationBackdoorCreateRolePayload{})
 }
 
 func (p *AutomationBackdoorCreateRolePayload) GetName() string {

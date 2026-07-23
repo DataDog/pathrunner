@@ -19,7 +19,7 @@ func NewExfilHTTPSPayload() *ExfilHTTPSPayload {
 }
 
 func init() {
-	payloads.Register(NewExfilHTTPSPayload())
+	_ = payloads.Register(NewExfilHTTPSPayload())
 }
 
 func (p *ExfilHTTPSPayload) GetName() string {

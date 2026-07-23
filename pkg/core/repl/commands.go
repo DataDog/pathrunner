@@ -249,14 +249,14 @@ func (r *REPL) showSpecificHelp(command string) error {
 func (r *REPL) cmdExit(repl *REPL, args []string) error {
 	// Stop listener if running
 	if r.listener != nil {
-		r.listener.Stop()
+		_ = r.listener.Stop()
 	}
 
 	r.saveCurrentState()
 	// Persist session to disk before exiting
 	current := r.sessionManager.GetCurrentSession()
 	if current != nil {
-		r.sessionManager.SaveSession(current)
+		_ = r.sessionManager.SaveSession(current)
 	}
 	return io.EOF
 }

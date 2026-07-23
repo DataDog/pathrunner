@@ -213,8 +213,8 @@ func TestGluePassroleJobCreateTriggerExecuteNoAttackerNoS3(t *testing.T) {
 	// Use temp HOME to ensure no deploy state interferes.
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	mod := glue_passrole_job_createtrigger.NewModule()
 

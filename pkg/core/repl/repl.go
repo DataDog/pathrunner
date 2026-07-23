@@ -167,7 +167,7 @@ func (r *REPL) Start() error {
 	if rlErr != nil {
 		return rlErr
 	}
-	defer r.rl.Close()
+	defer func() { _ = r.rl.Close() }()
 
 	ui.ClearScreen()
 	r.PrintStartupBanner()
@@ -204,7 +204,7 @@ func (r *REPL) Start() error {
 			if err == io.EOF {
 				break
 			}
-			r.rl.Write([]byte("Error: " + err.Error() + "\n"))
+			_, _ = r.rl.Write([]byte("Error: " + err.Error() + "\n"))
 		}
 	}
 
@@ -220,7 +220,7 @@ func (r *REPL) PauseForShell() func() {
 
 	// Close readline so it stops reading stdin
 	if r.rl != nil {
-		r.rl.Close()
+		_ = r.rl.Close()
 	}
 
 	return func() {
@@ -292,7 +292,7 @@ func (r *REPL) handleCommand(line string) error {
 		// Persist session to disk
 		current := r.sessionManager.GetCurrentSession()
 		if current != nil {
-			r.sessionManager.SaveSession(current)
+			_ = r.sessionManager.SaveSession(current)
 		}
 		return err
 	}

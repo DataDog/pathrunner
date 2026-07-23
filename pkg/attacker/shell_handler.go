@@ -70,8 +70,8 @@ func enableTCPKeepAlive(conn net.Conn) {
 	}
 	if unwrapper, ok := conn.(tlsUnwrapper); ok {
 		if tcpConn, ok := unwrapper.NetConn().(*net.TCPConn); ok {
-			tcpConn.SetKeepAlive(true)
-			tcpConn.SetKeepAlivePeriod(30 * time.Second)
+			_ = tcpConn.SetKeepAlive(true)
+			_ = tcpConn.SetKeepAlivePeriod(30 * time.Second)
 		}
 	}
 }
@@ -98,7 +98,7 @@ func (s *ShellSession) Bridge() (backgrounded bool) {
 	}
 	defer func() {
 		if oldState != nil {
-			term.Restore(stdinFd, oldState)
+			_ = term.Restore(stdinFd, oldState)
 		}
 	}()
 
@@ -106,10 +106,10 @@ func (s *ShellSession) Bridge() (backgrounded bool) {
 	// If the connection is dead, this returns an error immediately.
 	// If alive, we get a timeout (no data) or actual data to replay.
 	var pendingData []byte
-	conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+	_ = conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 	testBuf := make([]byte, 4096)
 	n, err := conn.Read(testBuf)
-	conn.SetReadDeadline(time.Time{})
+	_ = conn.SetReadDeadline(time.Time{})
 	if n > 0 {
 		pendingData = make([]byte, n)
 		copy(pendingData, testBuf[:n])
@@ -124,7 +124,7 @@ func (s *ShellSession) Bridge() (backgrounded bool) {
 
 	// Replay any data that was buffered before Bridge() was called
 	if len(pendingData) > 0 {
-		os.Stdout.Write(pendingData)
+		_, _ = os.Stdout.Write(pendingData)
 	}
 
 	// Channel to coordinate shutdown between goroutines
@@ -137,10 +137,10 @@ func (s *ShellSession) Bridge() (backgrounded bool) {
 		buf := make([]byte, 4096)
 		for {
 			// Use a read deadline so we can check the stop signal periodically
-			conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+			_ = conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
 			readN, readErr := conn.Read(buf)
 			if readN > 0 {
-				os.Stdout.Write(buf[:readN])
+				_, _ = os.Stdout.Write(buf[:readN])
 			}
 			select {
 			case <-stop:
@@ -164,7 +164,7 @@ func (s *ShellSession) Bridge() (backgrounded bool) {
 		select {
 		case <-stop:
 			// Remote disconnected while we were waiting for stdin
-			conn.SetReadDeadline(time.Time{})
+			_ = conn.SetReadDeadline(time.Time{})
 			s.markDone()
 			return false
 		default:
@@ -173,7 +173,7 @@ func (s *ShellSession) Bridge() (backgrounded bool) {
 		stdinN, stdinErr := os.Stdin.Read(buf)
 		if stdinErr != nil {
 			signalStop()
-			conn.SetReadDeadline(time.Time{})
+			_ = conn.SetReadDeadline(time.Time{})
 			s.markDone()
 			return false
 		}
@@ -184,16 +184,16 @@ func (s *ShellSession) Bridge() (backgrounded bool) {
 				if buf[i] == 0x1a {
 					// Send any bytes before the Ctrl+Z
 					if i > 0 {
-						conn.Write(buf[:i])
+						_, _ = conn.Write(buf[:i])
 					}
 					signalStop()
-					conn.SetReadDeadline(time.Time{})
+					_ = conn.SetReadDeadline(time.Time{})
 					return true
 				}
 			}
 			if _, writeErr := conn.Write(buf[:stdinN]); writeErr != nil {
 				signalStop()
-				conn.SetReadDeadline(time.Time{})
+				_ = conn.SetReadDeadline(time.Time{})
 				s.markDone()
 				return false
 			}
@@ -202,7 +202,7 @@ func (s *ShellSession) Bridge() (backgrounded bool) {
 		// Re-check stop after processing input
 		select {
 		case <-stop:
-			conn.SetReadDeadline(time.Time{})
+			_ = conn.SetReadDeadline(time.Time{})
 			s.markDone()
 			return false
 		default:
@@ -228,7 +228,7 @@ func (s *ShellSession) Close() {
 	defer s.mu.Unlock()
 
 	if s.conn != nil {
-		s.conn.Close()
+		_ = s.conn.Close()
 		s.conn = nil
 	}
 

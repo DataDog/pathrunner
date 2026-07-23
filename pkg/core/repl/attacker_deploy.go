@@ -409,7 +409,7 @@ func (r *REPL) deployBucketCollect() error {
 					fmt.Printf("[+] Updated credentials for '%s'\n", existing.Name)
 					r.UpdatePrompt()
 					updated++
-					attacker.MarkExfilKeyCollected(key)
+					_ = attacker.MarkExfilKeyCollected(key)
 					continue
 				}
 			}
@@ -421,7 +421,7 @@ func (r *REPL) deployBucketCollect() error {
 			continue
 		}
 		imported++
-		attacker.MarkExfilKeyCollected(key)
+		_ = attacker.MarkExfilKeyCollected(key)
 	}
 
 	fmt.Printf("\n[*] Done. Imported %d new, updated %d existing credential set(s).\n", imported, updated)
@@ -657,7 +657,7 @@ func (r *REPL) deployGlobalDestroy() error {
 			}
 		}
 		state.Buckets = nil
-		attacker.SaveDeployState(state)
+		_ = attacker.SaveDeployState(state)
 	}
 
 	// Destroy ECR repos
@@ -671,7 +671,7 @@ func (r *REPL) deployGlobalDestroy() error {
 			}
 		}
 		state.ECRRepos = nil
-		attacker.SaveDeployState(state)
+		_ = attacker.SaveDeployState(state)
 	}
 
 	// Destroy EC2

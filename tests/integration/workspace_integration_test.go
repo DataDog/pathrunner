@@ -48,7 +48,7 @@ func TestWorkspaceSwitch(t *testing.T) {
 	defer cleanup()
 
 	// Create workspace
-	r.ExecuteCommand("workspace create test-ws")
+	_ = r.ExecuteCommand("workspace create test-ws")
 
 	// Switch to it
 	err := r.ExecuteCommand("workspace switch test-ws")
@@ -69,10 +69,10 @@ func TestWorkspaceDelete(t *testing.T) {
 	defer cleanup()
 
 	// Create workspace
-	r.ExecuteCommand("workspace create to-delete")
+	_ = r.ExecuteCommand("workspace create to-delete")
 
 	// Switch to default first (can't delete current)
-	r.ExecuteCommand("workspace switch default")
+	_ = r.ExecuteCommand("workspace switch default")
 
 	// Delete it
 	err := r.ExecuteCommand("workspace delete to-delete")
@@ -165,10 +165,10 @@ func TestWorkspaceIsolation(t *testing.T) {
 	currentSession := sm.GetCurrentSession()
 	currentSession.Identities = identities
 	currentSession.CurrentIdentity = "default-identity"
-	sm.SaveSession(currentSession)
+	_ = sm.SaveSession(currentSession)
 
 	// Create and switch to new workspace
-	r.ExecuteCommand("workspace create isolated")
+	_ = r.ExecuteCommand("workspace create isolated")
 	err := r.ExecuteCommand("workspace switch isolated")
 	if err != nil {
 		t.Fatalf("Failed to switch workspace: %v", err)

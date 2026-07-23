@@ -27,7 +27,7 @@ import (
 type BackdoorAttachPolicyPayload struct{}
 
 func init() {
-	payloads.Register(&BackdoorAttachPolicyPayload{})
+	_ = payloads.Register(&BackdoorAttachPolicyPayload{})
 }
 
 func (p *BackdoorAttachPolicyPayload) GetName() string {
@@ -199,7 +199,7 @@ func (p *BackdoorAttachPolicyPayload) ProcessResult(result string) (string, erro
 				if t, ok := parsed["target_type"].(string); ok {
 					targetType = t
 				}
-				output.WriteString(fmt.Sprintf("Target %s: %s\n", targetType, targetName))
+				fmt.Fprintf(&output, "Target %s: %s\n", targetType, targetName)
 			}
 			if policyARN, ok := parsed["policy_arn"].(string); ok {
 				output.WriteString("Policy ARN: " + policyARN + "\n")

@@ -18,7 +18,7 @@ import (
 type ExfilHTTPSPayload struct{}
 
 func init() {
-	payloads.Register(&ExfilHTTPSPayload{})
+	_ = payloads.Register(&ExfilHTTPSPayload{})
 }
 
 func (p *ExfilHTTPSPayload) GetName() string {

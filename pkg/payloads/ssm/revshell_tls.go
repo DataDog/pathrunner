@@ -17,7 +17,7 @@ import (
 type ReverseShellTLSPayload struct{}
 
 func init() {
-	payloads.Register(&ReverseShellTLSPayload{})
+	_ = payloads.Register(&ReverseShellTLSPayload{})
 }
 
 func (p *ReverseShellTLSPayload) GetName() string {

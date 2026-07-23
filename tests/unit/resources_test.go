@@ -234,8 +234,8 @@ func TestFindProfileDirs_WithFilter(t *testing.T) {
 func TestManagerImportAndQuery(t *testing.T) {
 	tmpDir := t.TempDir()
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	_ = os.Setenv("HOME", tmpDir)
+	defer func() { _ = os.Setenv("HOME", origHome) }()
 
 	m := resources.NewManager()
 	profileDir := filepath.Join(cloudfoxFixtureDir, "testprofile-123456789012")
@@ -297,8 +297,8 @@ func TestManagerPersistence(t *testing.T) {
 	// Set up temp HOME for persistence
 	tmpDir := t.TempDir()
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	_ = os.Setenv("HOME", tmpDir)
+	defer func() { _ = os.Setenv("HOME", origHome) }()
 
 	// Import
 	m1 := resources.NewManager()
@@ -336,8 +336,8 @@ func TestManagerPersistence(t *testing.T) {
 func TestManagerMultiImportMerge(t *testing.T) {
 	tmpDir := t.TempDir()
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	_ = os.Setenv("HOME", tmpDir)
+	defer func() { _ = os.Setenv("HOME", origHome) }()
 
 	m := resources.NewManager()
 	profileDir := filepath.Join(cloudfoxFixtureDir, "testprofile-123456789012")
@@ -373,8 +373,8 @@ func TestManagerMultiImportMerge(t *testing.T) {
 func TestManagerAvailableServices(t *testing.T) {
 	tmpDir := t.TempDir()
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	_ = os.Setenv("HOME", tmpDir)
+	defer func() { _ = os.Setenv("HOME", origHome) }()
 
 	m := resources.NewManager()
 	profileDir := filepath.Join(cloudfoxFixtureDir, "testprofile-123456789012")
@@ -462,8 +462,8 @@ func TestResourcesSourceFieldCloudfox(t *testing.T) {
 func TestResourcesSourceFieldDiscover(t *testing.T) {
 	tmpDir := t.TempDir()
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	_ = os.Setenv("HOME", tmpDir)
+	defer func() { _ = os.Setenv("HOME", origHome) }()
 
 	m := resources.NewManager()
 
@@ -493,8 +493,8 @@ func TestResourcesSourceFieldDiscover(t *testing.T) {
 func TestResourcesAddDiscoveredResources(t *testing.T) {
 	tmpDir := t.TempDir()
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	_ = os.Setenv("HOME", tmpDir)
+	defer func() { _ = os.Setenv("HOME", origHome) }()
 
 	m := resources.NewManager()
 
@@ -550,8 +550,8 @@ func TestResourcesAddDiscoveredEmptySkipped(t *testing.T) {
 func TestResourcesFindChoicesForOption(t *testing.T) {
 	tmpDir := t.TempDir()
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	_ = os.Setenv("HOME", tmpDir)
+	defer func() { _ = os.Setenv("HOME", origHome) }()
 
 	m := resources.NewManager()
 
@@ -592,8 +592,8 @@ func TestResourcesFindChoicesForOption(t *testing.T) {
 func TestResourcesFindChoicesForOptionMultipleTypes(t *testing.T) {
 	tmpDir := t.TempDir()
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	_ = os.Setenv("HOME", tmpDir)
+	defer func() { _ = os.Setenv("HOME", origHome) }()
 
 	m := resources.NewManager()
 	profileDir := filepath.Join(cloudfoxFixtureDir, "testprofile-123456789012")
@@ -626,8 +626,8 @@ func TestResourcesFindChoicesForOptionMultipleTypes(t *testing.T) {
 func TestResourcesMergedDiscoverAndCloudfox(t *testing.T) {
 	tmpDir := t.TempDir()
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	_ = os.Setenv("HOME", tmpDir)
+	defer func() { _ = os.Setenv("HOME", origHome) }()
 
 	m := resources.NewManager()
 
@@ -685,8 +685,8 @@ func TestResourcesImportRecordSourceType(t *testing.T) {
 func TestResourcesSourcePersistenceRoundTrip(t *testing.T) {
 	tmpDir := t.TempDir()
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	_ = os.Setenv("HOME", tmpDir)
+	defer func() { _ = os.Setenv("HOME", origHome) }()
 
 	m1 := resources.NewManager()
 

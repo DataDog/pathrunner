@@ -975,7 +975,7 @@ func (im *IdentityManager) saveAttackerIdentity() {
 		return
 	}
 
-	os.WriteFile(path, data, 0600)
+	_ = os.WriteFile(path, data, 0600)
 }
 
 // removeAttackerIdentityFile deletes the global attacker identity file.
@@ -984,7 +984,7 @@ func (im *IdentityManager) removeAttackerIdentityFile() {
 	if err != nil {
 		return
 	}
-	os.Remove(path)
+	_ = os.Remove(path)
 }
 
 // CheckAdmin checks whether the named identity (or current if empty) has admin privileges.
@@ -1051,7 +1051,7 @@ func (im *IdentityManager) CheckAdmin(identityName string) error {
 // promptForAdminCheck checks admin privileges only when --check-admin flag is set.
 func (im *IdentityManager) promptForAdminCheck(identityName string) {
 	if im.checkAdmin {
-		im.CheckAdmin(identityName)
+		_ = im.CheckAdmin(identityName)
 	}
 }
 
@@ -1070,7 +1070,7 @@ func (im *IdentityManager) promptToSwitch(identityName string) {
 
 	fmt.Printf("Switch to identity '%s'? [y/N]: ", identityName)
 	var response string
-	fmt.Scanln(&response)
+	_, _ = fmt.Scanln(&response)
 
 	if strings.ToLower(response) == "y" || strings.ToLower(response) == "yes" {
 		im.current = im.identities[identityName]

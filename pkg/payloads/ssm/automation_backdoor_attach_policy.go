@@ -17,7 +17,7 @@ import (
 type AutomationBackdoorAttachPolicyPayload struct{}
 
 func init() {
-	payloads.Register(&AutomationBackdoorAttachPolicyPayload{})
+	_ = payloads.Register(&AutomationBackdoorAttachPolicyPayload{})
 }
 
 func (p *AutomationBackdoorAttachPolicyPayload) GetName() string {

@@ -160,7 +160,7 @@ func createBucketWithPolicy(attackerCfg aws.Config, region string, prefix string
 	// Substitute the actual bucket name into the policy
 	policyJSON, err := json.Marshal(policy)
 	if err != nil {
-		s3Client.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(bucketName)})
+		_, _ = s3Client.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(bucketName)})
 		return "", fmt.Errorf("failed to marshal bucket policy: %v", err)
 	}
 
@@ -171,7 +171,7 @@ func createBucketWithPolicy(attackerCfg aws.Config, region string, prefix string
 		Policy: aws.String(resolvedPolicy),
 	})
 	if err != nil {
-		s3Client.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(bucketName)})
+		_, _ = s3Client.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(bucketName)})
 		return "", fmt.Errorf("failed to set bucket policy: %v", err)
 	}
 
@@ -350,7 +350,7 @@ func DownloadExfilArtifact(cfg aws.Config, bucketName, key string) ([]byte, erro
 	if err != nil {
 		return nil, fmt.Errorf("failed to download %s: %v", key, err)
 	}
-	defer out.Body.Close()
+	defer func() { _ = out.Body.Close() }()
 
 	return io.ReadAll(out.Body)
 }

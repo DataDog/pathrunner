@@ -15,7 +15,7 @@ import (
 type ExfilS3Payload struct{}
 
 func init() {
-	payloads.Register(&ExfilS3Payload{})
+	_ = payloads.Register(&ExfilS3Payload{})
 }
 
 func (p *ExfilS3Payload) GetName() string {

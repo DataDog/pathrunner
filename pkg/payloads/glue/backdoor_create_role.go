@@ -15,7 +15,7 @@ import (
 type BackdoorCreateRolePayload struct{}
 
 func init() {
-	payloads.Register(&BackdoorCreateRolePayload{})
+	_ = payloads.Register(&BackdoorCreateRolePayload{})
 }
 
 func (p *BackdoorCreateRolePayload) GetName() string {
@@ -89,17 +89,17 @@ func (p *BackdoorCreateRolePayload) GenerateCode(options map[string]string) (str
 	assumeRoleExtra := ""
 
 	if externalID != "" {
-		externalIDArgParsing = fmt.Sprintf(`
+		externalIDArgParsing = `
     if arg == '--EXTERNAL_ID' and i + 1 < len(sys.argv):
-        external_id = sys.argv[i + 1]`)
+        external_id = sys.argv[i + 1]`
 
-		externalIDCondition = fmt.Sprintf(`
+		externalIDCondition = `
     if external_id:
         trust_policy['Statement'][0]['Condition'] = {
             'StringEquals': {
                 'sts:ExternalId': external_id
             }
-        }`)
+        }`
 
 		externalIDOutput = `
     if external_id:

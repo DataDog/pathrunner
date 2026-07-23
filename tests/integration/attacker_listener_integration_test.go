@@ -61,7 +61,7 @@ func TestAttackerListenerStartStopIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST to listener failed: %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("Expected 200, got %d", resp.StatusCode)
@@ -103,7 +103,7 @@ func TestAttackerListenerDoubleStartIntegration(t *testing.T) {
 	}
 
 	// Cleanup
-	r.ExecuteCommand("attacker listener stop")
+	_ = r.ExecuteCommand("attacker listener stop")
 }
 
 func TestAttackerListenerPreservesUserOptions(t *testing.T) {
@@ -122,7 +122,7 @@ func TestAttackerListenerPreservesUserOptions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
-	defer r.ExecuteCommand("attacker listener stop")
+	defer func() { _ = r.ExecuteCommand("attacker listener stop") }()
 
 	// User-set values should NOT be overwritten
 	options := r.GetOptions()
@@ -195,6 +195,6 @@ func findFreePortIntegration(t *testing.T) int {
 		t.Fatalf("Failed to find free port: %v", err)
 	}
 	port := l.Addr().(*net.TCPAddr).Port
-	l.Close()
+	_ = l.Close()
 	return port
 }

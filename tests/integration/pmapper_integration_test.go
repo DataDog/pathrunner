@@ -122,7 +122,7 @@ func TestPmapperAnalyzeNoGraph(t *testing.T) {
 	currentSession := sm.GetCurrentSession()
 	currentSession.Identities = identities
 	currentSession.CurrentIdentity = "lab-user"
-	sm.SaveSession(currentSession)
+	_ = sm.SaveSession(currentSession)
 
 	err := r.ExecuteCommand("pmapper analyze")
 	if err == nil {
@@ -237,7 +237,7 @@ func TestPmapperAnalyzeSelfEscalation(t *testing.T) {
 	currentSession := sm.GetCurrentSession()
 	currentSession.Identities = identities
 	currentSession.CurrentIdentity = "selfesc-user"
-	sm.SaveSession(currentSession)
+	_ = sm.SaveSession(currentSession)
 
 	// Analyze should NOT return error — it should show self-escalation paths
 	err = r.ExecuteCommand("pmapper analyze")
@@ -276,7 +276,7 @@ func TestPmapperAnalyzeAdminNoPolicies(t *testing.T) {
 	currentSession := sm.GetCurrentSession()
 	currentSession.Identities = identities
 	currentSession.CurrentIdentity = "admin-role"
-	sm.SaveSession(currentSession)
+	_ = sm.SaveSession(currentSession)
 
 	// Should gracefully handle admin with no self-escalation results
 	err = r.ExecuteCommand("pmapper analyze")
