@@ -969,7 +969,7 @@
     },
     "lambda-001": {
       "status": "tested",
-      "last_tested": "2026-07-20",
+      "last_tested": "2026-07-23",
       "tested_against": "lambda-001-to-admin",
       "notes": "",
       "payload_results": [

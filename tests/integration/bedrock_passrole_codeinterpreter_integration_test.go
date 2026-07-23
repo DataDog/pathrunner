@@ -67,7 +67,7 @@ func TestBedrockPassroleCodeInterpreterSetOption(t *testing.T) {
 		t.Fatalf("Expected set EXECUTION_ROLE_ARN to succeed: %v", err)
 	}
 
-	if err := r.ExecuteCommand("set PAYLOAD exfil/response"); err != nil {
+	if err := r.ExecuteCommand("set PAYLOAD exfil/mmds"); err != nil {
 		t.Fatalf("Expected set PAYLOAD to succeed: %v", err)
 	}
 
@@ -88,7 +88,7 @@ func TestBedrockPassroleCodeInterpreterExploitNoIdentity(t *testing.T) {
 		t.Fatalf("Failed to set EXECUTION_ROLE_ARN: %v", err)
 	}
 
-	if err := r.ExecuteCommand("set PAYLOAD exfil/response"); err != nil {
+	if err := r.ExecuteCommand("set PAYLOAD exfil/mmds"); err != nil {
 		t.Fatalf("Failed to set PAYLOAD: %v", err)
 	}
 
