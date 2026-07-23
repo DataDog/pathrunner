@@ -287,10 +287,16 @@ func (r *REPL) cmdSet(repl *REPL, args []string) error {
 			return NewValidationError("no module selected. Use 'use <module>' to select one", nil)
 		}
 
-		// Check if payload exists
-		payloads := r.currentModule.ListPayloads()
+		// Check if payload exists — use empty options to skip runtime filtering so any
+		// valid payload can be set manually (runtime validation happens at Execute() time)
+		var availablePayloads []modules.PayloadInfo
+		if lister, ok := r.currentModule.(modules.RuntimeFilteredPayloadLister); ok {
+			availablePayloads = lister.ListPayloadsForOptions(map[string]string{})
+		} else {
+			availablePayloads = r.currentModule.ListPayloads()
+		}
 		validPayload := false
-		for _, p := range payloads {
+		for _, p := range availablePayloads {
 			if p.Name == value {
 				validPayload = true
 				break
@@ -301,7 +307,7 @@ func (r *REPL) cmdSet(repl *REPL, args []string) error {
 			// Show available payloads
 			fmt.Printf("Error: Invalid payload '%s'\n\n", value)
 			fmt.Println("Available payloads:")
-			for _, p := range payloads {
+			for _, p := range availablePayloads {
 				fmt.Printf("  - %s: %s\n", p.Name, p.Description)
 			}
 			return NewValidationError(fmt.Sprintf("payload '%s' does not exist for module '%s'", value, r.currentModule.Name()), nil)
@@ -490,6 +496,13 @@ func (r *REPL) discoverAndSetOption(discoverable modules.Discoverable, optionNam
 		selected := choices[0]
 		r.options[optionName] = selected.Value
 		fmt.Printf("Auto-selected %s => %s\n", optionName, selected.Value)
+		// Auto-capture runtime from discovery metadata so payload filtering works immediately
+		if optionName == "FUNCTION_NAME" {
+			if runtime, ok := selected.Metadata["runtime"]; ok && runtime != "" {
+				r.options["FUNCTION_RUNTIME"] = runtime
+				fmt.Printf("  [*] Auto-detected runtime: %s\n", runtime)
+			}
+		}
 		return nil
 	}
 
@@ -511,6 +524,13 @@ func (r *REPL) discoverAndSetOption(discoverable modules.Discoverable, optionNam
 	selected := choices[selectedIndex]
 	r.options[optionName] = selected.Value
 	fmt.Printf("Set %s => %s\n", optionName, selected.Value)
+	// Auto-capture runtime from discovery metadata so payload filtering works immediately
+	if optionName == "FUNCTION_NAME" {
+		if runtime, ok := selected.Metadata["runtime"]; ok && runtime != "" {
+			r.options["FUNCTION_RUNTIME"] = runtime
+			fmt.Printf("  [*] Auto-detected runtime: %s\n", runtime)
+		}
+	}
 
 	return nil
 }
@@ -787,7 +807,12 @@ func (r *REPL) autoPopulatePayloadDefaults(payloadName string) {
 
 // promptPayloadSelection presents an interactive selection of available payloads.
 func (r *REPL) promptPayloadSelection() error {
-	payloadList := r.currentModule.ListPayloads()
+	var payloadList []modules.PayloadInfo
+	if lister, ok := r.currentModule.(modules.RuntimeFilteredPayloadLister); ok {
+		payloadList = lister.ListPayloadsForOptions(r.options)
+	} else {
+		payloadList = r.currentModule.ListPayloads()
+	}
 	if len(payloadList) == 0 {
 		return fmt.Errorf("no payloads available for module %s", r.currentModule.Name())
 	}
@@ -1217,7 +1242,12 @@ func (r *REPL) showPayloads() error {
 		return r.showAllPayloads()
 	}
 
-	payloads := r.currentModule.ListPayloads()
+	var payloads []modules.PayloadInfo
+	if lister, ok := r.currentModule.(modules.RuntimeFilteredPayloadLister); ok {
+		payloads = lister.ListPayloadsForOptions(r.options)
+	} else {
+		payloads = r.currentModule.ListPayloads()
+	}
 	if len(payloads) == 0 {
 		fmt.Printf("Module %s has no payloads.\n", r.currentModule.Name())
 		return nil

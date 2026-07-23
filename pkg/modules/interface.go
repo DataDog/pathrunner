@@ -199,6 +199,13 @@ type PayloadCompatible interface {
 	GetPayloadContext() string
 }
 
+// RuntimeFilteredPayloadLister is an optional interface for modules that can filter
+// their payload list based on current option state, e.g., filtering lambda payloads
+// by the target function's detected runtime.
+type RuntimeFilteredPayloadLister interface {
+	ListPayloadsForOptions(options map[string]string) []PayloadInfo
+}
+
 type PayloadInfo struct {
 	Name        string
 	Description string

@@ -1119,9 +1119,10 @@ func TestNewLambdaPayloads(t *testing.T) {
 		}
 	})
 
-	t.Run("AllLambdaPayloads_HaveLambdaHandler", func(t *testing.T) {
-		lambdaPayloads := payloads.GetPayloadsByTags([]string{payloads.TagServiceLambda})
-		for _, p := range lambdaPayloads {
+	t.Run("PythonLambdaPayloads_HaveLambdaHandler", func(t *testing.T) {
+		// Node.js payloads use exports.handler, not lambda_handler — only check Python payloads
+		pythonPayloads := payloads.GetPayloadsByTags([]string{payloads.TagServiceLambda, payloads.TagLanguagePython})
+		for _, p := range pythonPayloads {
 			opts := buildMinimalValidOptions(p)
 			code, err := p.GenerateCode(opts)
 			if err != nil {
@@ -1129,7 +1130,22 @@ func TestNewLambdaPayloads(t *testing.T) {
 				continue
 			}
 			if !strings.Contains(code, "lambda_handler") {
-				t.Errorf("Lambda payload '%s' should contain lambda_handler", p.GetName())
+				t.Errorf("Python lambda payload '%s' should contain lambda_handler", p.GetName())
+			}
+		}
+	})
+
+	t.Run("NodejsLambdaPayloads_HaveExportsHandler", func(t *testing.T) {
+		nodejsPayloads := payloads.GetPayloadsByTags([]string{payloads.TagServiceLambda, payloads.TagLanguageNodeJS})
+		for _, p := range nodejsPayloads {
+			opts := buildMinimalValidOptions(p)
+			code, err := p.GenerateCode(opts)
+			if err != nil {
+				t.Errorf("Node.js lambda payload '%s' failed to generate code: %v", p.GetName(), err)
+				continue
+			}
+			if !strings.Contains(code, "exports.handler") {
+				t.Errorf("Node.js lambda payload '%s' should contain exports.handler", p.GetName())
 			}
 		}
 	})
