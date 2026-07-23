@@ -18,8 +18,8 @@ func TestDeployStateSaveLoad(t *testing.T) {
 	// Use temp dir as HOME to avoid touching real state
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	state := &attacker.DeployState{
 		EC2: &attacker.EC2DeployState{
@@ -82,8 +82,8 @@ func TestDeployStateSaveLoad(t *testing.T) {
 func TestDeployStateLoadNonExistent(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	// Load from non-existent file should return empty state
 	state, err := attacker.LoadDeployState()
@@ -101,14 +101,14 @@ func TestDeployStateLoadNonExistent(t *testing.T) {
 func TestDeployStateRemove(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	// Save a state first
 	state := &attacker.DeployState{
 		EC2: &attacker.EC2DeployState{InstanceID: "i-test"},
 	}
-	attacker.SaveDeployState(state)
+	_ = attacker.SaveDeployState(state)
 
 	// Remove it
 	if err := attacker.RemoveDeployState(); err != nil {
@@ -128,8 +128,8 @@ func TestDeployStateRemove(t *testing.T) {
 func TestDeployStateRemoveNonExistent(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	// Remove non-existent file should not error
 	if err := attacker.RemoveDeployState(); err != nil {
@@ -180,13 +180,13 @@ func TestDeployStateHasResources(t *testing.T) {
 func TestDeployStateFilePermissions(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	state := &attacker.DeployState{
 		EC2: &attacker.EC2DeployState{InstanceID: "i-test"},
 	}
-	attacker.SaveDeployState(state)
+	_ = attacker.SaveDeployState(state)
 
 	// Check file permissions are restrictive (0600)
 	deployFile := filepath.Join(tempDir, ".pathrunner", "deploy.json")
@@ -204,19 +204,19 @@ func TestDeployStateFilePermissions(t *testing.T) {
 func TestDeployStateSaveUpdatesExisting(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	// Save initial state
 	state := &attacker.DeployState{
 		EC2: &attacker.EC2DeployState{InstanceID: "i-first", PublicIP: "1.2.3.4"},
 	}
-	attacker.SaveDeployState(state)
+	_ = attacker.SaveDeployState(state)
 
 	// Update and save again
 	state.EC2.PublicIP = "5.6.7.8"
 	state.Buckets = []attacker.BucketDeployState{{Name: "new-bucket", Type: "exfil", Region: "us-west-2"}}
-	attacker.SaveDeployState(state)
+	_ = attacker.SaveDeployState(state)
 
 	// Load and verify update
 	loaded, _ := attacker.LoadDeployState()
@@ -279,8 +279,8 @@ func TestAttackerDeployEC2CreateNoAttacker(t *testing.T) {
 func TestAttackerDeployEC2StatusNoDeployment(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	identityManager := &MockIdentityManager{}
 	sessionManager := &MockSessionManager{}
@@ -307,8 +307,8 @@ func TestAttackerDeployEC2DestroyNoAttacker(t *testing.T) {
 func TestAttackerDeployStatusNoDeployment(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	identityManager := &MockIdentityManager{}
 	sessionManager := &MockSessionManager{}
@@ -324,8 +324,8 @@ func TestAttackerDeployStatusNoDeployment(t *testing.T) {
 func TestAttackerDeployDestroyNoDeployment(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	identityManager := &MockIdentityManager{}
 	sessionManager := &MockSessionManager{}
@@ -399,8 +399,8 @@ func TestAttackerDeployBucketDefaultNoAttacker(t *testing.T) {
 func TestAttackerDeployBucketStatusNoDeployment(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	identityManager := &MockIdentityManager{}
 	sessionManager := &MockSessionManager{}
@@ -437,8 +437,8 @@ func TestAttackerDeployBucketUnknownAction(t *testing.T) {
 func TestGetCodeBucket(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	// No state — should return empty
 	if got := attacker.GetCodeBucket(); got != "" {
@@ -451,7 +451,7 @@ func TestGetCodeBucket(t *testing.T) {
 			{Name: "test-exfil", Type: "exfil", Region: "us-east-1"},
 		},
 	}
-	attacker.SaveDeployState(state)
+	_ = attacker.SaveDeployState(state)
 
 	if got := attacker.GetCodeBucket(); got != "" {
 		t.Errorf("Expected empty string with only exfil bucket, got %s", got)
@@ -461,20 +461,20 @@ func TestGetCodeBucket(t *testing.T) {
 	state.Buckets = append(state.Buckets, attacker.BucketDeployState{
 		Name: "test-code", Type: "code", Region: "us-east-1",
 	})
-	attacker.SaveDeployState(state)
+	_ = attacker.SaveDeployState(state)
 
 	if got := attacker.GetCodeBucket(); got != "test-code" {
 		t.Errorf("Expected test-code, got %s", got)
 	}
 
-	attacker.RemoveDeployState()
+	_ = attacker.RemoveDeployState()
 }
 
 func TestGetExfilBucket(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	// No state — should return empty
 	if got := attacker.GetExfilBucket(); got != "" {
@@ -493,14 +493,14 @@ func TestGetExfilBucket(t *testing.T) {
 		t.Errorf("Expected test-exfil, got %s", got)
 	}
 
-	attacker.RemoveDeployState()
+	_ = attacker.RemoveDeployState()
 }
 
 func TestHasDeployedBuckets(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	// No state
 	if attacker.HasDeployedBuckets() {
@@ -519,14 +519,14 @@ func TestHasDeployedBuckets(t *testing.T) {
 		t.Error("Expected true with deployed buckets")
 	}
 
-	attacker.RemoveDeployState()
+	_ = attacker.RemoveDeployState()
 }
 
 func TestAttackerDeployBucketStatusWithSavedBuckets(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	// Save some bucket state
 	state := &attacker.DeployState{
@@ -535,8 +535,8 @@ func TestAttackerDeployBucketStatusWithSavedBuckets(t *testing.T) {
 			{Name: "test-code-bucket", Type: "code", Region: "us-west-2"},
 		},
 	}
-	attacker.SaveDeployState(state)
-	defer attacker.RemoveDeployState()
+	_ = attacker.SaveDeployState(state)
+	defer func() { _ = attacker.RemoveDeployState() }()
 
 	identityManager := &MockIdentityManager{}
 	sessionManager := &MockSessionManager{}
@@ -553,8 +553,8 @@ func TestAttackerDeployBucketStatusWithSavedBuckets(t *testing.T) {
 func TestDeployStateWithECRRepos(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	state := &attacker.DeployState{
 		ECRRepos: []attacker.ECRRepoDeployState{
@@ -623,8 +623,8 @@ func TestDeployStateHasResourcesWithECR(t *testing.T) {
 func TestGetECRRepoURI(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	// No repos deployed — should return empty string
 	if uri := attacker.GetECRRepoURI(); uri != "" {
@@ -652,8 +652,8 @@ func TestGetECRRepoURI(t *testing.T) {
 func TestHasDeployedECRRepos(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	if attacker.HasDeployedECRRepos() {
 		t.Error("Expected no ECR repos initially")
@@ -710,8 +710,8 @@ func TestAttackerDeployECRDefaultNoAttacker(t *testing.T) {
 func TestAttackerDeployECRStatusNoDeployment(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	identityManager := &MockIdentityManager{}
 	sessionManager := &MockSessionManager{}
@@ -748,8 +748,8 @@ func TestAttackerDeployECRUnknownAction(t *testing.T) {
 func TestAttackerDeployECRStatusWithSavedRepos(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	state := &attacker.DeployState{
 		ECRRepos: []attacker.ECRRepoDeployState{
@@ -761,8 +761,8 @@ func TestAttackerDeployECRStatusWithSavedRepos(t *testing.T) {
 			},
 		},
 	}
-	attacker.SaveDeployState(state)
-	defer attacker.RemoveDeployState()
+	_ = attacker.SaveDeployState(state)
+	defer func() { _ = attacker.RemoveDeployState() }()
 
 	identityManager := &MockIdentityManager{}
 	sessionManager := &MockSessionManager{}
@@ -779,8 +779,8 @@ func TestAttackerDeployECRStatusWithSavedRepos(t *testing.T) {
 func TestAttackerDeployGlobalStatusWithECR(t *testing.T) {
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	state := &attacker.DeployState{
 		ECRRepos: []attacker.ECRRepoDeployState{
@@ -791,8 +791,8 @@ func TestAttackerDeployGlobalStatusWithECR(t *testing.T) {
 			},
 		},
 	}
-	attacker.SaveDeployState(state)
-	defer attacker.RemoveDeployState()
+	_ = attacker.SaveDeployState(state)
+	defer func() { _ = attacker.RemoveDeployState() }()
 
 	identityManager := &MockIdentityManager{}
 	sessionManager := &MockSessionManager{}
@@ -808,14 +808,14 @@ func TestDeployStateBackwardCompatibility(t *testing.T) {
 	// Verify that a deploy.json without ecr_repos deserializes cleanly
 	tempDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tempDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	// Write a deploy.json without the ecr_repos field
 	pathrunnerDir := filepath.Join(tempDir, ".pathrunner")
-	os.MkdirAll(pathrunnerDir, 0700)
+	_ = os.MkdirAll(pathrunnerDir, 0700)
 	oldJSON := `{"ec2":{"instance_id":"i-old","region":"us-east-1","public_ip":"1.2.3.4","security_group_id":"sg-old","key_pair_name":"old","key_file_path":"/tmp/old.pem"}}`
-	os.WriteFile(filepath.Join(pathrunnerDir, "deploy.json"), []byte(oldJSON), 0600)
+	_ = os.WriteFile(filepath.Join(pathrunnerDir, "deploy.json"), []byte(oldJSON), 0600)
 
 	loaded, err := attacker.LoadDeployState()
 	if err != nil {

@@ -1732,7 +1732,7 @@ func (r *REPL) showModuleStatus(moduleID string) error {
 
 		var resultRows [][]string
 		for _, pr := range entry.PayloadResults {
-			execStyled := pr.Execution
+			var execStyled string
 			if pr.Execution == "PASS" {
 				execStyled = ui.Success.Render(pr.Execution)
 			} else {

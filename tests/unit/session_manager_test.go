@@ -146,9 +146,9 @@ func TestListSessions(t *testing.T) {
 	sm := core.NewSessionManager()
 
 	// Create multiple sessions
-	sm.CreateSession("session1")
-	sm.CreateSession("session2")
-	sm.CreateSession("session3")
+	_ = sm.CreateSession("session1")
+	_ = sm.CreateSession("session2")
+	_ = sm.CreateSession("session3")
 
 	sessions, err := sm.ListSessions()
 	if err != nil {
@@ -183,7 +183,7 @@ func TestDeleteSession(t *testing.T) {
 	sm := core.NewSessionManager()
 
 	// Create and delete a session
-	sm.CreateSession("to-delete")
+	_ = sm.CreateSession("to-delete")
 
 	err := sm.DeleteSession("to-delete")
 	if err != nil {
@@ -359,11 +359,11 @@ func TestSessionIsolation(t *testing.T) {
 			Region: "us-east-1",
 		},
 	}
-	sm.SaveSession(current)
+	_ = sm.SaveSession(current)
 
 	// Create new session
-	sm.CreateSession("isolated")
-	sm.SwitchSession("isolated")
+	_ = sm.CreateSession("isolated")
+	_ = sm.SwitchSession("isolated")
 
 	// New session should have no identities
 	isolated := sm.GetCurrentSession()
@@ -379,10 +379,10 @@ func TestSessionIsolation(t *testing.T) {
 			Region: "us-west-2",
 		},
 	}
-	sm.SaveSession(isolated)
+	_ = sm.SaveSession(isolated)
 
 	// Switch back to default
-	sm.SwitchSession("default")
+	_ = sm.SwitchSession("default")
 	defaultSession := sm.GetCurrentSession()
 
 	// Verify default session still has its identity
@@ -412,9 +412,9 @@ func TestSessionLastAccessedUpdate(t *testing.T) {
 	// Wait a bit and switch sessions
 	time.Sleep(10 * time.Millisecond)
 
-	sm.CreateSession("test")
-	sm.SwitchSession("test")
-	sm.SwitchSession("default")
+	_ = sm.CreateSession("test")
+	_ = sm.SwitchSession("test")
+	_ = sm.SwitchSession("default")
 
 	newTime := sm.GetCurrentSession().LastAccessed
 

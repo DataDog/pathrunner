@@ -6,7 +6,6 @@ package unit
 
 import (
 	"github.com/DataDog/pathrunner/pkg/attacker"
-	"github.com/DataDog/pathrunner/pkg/modules"
 	"github.com/DataDog/pathrunner/pkg/payloads"
 	_ "github.com/DataDog/pathrunner/pkg/payloads/ec2"    // Import to register EC2 payloads
 	_ "github.com/DataDog/pathrunner/pkg/payloads/glue"   // Import to register Glue payloads
@@ -551,7 +550,7 @@ func TestSideEffectReporter_ResourceTracking(t *testing.T) {
 			"TARGET_ARN": "my-user",
 		})
 
-		var _ modules.CreatedResource = effects[0] // compile-time check
+		_ = effects[0] // compile-time check: effects[0] is modules.CreatedResource
 	})
 }
 

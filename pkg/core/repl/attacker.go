@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"github.com/DataDog/pathrunner/pkg/modules"
 	"github.com/DataDog/pathrunner/pkg/ui"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -359,21 +358,4 @@ func extractFlag(args []string, flag string) string {
 		}
 	}
 	return ""
-}
-
-// showAttackerContext returns a short string for the attacker account in context display
-func (r *REPL) showAttackerContext() string {
-	identity := r.identityManager.GetAttackerIdentity()
-	if identity == nil {
-		return ""
-	}
-
-	// Extract account ID from ARN
-	if identity.CallerARN != "" {
-		parts := strings.Split(identity.CallerARN, ":")
-		if len(parts) >= 5 {
-			return parts[4]
-		}
-	}
-	return identity.Name
 }

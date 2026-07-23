@@ -900,3 +900,165 @@ acknowledgements:
   reason: Tool scanning its own log/output files - gitignored artifact directory
   acknowledged_at: '2026-07-22T19:03:11.289504+00:00'
   acknowledged_by: Seth Art
+- id: ac17c57b295ec2c351554e71ba5e7edef1b0a4a8b22c1d5bc9f66117e61c7fd8
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T190156Z/run_summary.md
+    — matched pattern 'AWS Access Key'
+  reason: Previous oss-readiness run artifact in .oss-readiness/logs/ — gitignored,
+    never committed
+  acknowledged_at: '2026-07-23T15:40:07.447690+00:00'
+  acknowledged_by: Seth Art
+- id: dc04566c68d25c7b82213cca8e1d5a2dcfc7350ff53e6473dd8806eb2b1d2c6d
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T190317Z/run_summary.md
+    — matched pattern 'AWS Access Key'
+  reason: Previous oss-readiness run artifact in .oss-readiness/logs/ — gitignored,
+    never committed
+  acknowledged_at: '2026-07-23T15:40:08.076073+00:00'
+  acknowledged_by: Seth Art
+- id: 6490c6870b14db27f3c6737abd78708b333df0c1c1dab1154f6e236c94cde925
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T190156Z/findings.json
+    — matched pattern 'AWS Access Key'
+  reason: Previous oss-readiness run artifact in .oss-readiness/logs/ — gitignored,
+    never committed
+  acknowledged_at: '2026-07-23T15:40:08.697240+00:00'
+  acknowledged_by: Seth Art
+- id: 267bf11b3ae846a9b782a4d84bb036b26730497b7a186e504dd8b674d593f006
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T190317Z/run_summary.md
+    — matched pattern 'AWS Access Key'
+  reason: Previous oss-readiness run artifact in .oss-readiness/logs/ — gitignored,
+    never committed
+  acknowledged_at: '2026-07-23T15:40:09.302749+00:00'
+  acknowledged_by: Seth Art
+- id: 49bab141f69b4fb46a117c49085bc5e8ef3fc68e056f9f2f9bfae50f5cfb9f0e
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T190156Z/findings.json
+    — matched pattern 'AWS Access Key'
+  reason: Previous oss-readiness run artifact in .oss-readiness/logs/ — gitignored,
+    never committed
+  acknowledged_at: '2026-07-23T15:40:09.970096+00:00'
+  acknowledged_by: Seth Art
+- id: 6d82ef76cf02aaadaa70c5b81d0d02376b834720d158d2e8fd2066c8aff9b4a8
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T190317Z/findings.json
+    — matched pattern 'AWS Access Key'
+  reason: Previous oss-readiness run artifact in .oss-readiness/logs/ — gitignored,
+    never committed
+  acknowledged_at: '2026-07-23T15:40:10.575653+00:00'
+  acknowledged_by: Seth Art
+- id: 0e2470ec7dda14b00acbd8d98f67a9aaa7445d724c81145baeca0165d40fbddc
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T190156Z/run_summary.md
+    — matched pattern 'AWS Access Key'
+  reason: Previous oss-readiness run artifact in .oss-readiness/logs/ — gitignored,
+    never committed
+  acknowledged_at: '2026-07-23T15:40:11.180818+00:00'
+  acknowledged_by: Seth Art
+- id: e42311e707cb6b74b5a2645eb0b248dce6dda73ccf551efabca6196596096cc6
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T190156Z/run_summary.md
+    — matched pattern 'AWS Access Key'
+  reason: Previous oss-readiness run artifact in .oss-readiness/logs/ — gitignored,
+    never committed
+  acknowledged_at: '2026-07-23T15:40:11.833155+00:00'
+  acknowledged_by: Seth Art
+- id: 337d1e2fb7d0e34df770bea2f77b4400ca0a4d687b112f735537f623e652be8b
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T190156Z/findings.json
+    — matched pattern 'AWS Access Key'
+  reason: Previous oss-readiness run artifact in .oss-readiness/logs/ — gitignored,
+    never committed
+  acknowledged_at: '2026-07-23T15:40:12.447017+00:00'
+  acknowledged_by: Seth Art
+- id: 39e7b08ed9ae0a37cda698bce5f9d57c8687a0e28fffc53ee0bb79bcc8196342
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T190317Z/run_summary.md
+    — matched pattern 'AWS Access Key'
+  reason: Previous oss-readiness run artifact in .oss-readiness/logs/ — gitignored,
+    never committed
+  acknowledged_at: '2026-07-23T15:40:13.060993+00:00'
+  acknowledged_by: Seth Art
+- id: 4b32924a3301415a48625c46a56e5a6c8ba324fea23f5fd5426fc03e68c76ffa
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T190317Z/findings.json
+    — matched pattern 'AWS Access Key'
+  reason: Previous oss-readiness run artifact in .oss-readiness/logs/ — gitignored,
+    never committed
+  acknowledged_at: '2026-07-23T15:40:13.681782+00:00'
+  acknowledged_by: Seth Art
+- id: 02c9e238f3e264de67dccbecb0e4b16f227e6da6adb3aa8281495d6ec85c7881
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260722T190317Z/findings.json
+    — matched pattern 'AWS Access Key'
+  reason: Previous oss-readiness run artifact in .oss-readiness/logs/ — gitignored,
+    never committed
+  acknowledged_at: '2026-07-23T15:40:14.292615+00:00'
+  acknowledged_by: Seth Art
+- id: 41f18b0ce9c9d03ce838193683c324dfd83a4ee3264eeb19c92948e028f597b6
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260723T153918Z/findings.json
+    — matched pattern 'AWS Access Key'
+  reason: Previous oss-readiness run artifact in .oss-readiness/logs/ — gitignored,
+    never committed
+  acknowledged_at: '2026-07-23T15:40:56.027310+00:00'
+  acknowledged_by: Seth Art
+- id: 0fbd14c03e481b7b9d0b4b09186eec9abc9b1966f52e4c02783d5e5aad576a6c
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260723T153918Z/run_summary.md
+    — matched pattern 'AWS Access Key'
+  reason: Previous oss-readiness run artifact in .oss-readiness/logs/ — gitignored,
+    never committed
+  acknowledged_at: '2026-07-23T15:40:56.652661+00:00'
+  acknowledged_by: Seth Art
+- id: 52f550e6fd2c04d325ba41d40153a92794e07083a1d5c623806005f152d079d6
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260723T153918Z/findings.json
+    — matched pattern 'AWS Access Key'
+  reason: Previous oss-readiness run artifact in .oss-readiness/logs/ — gitignored,
+    never committed
+  acknowledged_at: '2026-07-23T15:40:57.276548+00:00'
+  acknowledged_by: Seth Art
+- id: 21d3021e13f77f6324129f5f5a8492d79dd3302d08570d37082b3f8850777373
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260723T153918Z/run_summary.md
+    — matched pattern 'AWS Access Key'
+  reason: Previous oss-readiness run artifact in .oss-readiness/logs/ — gitignored,
+    never committed
+  acknowledged_at: '2026-07-23T15:40:57.892721+00:00'
+  acknowledged_by: Seth Art
+- id: 752bbd8d037cddfd8c6e86b157dfd7ee061af56e9535b40c9ee4b18e453a485b
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260723T153918Z/run_summary.md
+    — matched pattern 'AWS Access Key'
+  reason: Previous oss-readiness run artifact in .oss-readiness/logs/ — gitignored,
+    never committed
+  acknowledged_at: '2026-07-23T15:40:58.502900+00:00'
+  acknowledged_by: Seth Art
+- id: e055e3c10d3e67f10bd5f9e39152407c41eafb771e080b003a80619b63b5e41e
+  check_id: no_secrets_patterns
+  title: 'Potential secret: AWS Access Key'
+  evidence_pattern: .oss-readiness/logs/pathrunner-20260723T153918Z/findings.json
+    — matched pattern 'AWS Access Key'
+  reason: Previous oss-readiness run artifact in .oss-readiness/logs/ — gitignored,
+    never committed
+  acknowledged_at: '2026-07-23T15:40:59.123676+00:00'
+  acknowledged_by: Seth Art

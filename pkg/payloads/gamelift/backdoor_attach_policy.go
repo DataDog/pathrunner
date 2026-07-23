@@ -26,7 +26,7 @@ func NewBackdoorAttachPolicyPayload() *BackdoorAttachPolicyPayload {
 }
 
 func init() {
-	payloads.Register(NewBackdoorAttachPolicyPayload())
+	_ = payloads.Register(NewBackdoorAttachPolicyPayload())
 }
 
 func (p *BackdoorAttachPolicyPayload) GetName() string {

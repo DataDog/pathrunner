@@ -207,11 +207,9 @@ func TestBedrockPassroleCreateHarnessWorkspaceIsolation(t *testing.T) {
 	}
 
 	// In workspace B, the module should not be set to bedrock-005
-	// (a fresh workspace has no current module)
-	if err := r.ExecuteCommand("show options"); err == nil {
-		// show options without a module should fail or produce empty output
-		// This depends on implementation — just verify workspace switch worked
-	}
+	// (a fresh workspace has no current module). show options without a module
+	// may fail or produce empty output — just verify workspace switch worked.
+	_ = r.ExecuteCommand("show options")
 
 	// Switch back to workspace A — should restore state
 	if err := r.ExecuteCommand("workspace switch ws_bedrock_a"); err != nil {

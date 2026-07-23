@@ -305,9 +305,10 @@ func parseWorkloads(path string, accountID string) []Resource {
 	var resources []Resource
 	for _, r := range records {
 		resourceType := strings.ToLower(r["Service"])
-		if resourceType == "ec2" {
+		switch resourceType {
+		case "ec2":
 			resourceType = "instance"
-		} else if resourceType == "lambda" {
+		case "lambda":
 			resourceType = "function"
 		}
 		resources = append(resources, Resource{
@@ -602,7 +603,6 @@ func parseARNServiceAndType(arn string) (service string, resourceType string) {
 	}
 
 	// Extract resource type from the resource portion of the ARN
-	resourceType = "resource"
 	if idx := strings.Index(resource, "/"); idx >= 0 {
 		resourceType = resource[:idx]
 	} else if idx := strings.Index(resource, ":"); idx >= 0 {

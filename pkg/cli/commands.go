@@ -25,7 +25,7 @@ func (c *CLI) createIdentityCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List all configured identities",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("identity list")
+			_ = c.executeREPLCommand("identity list")
 		},
 	})
 
@@ -34,7 +34,7 @@ func (c *CLI) createIdentityCmd() *cobra.Command {
 		Use:   "current",
 		Short: "Show current identity details",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("identity show")
+			_ = c.executeREPLCommand("identity show")
 		},
 	})
 
@@ -43,7 +43,7 @@ func (c *CLI) createIdentityCmd() *cobra.Command {
 		Use:   "show",
 		Short: "Show current identity details",
 		Run: func(cmd *cobra.Command, args []string) {
-			c.executeREPLCommand("identity show")
+			_ = c.executeREPLCommand("identity show")
 		},
 	})
 

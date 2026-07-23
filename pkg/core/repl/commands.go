@@ -649,15 +649,6 @@ func (r *REPL) showWorkspaceHistoryHelp() error {
 	return nil
 }
 
-// Utility function to check if string is in slice
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if strings.EqualFold(s, item) {
-			return true
-		}
-	}
-	return false
-}
 
 // cmdInfo shows detailed module and path information
 func (r *REPL) cmdInfo(repl *REPL, args []string) error {

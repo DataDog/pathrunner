@@ -63,7 +63,7 @@ func UpdateEC2(attackerCfg aws.Config) (*DeployEC2Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer os.Remove(binaryPath)
+	defer func() { _ = os.Remove(binaryPath) }()
 
 	fmt.Printf("[*] Uploading binary to %s (%s)...\n", state.EC2.InstanceID, state.EC2.PublicIP)
 
@@ -347,9 +347,9 @@ func DestroyEC2(attackerCfg aws.Config) error {
 	// 4. Update state
 	state.EC2 = nil
 	if state.HasAnyDeployedResources() {
-		SaveDeployState(state)
+		_ = SaveDeployState(state)
 	} else {
-		RemoveDeployState()
+		_ = RemoveDeployState()
 	}
 
 	return nil
@@ -465,7 +465,7 @@ func createKeyPair(client *ec2.Client) (string, error) {
 	if err != nil {
 		// If key already exists, delete and recreate
 		if strings.Contains(err.Error(), "InvalidKeyPair.Duplicate") {
-			client.DeleteKeyPair(ctx, &ec2.DeleteKeyPairInput{
+			_, _ = client.DeleteKeyPair(ctx, &ec2.DeleteKeyPairInput{
 				KeyName: aws.String(keyPairName),
 			})
 			output, err = client.CreateKeyPair(ctx, &ec2.CreateKeyPairInput{
@@ -575,7 +575,7 @@ func createSecurityGroup(client *ec2.Client, operatorIP string) (string, error) 
 		},
 	})
 	if err != nil && !strings.Contains(err.Error(), "InvalidPermission.Duplicate") {
-		client.DeleteSecurityGroup(ctx, &ec2.DeleteSecurityGroupInput{GroupId: aws.String(sgID)})
+		_, _ = client.DeleteSecurityGroup(ctx, &ec2.DeleteSecurityGroupInput{GroupId: aws.String(sgID)})
 		return "", fmt.Errorf("failed to add security group rules: %v", err)
 	}
 
@@ -845,12 +845,12 @@ func cleanupKeyPair(client *ec2.Client, keyFile string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	client.DeleteKeyPair(ctx, &ec2.DeleteKeyPairInput{
+	_, _ = client.DeleteKeyPair(ctx, &ec2.DeleteKeyPairInput{
 		KeyName: aws.String(keyPairName),
 	})
 
 	if keyFile != "" {
-		os.Remove(keyFile)
+		_ = os.Remove(keyFile)
 	}
 }
 
@@ -859,7 +859,7 @@ func cleanupSecurityGroup(client *ec2.Client, sgID string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	client.DeleteSecurityGroup(ctx, &ec2.DeleteSecurityGroupInput{
+	_, _ = client.DeleteSecurityGroup(ctx, &ec2.DeleteSecurityGroupInput{
 		GroupId: aws.String(sgID),
 	})
 }
@@ -871,18 +871,18 @@ func cleanupInstanceProfile(client *iam.Client, profileName string, iamRoleName 
 	defer cancel()
 
 	// Remove role from instance profile
-	client.RemoveRoleFromInstanceProfile(ctx, &iam.RemoveRoleFromInstanceProfileInput{
+	_, _ = client.RemoveRoleFromInstanceProfile(ctx, &iam.RemoveRoleFromInstanceProfileInput{
 		InstanceProfileName: aws.String(profileName),
 		RoleName:            aws.String(iamRoleName),
 	})
 
 	// Delete instance profile
-	client.DeleteInstanceProfile(ctx, &iam.DeleteInstanceProfileInput{
+	_, _ = client.DeleteInstanceProfile(ctx, &iam.DeleteInstanceProfileInput{
 		InstanceProfileName: aws.String(profileName),
 	})
 
 	// Detach SSM policy
-	client.DetachRolePolicy(ctx, &iam.DetachRolePolicyInput{
+	_, _ = client.DetachRolePolicy(ctx, &iam.DetachRolePolicyInput{
 		RoleName:  aws.String(iamRoleName),
 		PolicyArn: aws.String("arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"),
 	})

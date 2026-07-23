@@ -80,7 +80,7 @@ func TestListenerStateRemove(t *testing.T) {
 		PublicIP:  "10.0.0.1",
 	}
 
-	attacker.SaveListenerState(state)
+	_ = attacker.SaveListenerState(state)
 
 	if err := attacker.RemoveListenerState(); err != nil {
 		t.Fatalf("RemoveListenerState failed: %v", err)
@@ -165,7 +165,7 @@ func TestListenerStateRoundTrip(t *testing.T) {
 	}
 
 	state := attacker.NewListenerStateFromConfig(originalConfig)
-	attacker.SaveListenerState(state)
+	_ = attacker.SaveListenerState(state)
 
 	loaded, err := attacker.LoadListenerState()
 	if err != nil {

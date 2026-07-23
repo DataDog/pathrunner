@@ -62,7 +62,7 @@ func credentialsHandler(onReceived func(ReceivedCredentials), emitEvent func(Lis
 			http.Error(w, "failed to read body", http.StatusBadRequest)
 			return
 		}
-		defer r.Body.Close()
+		defer func() { _ = r.Body.Close() }()
 
 		creds, err := parseCredentials(body)
 		if err != nil {
@@ -91,12 +91,12 @@ func credentialsHandler(onReceived func(ReceivedCredentials), emitEvent func(Lis
 		onReceived(creds)
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"received"}`))
+		_, _ = w.Write([]byte(`{"status":"received"}`))
 	})
 
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok"}`))
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
 
 	// Catch-all for unexpected paths

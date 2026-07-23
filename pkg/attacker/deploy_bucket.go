@@ -202,9 +202,9 @@ func DestroyAllBuckets(attackerCfg aws.Config) error {
 
 	state.Buckets = nil
 	if state.HasAnyDeployedResources() {
-		SaveDeployState(state)
+		_ = SaveDeployState(state)
 	} else {
-		RemoveDeployState()
+		_ = RemoveDeployState()
 	}
 
 	return lastErr

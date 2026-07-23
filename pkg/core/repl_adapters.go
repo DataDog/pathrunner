@@ -84,60 +84,60 @@ type SessionInterfaceAdapter struct {
 }
 
 func (sia *SessionInterfaceAdapter) GetName() string {
-	return sia.Session.Name
+	return sia.Name
 }
 
 func (sia *SessionInterfaceAdapter) GetCreated() string {
-	return sia.Session.Created.Format("2006-01-02 15:04")
+	return sia.Created.Format("2006-01-02 15:04")
 }
 
 func (sia *SessionInterfaceAdapter) GetLastAccessed() string {
-	return sia.Session.LastAccessed.Format("2006-01-02 15:04")
+	return sia.LastAccessed.Format("2006-01-02 15:04")
 }
 
 func (sia *SessionInterfaceAdapter) GetCommandCount() int {
-	return len(sia.Session.CommandLog)
+	return len(sia.CommandLog)
 }
 
 func (sia *SessionInterfaceAdapter) GetResourceCount() int {
-	return len(sia.Session.CreatedResources)
+	return len(sia.CreatedResources)
 }
 
 func (sia *SessionInterfaceAdapter) GetIdentities() map[string]*modules.Identity {
-	return sia.Session.Identities
+	return sia.Identities
 }
 
 func (sia *SessionInterfaceAdapter) GetCurrentIdentity() string {
-	return sia.Session.CurrentIdentity
+	return sia.CurrentIdentity
 }
 
 func (sia *SessionInterfaceAdapter) GetCurrentModule() string {
-	return sia.Session.CurrentModule
+	return sia.CurrentModule
 }
 
 func (sia *SessionInterfaceAdapter) GetOptions() map[string]string {
-	return sia.Session.Options
+	return sia.Options
 }
 
 func (sia *SessionInterfaceAdapter) SetCurrentModule(module string) {
-	sia.Session.CurrentModule = module
+	sia.CurrentModule = module
 }
 
 func (sia *SessionInterfaceAdapter) SetOptions(options map[string]string) {
-	sia.Session.Options = options
+	sia.Options = options
 }
 
 func (sia *SessionInterfaceAdapter) SetIdentities(identities map[string]*modules.Identity) {
-	sia.Session.Identities = identities
+	sia.Identities = identities
 }
 
 func (sia *SessionInterfaceAdapter) SetCurrentIdentity(name string) {
-	sia.Session.CurrentIdentity = name
+	sia.CurrentIdentity = name
 }
 
 func (sia *SessionInterfaceAdapter) GetCommandLog() []repl.CommandLogEntry {
-	entries := make([]repl.CommandLogEntry, len(sia.Session.CommandLog))
-	for i, entry := range sia.Session.CommandLog {
+	entries := make([]repl.CommandLogEntry, len(sia.CommandLog))
+	for i, entry := range sia.CommandLog {
 		entries[i] = repl.CommandLogEntry{
 			Timestamp: entry.Timestamp.Format("2006-01-02 15:04:05"),
 			Command:   entry.Command,
