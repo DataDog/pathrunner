@@ -60,6 +60,14 @@ type SideEffectReporter interface {
 	ReportSideEffects(options map[string]string) []modules.CreatedResource
 }
 
+// InteractivePayload marks a payload that takes over the terminal directly.
+// Modules check for this interface and bypass the standard GenerateCode →
+// executeSession → ProcessResult pipeline, instead handing stdin/stdout
+// to the underlying session process so the user can type commands live.
+type InteractivePayload interface {
+	IsInteractive() bool
+}
+
 // PayloadInfo provides metadata about a payload for display purposes
 type PayloadInfo struct {
 	Name        string

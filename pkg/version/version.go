@@ -7,6 +7,7 @@ package version
 import (
 	"fmt"
 	"runtime"
+	"strings"
 )
 
 var (
@@ -15,7 +16,12 @@ var (
 	BuildDate = "unknown"
 )
 
+// Full returns the version string. For release builds (clean semver, no pre-release suffix),
+// the git commit hash is omitted. For dev/pre-release builds, the hash is included.
 func Full() string {
+	if !strings.Contains(Version, "-") {
+		return fmt.Sprintf("v%s", Version)
+	}
 	return fmt.Sprintf("v%s (%s)", Version, GitCommit)
 }
 

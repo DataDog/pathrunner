@@ -22,8 +22,9 @@ const (
 	TagServiceBedrock        = "bedrock"
 	TagServiceBraket         = "braket"
 	TagServiceImageBuilder   = "imagebuilder"
-	TagServiceEMR            = "emr"
-	TagServiceGameLift       = "gamelift"
+	TagServiceEMR                = "emr"
+	TagServiceGameLift           = "gamelift"
+	TagServiceKinesisAnalytics   = "kinesisanalytics"
 )
 
 // Language tags indicate the programming/scripting language of the payload
@@ -34,6 +35,7 @@ const (
 	TagLanguagePowerShell = "powershell"
 	TagLanguageGo         = "go"
 	TagLanguageJSON       = "json" // for declarative payloads such as CloudFormation templates
+	TagLanguageJava       = "java"
 )
 
 // Technique tags categorize the exploitation technique

@@ -5,9 +5,11 @@
 package unit
 
 import (
+	"testing"
+
 	"github.com/DataDog/pathrunner/pkg/exploits/batch_submitjob"
 	"github.com/DataDog/pathrunner/pkg/modules"
-	"testing"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/batch"
 )
 
 func TestBatchSubmitJobModuleInit(t *testing.T) {
@@ -75,7 +77,7 @@ func TestBatchSubmitJobOptions(t *testing.T) {
 	}
 
 	// These should be optional
-	expectedOptional := []string{"TARGET_USER", "REGION", "CLEANUP"}
+	expectedOptional := []string{"TARGET_USER", "REGION", "CLEANUP", "CONTAINER_RUNTIME"}
 	for _, name := range expectedOptional {
 		if !optionalOptions[name] {
 			t.Errorf("Expected %s to be optional", name)
@@ -250,6 +252,36 @@ func TestBatchSubmitJobRelatedPaths(t *testing.T) {
 	}
 	if !foundBatch001 {
 		t.Error("Expected batch-001 in related paths")
+	}
+}
+
+func TestBatchSubmitJobContainerRuntimeDefaultsToAWSCLI(t *testing.T) {
+	mod := batch_submitjob.NewModule()
+
+	for _, opt := range mod.Options() {
+		if opt.Name == "CONTAINER_RUNTIME" {
+			if opt.Default != "aws-cli" {
+				t.Errorf("Expected CONTAINER_RUNTIME default to be 'aws-cli', got '%s'", opt.Default)
+			}
+			return
+		}
+	}
+	t.Error("CONTAINER_RUNTIME option not found")
+}
+
+func TestBatchSubmitJobExfilHTTPSPayloadAvailable(t *testing.T) {
+	mod := batch_submitjob.NewModule()
+
+	payloads := mod.ListPayloads()
+	found := false
+	for _, p := range payloads {
+		if p.Name == "exfil/https" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("Expected exfil/https to be available for batch-002")
 	}
 }
 

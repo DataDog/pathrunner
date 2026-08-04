@@ -5,7 +5,7 @@ LDFLAGS := -X github.com/DataDog/pathrunner/pkg/version.Version=$(VERSION) \
            -X github.com/DataDog/pathrunner/pkg/version.GitCommit=$(GIT_COMMIT) \
            -X github.com/DataDog/pathrunner/pkg/version.BuildDate=$(BUILD_DATE)
 
-.PHONY: build dev clean test generate
+.PHONY: build dev clean test generate build-jars
 
 generate:
 	go generate ./pkg/exploits/
@@ -21,3 +21,8 @@ clean:
 
 test:
 	go test ./tests/...
+
+# Rebuild Flink payload JARs after changing Java source under pkg/payloads/*/jars/.
+# Requires Docker. The built JARs are committed and embedded in the binary via go:embed.
+build-jars:
+	@bash pkg/payloads/kinesisanalytics/jars/build.sh

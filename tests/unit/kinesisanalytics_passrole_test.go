@@ -5,9 +5,11 @@
 package unit
 
 import (
+	"testing"
+
 	"github.com/DataDog/pathrunner/pkg/exploits/kinesisanalytics_passrole"
 	"github.com/DataDog/pathrunner/pkg/modules"
-	"testing"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/kinesisanalytics"
 )
 
 func TestKinesisAnalyticsPassroleModuleInit(t *testing.T) {
@@ -66,21 +68,21 @@ func TestKinesisAnalyticsPassroleOptions(t *testing.T) {
 		}
 	}
 
-	// ROLE_ARN, CODE_BUCKET, CODE_KEY are required
-	for _, required := range []string{"ROLE_ARN", "CODE_BUCKET", "CODE_KEY"} {
+	// ROLE_ARN and PAYLOAD are required; CODE_BUCKET/CODE_KEY are auto-resolved from attacker infra
+	for _, required := range []string{"ROLE_ARN", "PAYLOAD"} {
 		if !requiredOptions[required] {
 			t.Errorf("Expected %s to be required", required)
 		}
 	}
 
-	// These should be optional
-	for _, optional := range []string{"TARGET_USER", "APP_NAME", "REGION", "CLEANUP"} {
+	// CODE_BUCKET and CODE_KEY are optional (auto-resolved from attacker code bucket + payload JAR key)
+	for _, optional := range []string{"CODE_BUCKET", "CODE_KEY", "APP_NAME", "REGION", "CLEANUP"} {
 		if !optionalOptions[optional] {
 			t.Errorf("Expected %s to be optional", optional)
 		}
 	}
 
-	// CLEANUP should default to false (starting user lacks delete permissions)
+	// CLEANUP should default to false (starting user typically lacks delete permissions)
 	for _, opt := range options {
 		if opt.Name == "CLEANUP" && opt.Default != "false" {
 			t.Errorf("Expected CLEANUP default to be 'false', got '%s'", opt.Default)
@@ -212,13 +214,31 @@ func TestKinesisAnalyticsPassroleExecuteMissingRoleARN(t *testing.T) {
 	}
 }
 
-func TestKinesisAnalyticsPassroleDoesNotImplementPayloadCompatible(t *testing.T) {
+func TestKinesisAnalyticsPassroleImplementsPayloadCompatible(t *testing.T) {
 	mod := kinesisanalytics_passrole.NewModule()
 
-	// This module uses a pre-built JAR, not a generated payload — PayloadCompatible should NOT be implemented.
+	// Module uses the payload system to select which JAR behavior to execute.
 	_, ok := interface{}(mod).(modules.PayloadCompatible)
-	if ok {
-		t.Error("kinesisanalytics_passrole should NOT implement PayloadCompatible (JAR is pre-built, not generated)")
+	if !ok {
+		t.Error("kinesisanalytics_passrole should implement PayloadCompatible")
+	}
+}
+
+func TestKinesisAnalyticsPassroleListPayloads(t *testing.T) {
+	mod := kinesisanalytics_passrole.NewModule()
+
+	payloadList := mod.ListPayloads()
+	if len(payloadList) == 0 {
+		t.Error("Expected at least one kinesisanalytics payload to be registered")
+	}
+
+	nameSet := map[string]bool{}
+	for _, p := range payloadList {
+		nameSet[p.Name] = true
+	}
+
+	if !nameSet["backdoor/attach-policy"] {
+		t.Error("Expected 'backdoor/attach-policy' payload to be registered for kinesisanalytics")
 	}
 }
 

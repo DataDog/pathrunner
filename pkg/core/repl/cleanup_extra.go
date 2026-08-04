@@ -8,11 +8,13 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/apprunner"
 	"github.com/aws/aws-sdk-go-v2/service/batch"
+	batchtypes "github.com/aws/aws-sdk-go-v2/service/batch/types"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockagentcorecontrol"
 	"github.com/aws/aws-sdk-go-v2/service/braket"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
@@ -470,6 +472,138 @@ func (r *REPL) cleanupBatchJobDefinition(ctx context.Context, config aws.Config,
 		JobDefinition: aws.String(jobDefArn),
 	})
 	return err
+}
+
+// cleanupBatchJobQueue disables and deletes an AWS Batch job queue.
+// Batch requires the queue to be DISABLED before it can be deleted, so this
+// disables first, polls until the status is no longer UPDATING, then deletes.
+func (r *REPL) cleanupBatchJobQueue(ctx context.Context, config aws.Config, resource CreatedResource) error {
+	if resource.Region != "" {
+		config.Region = resource.Region
+	}
+	queueName := resource.Name
+	if queueName == "" {
+		queueName = resource.Metadata["job_queue_name"]
+	}
+	if queueName == "" {
+		return fmt.Errorf("no name for batch:job-queue; delete manually")
+	}
+
+	client := batch.NewFromConfig(config)
+
+	// Disable the queue.
+	_, err := client.UpdateJobQueue(ctx, &batch.UpdateJobQueueInput{
+		JobQueue: aws.String(queueName),
+		State:    batchtypes.JQStateDisabled,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to disable job queue %s: %v", queueName, err)
+	}
+
+	// Wait for the queue to leave UPDATING status.
+	if err := r.waitForBatchStatus(ctx, client, queueName, true); err != nil {
+		return err
+	}
+
+	_, err = client.DeleteJobQueue(ctx, &batch.DeleteJobQueueInput{
+		JobQueue: aws.String(queueName),
+	})
+	return err
+}
+
+// cleanupBatchComputeEnvironment disables and deletes an AWS Batch compute environment.
+// If deletion fails because a job queue is still attached, it looks through the
+// workspace's tracked resources for the matching batch:job-queue, cleans that up
+// first, then retries.
+func (r *REPL) cleanupBatchComputeEnvironment(ctx context.Context, config aws.Config, resource CreatedResource) error {
+	if resource.Region != "" {
+		config.Region = resource.Region
+	}
+	ceName := resource.Name
+	if ceName == "" {
+		ceName = resource.Metadata["compute_environment_name"]
+	}
+	if ceName == "" {
+		return fmt.Errorf("no name for batch:compute-environment; delete manually")
+	}
+
+	client := batch.NewFromConfig(config)
+
+	// Disable the compute environment.
+	_, err := client.UpdateComputeEnvironment(ctx, &batch.UpdateComputeEnvironmentInput{
+		ComputeEnvironment: aws.String(ceName),
+		State:              batchtypes.CEStateDisabled,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to disable compute environment %s: %v", ceName, err)
+	}
+
+	// Wait for CE to leave UPDATING status.
+	if err := r.waitForBatchStatus(ctx, client, ceName, false); err != nil {
+		return err
+	}
+
+	// Try to delete. If it fails due to an attached job queue, find the tracked
+	// queue resource, clean it up, and retry.
+	_, err = client.DeleteComputeEnvironment(ctx, &batch.DeleteComputeEnvironmentInput{
+		ComputeEnvironment: aws.String(ceName),
+	})
+	if err != nil && strings.Contains(err.Error(), "JobQueue relationship") {
+		// Find tracked job queues that reference this compute environment.
+		for _, tracked := range r.sessionManager.GetCreatedResources() {
+			if tracked.Type != "batch:job-queue" {
+				continue
+			}
+			if tracked.Metadata["compute_environment"] != ceName {
+				continue
+			}
+			fmt.Printf("\n  Cleaning up attached job queue '%s' first...", tracked.Name)
+			if jqErr := r.cleanupBatchJobQueue(ctx, config, tracked); jqErr != nil {
+				fmt.Printf(" FAILED (%v)\n", jqErr)
+				return fmt.Errorf("cannot delete compute environment %s: attached job queue %s cleanup failed: %v", ceName, tracked.Name, jqErr)
+			}
+			fmt.Printf(" OK\n")
+			r.sessionManager.RemoveCreatedResource(tracked.Name)
+			fmt.Printf("  Retrying compute environment deletion...")
+		}
+
+		// Retry deletion after removing the queue.
+		_, err = client.DeleteComputeEnvironment(ctx, &batch.DeleteComputeEnvironmentInput{
+			ComputeEnvironment: aws.String(ceName),
+		})
+	}
+	return err
+}
+
+// waitForBatchStatus polls until a Batch resource (job queue or compute environment)
+// is no longer in UPDATING status. isJobQueue selects which Describe API to call.
+func (r *REPL) waitForBatchStatus(ctx context.Context, client *batch.Client, name string, isJobQueue bool) error {
+	deadline := time.Now().Add(60 * time.Second)
+	for time.Now().Before(deadline) {
+		time.Sleep(5 * time.Second)
+		if isJobQueue {
+			desc, err := client.DescribeJobQueues(ctx, &batch.DescribeJobQueuesInput{
+				JobQueues: []string{name},
+			})
+			if err != nil {
+				return nil
+			}
+			if len(desc.JobQueues) > 0 && string(desc.JobQueues[0].Status) != "UPDATING" {
+				return nil
+			}
+		} else {
+			desc, err := client.DescribeComputeEnvironments(ctx, &batch.DescribeComputeEnvironmentsInput{
+				ComputeEnvironments: []string{name},
+			})
+			if err != nil {
+				return nil
+			}
+			if len(desc.ComputeEnvironments) > 0 && string(desc.ComputeEnvironments[0].Status) != "UPDATING" {
+				return nil
+			}
+		}
+	}
+	return fmt.Errorf("timed out waiting for %s to leave UPDATING status", name)
 }
 
 // cleanupImageBuilderComponent deletes a specific Image Builder component build version.

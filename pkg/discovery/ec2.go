@@ -254,6 +254,44 @@ func DiscoverEC2Instances(ctx context.Context, config aws.Config) ([]modules.Dis
 	return choices, nil
 }
 
+// LookupSubnetVPC returns the VPC ID for a given subnet.
+func LookupSubnetVPC(ctx context.Context, config aws.Config, subnetID string) (string, error) {
+	client := ec2.NewFromConfig(config)
+
+	lookupCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	result, err := client.DescribeSubnets(lookupCtx, &ec2.DescribeSubnetsInput{
+		SubnetIds: []string{subnetID},
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to describe subnet %s: %v", subnetID, err)
+	}
+	if len(result.Subnets) == 0 {
+		return "", fmt.Errorf("subnet %s not found", subnetID)
+	}
+	return aws.ToString(result.Subnets[0].VpcId), nil
+}
+
+// LookupSecurityGroupVPC returns the VPC ID for a given security group.
+func LookupSecurityGroupVPC(ctx context.Context, config aws.Config, sgID string) (string, error) {
+	client := ec2.NewFromConfig(config)
+
+	lookupCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	result, err := client.DescribeSecurityGroups(lookupCtx, &ec2.DescribeSecurityGroupsInput{
+		GroupIds: []string{sgID},
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to describe security group %s: %v", sgID, err)
+	}
+	if len(result.SecurityGroups) == 0 {
+		return "", fmt.Errorf("security group %s not found", sgID)
+	}
+	return aws.ToString(result.SecurityGroups[0].VpcId), nil
+}
+
 // getEC2TagValue extracts a tag value by key from a list of EC2 tags.
 func getEC2TagValue(tags []types.Tag, key string) string {
 	for _, tag := range tags {

@@ -38,7 +38,7 @@ func extractServiceTag(tags []string) string {
 		TagServiceAppRunner, TagServiceBatch, TagServiceCodeBuild, TagServiceGlue,
 		TagServiceSageMaker, TagServiceCloudFormation, TagServiceSSM,
 		TagServiceBedrock, TagServiceBraket, TagServiceImageBuilder, TagServiceGameLift, TagServiceEMR,
-		TagServiceSSMAutomation,
+		TagServiceSSMAutomation, TagServiceKinesisAnalytics,
 	}
 	for _, tag := range tags {
 		for _, st := range serviceTags {

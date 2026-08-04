@@ -904,6 +904,10 @@ func (r *REPL) cleanupResource(resource CreatedResource, identity *modules.Ident
 		return r.cleanupEC2LaunchTemplateDefault(ctx, config, resource)
 	case "batch:job-definition":
 		return r.cleanupBatchJobDefinition(ctx, config, resource)
+	case "batch:job-queue":
+		return r.cleanupBatchJobQueue(ctx, config, resource)
+	case "batch:compute-environment":
+		return r.cleanupBatchComputeEnvironment(ctx, config, resource)
 	case "imagebuilder:component":
 		return r.cleanupImageBuilderComponent(ctx, config, resource)
 	case "imagebuilder:recipe":

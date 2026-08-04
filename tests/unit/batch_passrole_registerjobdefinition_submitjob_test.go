@@ -5,9 +5,11 @@
 package unit
 
 import (
+	"testing"
+
 	"github.com/DataDog/pathrunner/pkg/exploits/batch_passrole_registerjobdefinition_submitjob"
 	"github.com/DataDog/pathrunner/pkg/modules"
-	"testing"
+	_ "github.com/DataDog/pathrunner/pkg/payloads/batch"
 )
 
 func TestBatchPassroleRegisterJobDefinitionSubmitJobModuleInit(t *testing.T) {
@@ -78,7 +80,7 @@ func TestBatchPassroleRegisterJobDefinitionSubmitJobOptions(t *testing.T) {
 	}
 
 	// These should be optional
-	expectedOptional := []string{"TARGET_USER", "REGION", "CLEANUP", "JOB_DEF_NAME"}
+	expectedOptional := []string{"TARGET_USER", "REGION", "CLEANUP", "JOB_DEF_NAME", "CONTAINER_RUNTIME", "IMAGE"}
 	for _, name := range expectedOptional {
 		if !optionalOptions[name] {
 			t.Errorf("Expected %s to be optional", name)
@@ -302,6 +304,66 @@ func TestBatchPassroleRegisterJobDefinitionSubmitJobExecuteRequiresJobQueue(t *t
 	_, err := mod.Execute(ectx)
 	if err == nil {
 		t.Error("Expected error when JOB_QUEUE is missing")
+	}
+}
+
+func TestBatchPassroleRegisterJobDefinitionSubmitJobContainerRuntimeDefaultsToAWSCLI(t *testing.T) {
+	mod := batch_passrole_registerjobdefinition_submitjob.NewModule()
+
+	for _, opt := range mod.Options() {
+		if opt.Name == "CONTAINER_RUNTIME" {
+			if opt.Default != "aws-cli" {
+				t.Errorf("Expected CONTAINER_RUNTIME default to be 'aws-cli', got '%s'", opt.Default)
+			}
+			return
+		}
+	}
+	t.Error("CONTAINER_RUNTIME option not found")
+}
+
+func TestBatchPassroleRegisterJobDefinitionSubmitJobImageOptionPresent(t *testing.T) {
+	mod := batch_passrole_registerjobdefinition_submitjob.NewModule()
+
+	found := false
+	for _, opt := range mod.Options() {
+		if opt.Name == "IMAGE" {
+			found = true
+			if opt.Required {
+				t.Error("Expected IMAGE to be optional")
+			}
+		}
+	}
+	if !found {
+		t.Error("Expected IMAGE option to be present")
+	}
+}
+
+func TestBatchPassroleRegisterJobDefinitionSubmitJobPayloadsAvailable(t *testing.T) {
+	mod := batch_passrole_registerjobdefinition_submitjob.NewModule()
+
+	payloadList := mod.ListPayloads()
+	available := map[string]bool{}
+	for _, p := range payloadList {
+		available[p.Name] = true
+	}
+
+	expected := []string{
+		"backdoor/attach-policy",
+		"backdoor/create-access-key",
+		"backdoor/create-user",
+		"backdoor/create-role",
+		"backdoor/update-role-trust",
+		"exfil/https",
+	}
+
+	for _, name := range expected {
+		if !available[name] {
+			t.Errorf("Expected payload '%s' to be available for batch-001", name)
+		}
+	}
+
+	if len(payloadList) < len(expected) {
+		t.Errorf("Expected at least %d payloads, got %d", len(expected), len(payloadList))
 	}
 }
 

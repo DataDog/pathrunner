@@ -264,14 +264,11 @@ func DestroyEC2(attackerCfg aws.Config) error {
 		o.Region = region
 	})
 
-	// 1. Find ALL pathrunner-managed instances (not just the one in state)
+	// 1. Find ALL pathrunner-managed instances (not just the one in state).
+	// Any error here indicates an AWS connectivity or auth failure — abort before touching state.
 	managedInstances, err := findManagedInstances(ec2Client)
 	if err != nil {
-		fmt.Printf("[!] Could not search for managed instances: %v\n", err)
-		// Fall back to state-tracked instance only
-		if state.EC2 != nil {
-			managedInstances = []ec2types.Instance{}
-		}
+		return fmt.Errorf("destroy failed: could not reach AWS to enumerate instances: %w", err)
 	}
 
 	// Also include the state-tracked instance if not already in the list
@@ -525,6 +522,17 @@ func createSecurityGroup(client *ec2.Client, operatorIP string) (string, error) 
 	if existingSGs != nil && len(existingSGs.SecurityGroups) > 0 {
 		sgID = aws.ToString(existingSGs.SecurityGroups[0].GroupId)
 		fmt.Printf("[*] Reusing existing security group: %s (%s)\n", securityGroupName, sgID)
+
+		// Revoke all existing ingress rules so we apply a clean, current set.
+		// Sending all rules as a batch means a single Duplicate error blocks the whole
+		// batch — this is especially wrong for the SSH rule when the operator's IP changes.
+		existingRules := existingSGs.SecurityGroups[0].IpPermissions
+		if len(existingRules) > 0 {
+			_, _ = client.RevokeSecurityGroupIngress(ctx, &ec2.RevokeSecurityGroupIngressInput{
+				GroupId:       aws.String(sgID),
+				IpPermissions: existingRules,
+			})
+		}
 	} else {
 		sgOutput, err := client.CreateSecurityGroup(ctx, &ec2.CreateSecurityGroupInput{
 			GroupName:   aws.String(securityGroupName),
@@ -545,7 +553,7 @@ func createSecurityGroup(client *ec2.Client, operatorIP string) (string, error) 
 		sgID = aws.ToString(sgOutput.GroupId)
 	}
 
-	// Add ingress rules
+	// Add ingress rules with the current operator IP.
 	sshCIDR := "0.0.0.0/0"
 	if operatorIP != "" {
 		sshCIDR = operatorIP + "/32"
@@ -574,7 +582,7 @@ func createSecurityGroup(client *ec2.Client, operatorIP string) (string, error) 
 			},
 		},
 	})
-	if err != nil && !strings.Contains(err.Error(), "InvalidPermission.Duplicate") {
+	if err != nil {
 		_, _ = client.DeleteSecurityGroup(ctx, &ec2.DeleteSecurityGroupInput{GroupId: aws.String(sgID)})
 		return "", fmt.Errorf("failed to add security group rules: %v", err)
 	}
@@ -784,17 +792,19 @@ func uploadBinary(binaryPath string, keyFile string, publicIP string) error {
 		return fmt.Errorf("SCP failed: %v\n%s", err, string(output))
 	}
 
-	// Move binary to /usr/local/bin so it's on PATH from any directory
-	moveCmd := exec.Command("ssh",
+	// Move binary to /usr/local/bin so it's on PATH from any directory, and
+	// install the AWS Session Manager plugin (required by ssm-001 / ssm:StartSession modules).
+	setupCmd := exec.Command("ssh",
 		"-i", keyFile,
 		"-o", "StrictHostKeyChecking=no",
 		"-o", "UserKnownHostsFile=/dev/null",
 		fmt.Sprintf("ec2-user@%s", publicIP),
-		"sudo mv ~/pathrunner /usr/local/bin/pathrunner && sudo chmod +x /usr/local/bin/pathrunner",
+		"sudo mv ~/pathrunner /usr/local/bin/pathrunner && sudo chmod +x /usr/local/bin/pathrunner && "+
+			"sudo yum install -y https://s3.amazonaws.com/session-manager-downloads/plugin/latest/linux_64bit/session-manager-plugin.rpm 2>&1 | tail -3",
 	)
-	if moveOutput, err := moveCmd.CombinedOutput(); err != nil {
-		fmt.Printf("[!] Failed to move binary to /usr/local/bin: %v\n%s", err, string(moveOutput))
-		fmt.Println("[*] Binary available at ~/pathrunner instead.")
+	if setupOutput, err := setupCmd.CombinedOutput(); err != nil {
+		fmt.Printf("[!] Post-setup step failed: %v\n%s", err, string(setupOutput))
+		fmt.Println("[*] Binary available at ~/pathrunner instead. session-manager-plugin may not be installed.")
 	}
 
 	fmt.Println("[*] Binary uploaded successfully.")

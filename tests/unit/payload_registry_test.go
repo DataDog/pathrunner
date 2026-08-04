@@ -7,9 +7,11 @@ package unit
 import (
 	"github.com/DataDog/pathrunner/pkg/attacker"
 	"github.com/DataDog/pathrunner/pkg/payloads"
-	_ "github.com/DataDog/pathrunner/pkg/payloads/ec2"    // Import to register EC2 payloads
-	_ "github.com/DataDog/pathrunner/pkg/payloads/glue"   // Import to register Glue payloads
-	_ "github.com/DataDog/pathrunner/pkg/payloads/lambda" // Import to register Lambda payloads
+	_ "github.com/DataDog/pathrunner/pkg/payloads/batch"              // Import to register Batch payloads
+	_ "github.com/DataDog/pathrunner/pkg/payloads/ec2"                // Import to register EC2 payloads
+	_ "github.com/DataDog/pathrunner/pkg/payloads/glue"               // Import to register Glue payloads
+	_ "github.com/DataDog/pathrunner/pkg/payloads/kinesisanalytics"   // Import to register KinesisAnalytics payloads
+	_ "github.com/DataDog/pathrunner/pkg/payloads/lambda"             // Import to register Lambda payloads
 	"strings"
 	"testing"
 )
@@ -144,11 +146,11 @@ func TestPayloadRegistry(t *testing.T) {
 			}
 		}
 
-		if exfilHTTPSCount != 3 {
-			t.Errorf("Expected 3 exfil/https payloads (Lambda + EC2 + Glue), got %d", exfilHTTPSCount)
+		if exfilHTTPSCount != 5 {
+			t.Errorf("Expected 5 exfil/https payloads (Lambda + EC2 + Glue + KinesisAnalytics + Batch), got %d", exfilHTTPSCount)
 		}
-		if backdoorAPCount != 12 {
-			t.Errorf("Expected 12 backdoor/attach-policy payloads (all service payload packages imported by unit tests), got %d", backdoorAPCount)
+		if backdoorAPCount != 14 {
+			t.Errorf("Expected 14 backdoor/attach-policy payloads (all service payload packages imported by unit tests), got %d", backdoorAPCount)
 		}
 	})
 
@@ -1704,6 +1706,327 @@ func TestNewGluePayloads(t *testing.T) {
 	})
 }
 
+func TestNewBatchPayloads(t *testing.T) {
+	t.Run("BackdoorCreateAccessKey_Registration", func(t *testing.T) {
+		payload, err := payloads.GetPayloadForService("backdoor/create-access-key", payloads.TagServiceBatch)
+		if err != nil {
+			t.Fatalf("Failed to get batch backdoor/create-access-key: %v", err)
+		}
+		if payload.GetName() != "backdoor/create-access-key" {
+			t.Errorf("Expected name 'backdoor/create-access-key', got '%s'", payload.GetName())
+		}
+		if !hasTag(payload.GetTags(), payloads.TagServiceBatch) {
+			t.Error("Expected batch service tag")
+		}
+		if !hasTag(payload.GetTags(), payloads.TagLanguageBash) {
+			t.Error("Expected bash language tag")
+		}
+	})
+
+	t.Run("BackdoorCreateAccessKey_Validation", func(t *testing.T) {
+		payload, _ := payloads.GetPayloadForService("backdoor/create-access-key", payloads.TagServiceBatch)
+
+		err := payload.Validate(map[string]string{})
+		if err == nil {
+			t.Error("Expected validation error for missing TARGET_USER")
+		}
+
+		err = payload.Validate(map[string]string{"TARGET_USER": "test-user"})
+		if err != nil {
+			t.Errorf("Expected no validation error, got: %v", err)
+		}
+	})
+
+	t.Run("BackdoorCreateAccessKey_GenerateCode", func(t *testing.T) {
+		payload, _ := payloads.GetPayloadForService("backdoor/create-access-key", payloads.TagServiceBatch)
+		code, err := payload.GenerateCode(map[string]string{
+			"TARGET_USER": "victim-user",
+		})
+		if err != nil {
+			t.Fatalf("Failed to generate code: %v", err)
+		}
+		if !strings.Contains(code, "aws iam create-access-key") {
+			t.Error("Generated code should call aws iam create-access-key")
+		}
+		if !strings.Contains(code, "victim-user") {
+			t.Error("Generated code should contain target user")
+		}
+		// Single aws command — should work with aws-cli runtime
+		if !strings.HasPrefix(code, "aws ") {
+			t.Error("Should be a single aws command (compatible with aws-cli runtime)")
+		}
+	})
+
+	t.Run("BackdoorCreateAccessKey_SideEffectReporter", func(t *testing.T) {
+		payload, _ := payloads.GetPayloadForService("backdoor/create-access-key", payloads.TagServiceBatch)
+		reporter, ok := payload.(payloads.SideEffectReporter)
+		if !ok {
+			t.Fatal("backdoor/create-access-key should implement SideEffectReporter")
+		}
+
+		effects := reporter.ReportSideEffects(map[string]string{
+			"TARGET_USER": "victim-user",
+		})
+		if len(effects) != 1 {
+			t.Fatalf("Expected 1 side effect, got %d", len(effects))
+		}
+		if effects[0].Type != "iam:access-key" {
+			t.Errorf("Expected type 'iam:access-key', got '%s'", effects[0].Type)
+		}
+		if effects[0].CleanupMethod != "iam:DeleteAccessKey" {
+			t.Errorf("Expected cleanup 'iam:DeleteAccessKey', got '%s'", effects[0].CleanupMethod)
+		}
+	})
+
+	t.Run("BackdoorCreateAccessKey_Verifiable", func(t *testing.T) {
+		payload, _ := payloads.GetPayloadForService("backdoor/create-access-key", payloads.TagServiceBatch)
+		_, ok := payload.(payloads.Verifiable)
+		if !ok {
+			t.Fatal("batch backdoor/create-access-key should implement Verifiable")
+		}
+	})
+
+	t.Run("BackdoorCreateUser_Registration", func(t *testing.T) {
+		payload, err := payloads.GetPayloadForService("backdoor/create-user", payloads.TagServiceBatch)
+		if err != nil {
+			t.Fatalf("Failed to get batch backdoor/create-user: %v", err)
+		}
+		if payload.GetName() != "backdoor/create-user" {
+			t.Errorf("Expected name 'backdoor/create-user', got '%s'", payload.GetName())
+		}
+	})
+
+	t.Run("BackdoorCreateUser_GenerateCode", func(t *testing.T) {
+		payload, _ := payloads.GetPayloadForService("backdoor/create-user", payloads.TagServiceBatch)
+		code, err := payload.GenerateCode(map[string]string{
+			"USER_NAME":      "backdoor-admin",
+			"CONSOLE_ACCESS": "true",
+			"ACCESS_KEY":     "true",
+		})
+		if err != nil {
+			t.Fatalf("Failed to generate code: %v", err)
+		}
+		if !strings.Contains(code, "aws iam create-user") {
+			t.Error("Generated code should call aws iam create-user")
+		}
+		if !strings.Contains(code, "create-login-profile") {
+			t.Error("Generated code should create console login profile")
+		}
+		if !strings.Contains(code, "create-access-key") {
+			t.Error("Generated code should create access keys")
+		}
+		if !strings.Contains(code, "PATHFINDER_IDENTITY_DATA") {
+			t.Error("Generated code should include PATHFINDER_IDENTITY_DATA markers")
+		}
+		// Multi-command script — should NOT start with "aws " (requires generic runtime)
+		if strings.HasPrefix(code, "aws ") {
+			t.Error("Multi-command payload should not start with 'aws ' (requires generic runtime)")
+		}
+	})
+
+	t.Run("BackdoorCreateUser_NoConsoleAccess", func(t *testing.T) {
+		payload, _ := payloads.GetPayloadForService("backdoor/create-user", payloads.TagServiceBatch)
+		code, err := payload.GenerateCode(map[string]string{
+			"CONSOLE_ACCESS": "false",
+			"ACCESS_KEY":     "true",
+		})
+		if err != nil {
+			t.Fatalf("Failed to generate code: %v", err)
+		}
+		if strings.Contains(code, "create-login-profile") {
+			t.Error("Should not create login profile when CONSOLE_ACCESS is false")
+		}
+	})
+
+	t.Run("BackdoorCreateUser_SideEffectReporter", func(t *testing.T) {
+		payload, _ := payloads.GetPayloadForService("backdoor/create-user", payloads.TagServiceBatch)
+		reporter, ok := payload.(payloads.SideEffectReporter)
+		if !ok {
+			t.Fatal("backdoor/create-user should implement SideEffectReporter")
+		}
+
+		effects := reporter.ReportSideEffects(map[string]string{
+			"USER_NAME": "backdoor-admin",
+		})
+		if len(effects) != 1 {
+			t.Fatalf("Expected 1 side effect, got %d", len(effects))
+		}
+		if effects[0].Type != "iam:user" {
+			t.Errorf("Expected type 'iam:user', got '%s'", effects[0].Type)
+		}
+		if effects[0].CleanupMethod != "iam:DeleteUser" {
+			t.Errorf("Expected cleanup 'iam:DeleteUser', got '%s'", effects[0].CleanupMethod)
+		}
+	})
+
+	t.Run("BackdoorCreateRole_Registration", func(t *testing.T) {
+		payload, err := payloads.GetPayloadForService("backdoor/create-role", payloads.TagServiceBatch)
+		if err != nil {
+			t.Fatalf("Failed to get batch backdoor/create-role: %v", err)
+		}
+		if payload.GetName() != "backdoor/create-role" {
+			t.Errorf("Expected name 'backdoor/create-role', got '%s'", payload.GetName())
+		}
+	})
+
+	t.Run("BackdoorCreateRole_Validation", func(t *testing.T) {
+		payload, _ := payloads.GetPayloadForService("backdoor/create-role", payloads.TagServiceBatch)
+
+		err := payload.Validate(map[string]string{})
+		if err == nil {
+			t.Error("Expected validation error for missing TRUST_PRINCIPAL")
+		}
+
+		err = payload.Validate(map[string]string{"TRUST_PRINCIPAL": "arn:aws:iam::123456789012:root"})
+		if err != nil {
+			t.Errorf("Expected no validation error, got: %v", err)
+		}
+	})
+
+	t.Run("BackdoorCreateRole_GenerateCode", func(t *testing.T) {
+		payload, _ := payloads.GetPayloadForService("backdoor/create-role", payloads.TagServiceBatch)
+		code, err := payload.GenerateCode(map[string]string{
+			"TRUST_PRINCIPAL": "arn:aws:iam::123456789012:root",
+		})
+		if err != nil {
+			t.Fatalf("Failed to generate code: %v", err)
+		}
+		if !strings.Contains(code, "aws iam create-role") {
+			t.Error("Generated code should call aws iam create-role")
+		}
+		if !strings.Contains(code, "aws iam attach-role-policy") {
+			t.Error("Generated code should attach AdministratorAccess policy")
+		}
+		if !strings.Contains(code, "AdministratorAccess") {
+			t.Error("Generated code should reference AdministratorAccess")
+		}
+	})
+
+	t.Run("BackdoorCreateRole_ServicePrincipal", func(t *testing.T) {
+		payload, _ := payloads.GetPayloadForService("backdoor/create-role", payloads.TagServiceBatch)
+		code, err := payload.GenerateCode(map[string]string{
+			"TRUST_PRINCIPAL": "lambda.amazonaws.com",
+		})
+		if err != nil {
+			t.Fatalf("Failed to generate code: %v", err)
+		}
+		if !strings.Contains(code, `"Service"`) {
+			t.Error("Service principal should use 'Service' as principal key")
+		}
+	})
+
+	t.Run("BackdoorCreateRole_SideEffectReporter", func(t *testing.T) {
+		payload, _ := payloads.GetPayloadForService("backdoor/create-role", payloads.TagServiceBatch)
+		reporter, ok := payload.(payloads.SideEffectReporter)
+		if !ok {
+			t.Fatal("backdoor/create-role should implement SideEffectReporter")
+		}
+
+		effects := reporter.ReportSideEffects(map[string]string{
+			"TRUST_PRINCIPAL": "arn:aws:iam::123456789012:root",
+			"ROLE_NAME":       "my-backdoor",
+		})
+		if len(effects) != 1 {
+			t.Fatalf("Expected 1 side effect, got %d", len(effects))
+		}
+		if effects[0].Type != "iam:role" {
+			t.Errorf("Expected type 'iam:role', got '%s'", effects[0].Type)
+		}
+		if effects[0].Name != "my-backdoor" {
+			t.Errorf("Expected name 'my-backdoor', got '%s'", effects[0].Name)
+		}
+		if effects[0].CleanupMethod != "iam:DeleteRole" {
+			t.Errorf("Expected cleanup 'iam:DeleteRole', got '%s'", effects[0].CleanupMethod)
+		}
+	})
+
+	t.Run("BackdoorUpdateRoleTrust_Registration", func(t *testing.T) {
+		payload, err := payloads.GetPayloadForService("backdoor/update-role-trust", payloads.TagServiceBatch)
+		if err != nil {
+			t.Fatalf("Failed to get batch backdoor/update-role-trust: %v", err)
+		}
+		if payload.GetName() != "backdoor/update-role-trust" {
+			t.Errorf("Expected name 'backdoor/update-role-trust', got '%s'", payload.GetName())
+		}
+	})
+
+	t.Run("BackdoorUpdateRoleTrust_Validation", func(t *testing.T) {
+		payload, _ := payloads.GetPayloadForService("backdoor/update-role-trust", payloads.TagServiceBatch)
+
+		err := payload.Validate(map[string]string{})
+		if err == nil {
+			t.Error("Expected validation error for missing TARGET_ROLE")
+		}
+
+		err = payload.Validate(map[string]string{"TARGET_ROLE": "my-role"})
+		if err == nil {
+			t.Error("Expected validation error for missing TRUST_PRINCIPAL")
+		}
+
+		err = payload.Validate(map[string]string{
+			"TARGET_ROLE":     "my-role",
+			"TRUST_PRINCIPAL": "arn:aws:iam::123456789012:root",
+		})
+		if err != nil {
+			t.Errorf("Expected no validation error, got: %v", err)
+		}
+	})
+
+	t.Run("BackdoorUpdateRoleTrust_GenerateCode", func(t *testing.T) {
+		payload, _ := payloads.GetPayloadForService("backdoor/update-role-trust", payloads.TagServiceBatch)
+		code, err := payload.GenerateCode(map[string]string{
+			"TARGET_ROLE":     "target-role",
+			"TRUST_PRINCIPAL": "arn:aws:iam::123456789012:root",
+		})
+		if err != nil {
+			t.Fatalf("Failed to generate code: %v", err)
+		}
+		if !strings.Contains(code, "aws iam get-role") {
+			t.Error("Generated code should get existing role trust policy")
+		}
+		if !strings.Contains(code, "aws iam update-assume-role-policy") {
+			t.Error("Generated code should update trust policy")
+		}
+		if !strings.Contains(code, "jq") {
+			t.Error("Generated code should use jq for JSON manipulation")
+		}
+	})
+
+	t.Run("BackdoorUpdateRoleTrust_SideEffectReporter", func(t *testing.T) {
+		payload, _ := payloads.GetPayloadForService("backdoor/update-role-trust", payloads.TagServiceBatch)
+		reporter, ok := payload.(payloads.SideEffectReporter)
+		if !ok {
+			t.Fatal("backdoor/update-role-trust should implement SideEffectReporter")
+		}
+
+		effects := reporter.ReportSideEffects(map[string]string{
+			"TARGET_ROLE":     "target-role",
+			"TRUST_PRINCIPAL": "arn:aws:iam::123456789012:root",
+		})
+		if len(effects) != 1 {
+			t.Fatalf("Expected 1 side effect, got %d", len(effects))
+		}
+		if effects[0].Type != "iam:trust-policy" {
+			t.Errorf("Expected type 'iam:trust-policy', got '%s'", effects[0].Type)
+		}
+		if effects[0].Metadata["target_role"] != "target-role" {
+			t.Errorf("Expected target_role 'target-role', got '%s'", effects[0].Metadata["target_role"])
+		}
+	})
+
+	t.Run("AllBatchPayloads_AreBashTagged", func(t *testing.T) {
+		batchPayloads := payloads.GetPayloadsByTags([]string{payloads.TagServiceBatch})
+		if len(batchPayloads) < 6 {
+			t.Errorf("Expected at least 6 batch payloads (attach-policy, create-access-key, create-user, create-role, update-role-trust, exfil/https), got %d", len(batchPayloads))
+		}
+		for _, p := range batchPayloads {
+			if !hasTag(p.GetTags(), payloads.TagLanguageBash) {
+				t.Errorf("Batch payload '%s' should have bash language tag", p.GetName())
+			}
+		}
+	})
+}
+
 func TestPayloadMatrixCompleteness(t *testing.T) {
 	// Verify the unified payload matrix across all three services
 	services := map[string]string{
@@ -1742,8 +2065,8 @@ func TestPayloadMatrixCompleteness(t *testing.T) {
 		}
 	})
 
-	t.Run("BackdoorCreateAccessKey_LambdaAndEC2", func(t *testing.T) {
-		for _, serviceTag := range []string{payloads.TagServiceLambda, payloads.TagServiceEC2} {
+	t.Run("BackdoorCreateAccessKey_LambdaEC2Batch", func(t *testing.T) {
+		for _, serviceTag := range []string{payloads.TagServiceLambda, payloads.TagServiceEC2, payloads.TagServiceBatch} {
 			_, err := payloads.GetPayloadForService("backdoor/create-access-key", serviceTag)
 			if err != nil {
 				t.Errorf("Expected backdoor/create-access-key for service tag %s, got: %v", serviceTag, err)
@@ -1751,8 +2074,14 @@ func TestPayloadMatrixCompleteness(t *testing.T) {
 		}
 	})
 
-	t.Run("BackdoorCreateUser_LambdaEC2Glue", func(t *testing.T) {
-		for serviceName, serviceTag := range services {
+	t.Run("BackdoorCreateUser_LambdaEC2GlueBatch", func(t *testing.T) {
+		allServices := map[string]string{
+			"lambda": payloads.TagServiceLambda,
+			"ec2":    payloads.TagServiceEC2,
+			"glue":   payloads.TagServiceGlue,
+			"batch":  payloads.TagServiceBatch,
+		}
+		for serviceName, serviceTag := range allServices {
 			_, err := payloads.GetPayloadForService("backdoor/create-user", serviceTag)
 			if err != nil {
 				t.Errorf("Expected backdoor/create-user for %s, got: %v", serviceName, err)
@@ -1781,6 +2110,8 @@ func buildMinimalValidOptions(p payloads.Payload) map[string]string {
 				opts["TRUST_PRINCIPAL"] = "arn:aws:iam::123456789012:root"
 			case "TARGET_ROLE":
 				opts["TARGET_ROLE"] = "test-role"
+			case "TARGET_USER":
+				opts["TARGET_USER"] = "test-user"
 			default:
 				opts[opt.Name] = "test-value"
 			}
