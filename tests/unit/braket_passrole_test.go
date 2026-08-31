@@ -220,7 +220,7 @@ func TestBraketPassroleExecuteNoAttackerNoS3(t *testing.T) {
 		Options: map[string]string{
 			"ROLE_ARN":    "arn:aws:iam::123456789012:role/admin",
 			"PAYLOAD":     "backdoor/attach-policy",
-			"TARGET_USER": "victim-user",
+			"TARGET_ARN": "victim-user",
 		},
 		AttackerIdentity: nil,
 	}

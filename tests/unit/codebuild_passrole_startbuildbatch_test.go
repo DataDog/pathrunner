@@ -76,7 +76,7 @@ func TestCodeBuildPassroleStartBuildBatchOptions(t *testing.T) {
 	}
 
 	// These should be optional
-	expectedOptional := []string{"TARGET_USER", "REGION", "PROJECT_NAME", "CLEANUP"}
+	expectedOptional := []string{"TARGET_ARN", "REGION", "PROJECT_NAME", "CLEANUP"}
 	for _, name := range expectedOptional {
 		if !optionalOptions[name] {
 			t.Errorf("Expected %s to be optional", name)

@@ -2112,6 +2112,9 @@ func buildMinimalValidOptions(p payloads.Payload) map[string]string {
 				opts["TARGET_ROLE"] = "test-role"
 			case "TARGET_USER":
 				opts["TARGET_USER"] = "test-user"
+			case "TARGET_PRINCIPAL":
+				opts["TARGET_PRINCIPAL"] = "test-user"
+				opts["PRINCIPAL_TYPE"] = "user"
 			default:
 				opts[opt.Name] = "test-value"
 			}

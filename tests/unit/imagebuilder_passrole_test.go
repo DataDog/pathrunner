@@ -76,7 +76,7 @@ func TestImagebuilderPassroleOptions(t *testing.T) {
 	}
 
 	// REGION, SUBNET_ID, SECURITY_GROUP_ID, TARGET_USER, POLICY_ARN, CLEANUP are optional
-	expectedOptional := []string{"REGION", "SUBNET_ID", "SECURITY_GROUP_ID", "TARGET_USER", "POLICY_ARN", "CLEANUP"}
+	expectedOptional := []string{"REGION", "SUBNET_ID", "SECURITY_GROUP_ID", "TARGET_ARN", "POLICY_ARN", "CLEANUP"}
 	for _, name := range expectedOptional {
 		if !optionalOptions[name] {
 			t.Errorf("Expected %s to be optional", name)
@@ -216,7 +216,7 @@ func TestImagebuilderPassroleExecuteInvalidPayload(t *testing.T) {
 		Options: map[string]string{
 			"INSTANCE_PROFILE": "admin-instance-profile",
 			"PAYLOAD":          "nonexistent/payload",
-			"TARGET_USER":      "test-user",
+			"TARGET_ARN":      "test-user",
 		},
 		AttackerIdentity: nil,
 	}

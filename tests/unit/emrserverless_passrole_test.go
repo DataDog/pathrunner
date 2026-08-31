@@ -77,7 +77,7 @@ func TestEMRServerlessPassroleOptions(t *testing.T) {
 	}
 
 	// Optional options.
-	expectedOptional := []string{"TARGET_USER", "REGION", "APP_NAME", "CLEANUP"}
+	expectedOptional := []string{"TARGET_ARN", "REGION", "APP_NAME", "CLEANUP"}
 	for _, name := range expectedOptional {
 		if !optionalOptions[name] {
 			t.Errorf("Expected %s to be optional", name)

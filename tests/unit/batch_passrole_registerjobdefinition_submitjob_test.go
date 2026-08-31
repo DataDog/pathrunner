@@ -80,7 +80,7 @@ func TestBatchPassroleRegisterJobDefinitionSubmitJobOptions(t *testing.T) {
 	}
 
 	// These should be optional
-	expectedOptional := []string{"TARGET_USER", "REGION", "CLEANUP", "JOB_DEF_NAME", "CONTAINER_RUNTIME", "IMAGE"}
+	expectedOptional := []string{"TARGET_PRINCIPAL", "REGION", "CLEANUP", "JOB_DEF_NAME", "CONTAINER_RUNTIME", "IMAGE"}
 	for _, name := range expectedOptional {
 		if !optionalOptions[name] {
 			t.Errorf("Expected %s to be optional", name)
@@ -253,7 +253,7 @@ func TestBatchPassroleRegisterJobDefinitionSubmitJobExecuteRequiresAdminRoleArn(
 		Options: map[string]string{
 			"EXECUTION_ROLE_ARN": "arn:aws:iam::123456789012:role/exec-role",
 			"JOB_QUEUE":          "my-queue",
-			"TARGET_USER":        "test-user",
+			"TARGET_PRINCIPAL":        "test-user",
 		},
 	}
 
@@ -275,7 +275,7 @@ func TestBatchPassroleRegisterJobDefinitionSubmitJobExecuteRequiresExecutionRole
 		Options: map[string]string{
 			"ADMIN_ROLE_ARN": "arn:aws:iam::123456789012:role/admin-role",
 			"JOB_QUEUE":      "my-queue",
-			"TARGET_USER":    "test-user",
+			"TARGET_PRINCIPAL":    "test-user",
 		},
 	}
 
@@ -297,7 +297,7 @@ func TestBatchPassroleRegisterJobDefinitionSubmitJobExecuteRequiresJobQueue(t *t
 		Options: map[string]string{
 			"ADMIN_ROLE_ARN":     "arn:aws:iam::123456789012:role/admin-role",
 			"EXECUTION_ROLE_ARN": "arn:aws:iam::123456789012:role/exec-role",
-			"TARGET_USER":        "test-user",
+			"TARGET_PRINCIPAL":        "test-user",
 		},
 	}
 

@@ -761,6 +761,18 @@ func (r *REPL) tryResolveMissingOptions(missing []string) bool {
 					continue
 				}
 			}
+			if opt.Name == "TARGET_PRINCIPAL" && r.options["TARGET_PRINCIPAL"] == "" {
+				if identity.CallerARN != "" {
+					name, principalType := extractPrincipalNameFromArn(identity.CallerARN)
+					if name != "" {
+						r.options["TARGET_PRINCIPAL"] = name
+						r.options["PRINCIPAL_TYPE"] = principalType
+						fmt.Printf("  [*] Defaulting TARGET_PRINCIPAL to current identity: %s (%s)\n", name, principalType)
+						fmt.Printf("      Use 'set TARGET_PRINCIPAL <name>' to change before running\n")
+						continue
+					}
+				}
+			}
 			if opt.Required && r.options[opt.Name] == "" && opt.Default == "" {
 				if err := r.promptManualOption(opt.Name); err != nil {
 					fmt.Printf("  %v\n", err)
@@ -801,8 +813,42 @@ func (r *REPL) autoPopulatePayloadDefaults(payloadName string) {
 				fmt.Printf("[*] Defaulting TARGET_ARN to current identity: %s\n", identity.CallerARN)
 				fmt.Printf("    Use 'set TARGET_ARN <arn>' to change before running\n")
 			}
+		case "TARGET_PRINCIPAL":
+			if identity != nil && identity.CallerARN != "" {
+				name, principalType := extractPrincipalNameFromArn(identity.CallerARN)
+				if name != "" {
+					r.options["TARGET_PRINCIPAL"] = name
+					r.options["PRINCIPAL_TYPE"] = principalType
+					fmt.Printf("[*] Defaulting TARGET_PRINCIPAL to current identity: %s (%s)\n", name, principalType)
+					fmt.Printf("    Use 'set TARGET_PRINCIPAL <name>' to change before running\n")
+				}
+			}
 		}
 	}
+}
+
+// extractPrincipalNameFromArn extracts the IAM principal name and type from a caller ARN.
+// Used for pre-populating TARGET_PRINCIPAL from the current identity without an STS call.
+func extractPrincipalNameFromArn(arn string) (name, principalType string) {
+	switch {
+	case strings.Contains(arn, ":user/"):
+		idx := strings.LastIndex(arn, "/")
+		return arn[idx+1:], "user"
+	case strings.Contains(arn, ":assumed-role/"):
+		// arn:aws:sts::ACCOUNT:assumed-role/ROLE_NAME/SESSION_NAME — extract ROLE_NAME.
+		// Two LastIndex calls avoid a []string allocation.
+		last := strings.LastIndex(arn, "/")
+		if last > 0 {
+			prev := strings.LastIndex(arn[:last], "/")
+			if prev >= 0 {
+				return arn[prev+1 : last], "role"
+			}
+		}
+	case strings.Contains(arn, ":role/"):
+		idx := strings.LastIndex(arn, "/")
+		return arn[idx+1:], "role"
+	}
+	return "", ""
 }
 
 // promptPayloadSelection presents an interactive selection of available payloads.

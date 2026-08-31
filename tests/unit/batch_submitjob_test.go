@@ -77,7 +77,7 @@ func TestBatchSubmitJobOptions(t *testing.T) {
 	}
 
 	// These should be optional
-	expectedOptional := []string{"TARGET_USER", "REGION", "CLEANUP", "CONTAINER_RUNTIME"}
+	expectedOptional := []string{"TARGET_PRINCIPAL", "REGION", "CLEANUP", "CONTAINER_RUNTIME"}
 	for _, name := range expectedOptional {
 		if !optionalOptions[name] {
 			t.Errorf("Expected %s to be optional", name)
@@ -230,7 +230,7 @@ func TestBatchSubmitJobExecuteRequiresJobDefinition(t *testing.T) {
 		},
 		Options: map[string]string{
 			"JOB_QUEUE":   "my-queue",
-			"TARGET_USER": "test-user",
+			"TARGET_PRINCIPAL": "test-user",
 		},
 	}
 

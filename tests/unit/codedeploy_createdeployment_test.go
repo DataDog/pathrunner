@@ -78,7 +78,7 @@ func TestCodeDeployCreateDeploymentOptions(t *testing.T) {
 	}
 
 	// These should be optional
-	expectedOptional := []string{"REVISION_KEY", "TARGET_USER", "REGION", "CLEANUP"}
+	expectedOptional := []string{"REVISION_KEY", "TARGET_ARN", "REGION", "CLEANUP"}
 	for _, name := range expectedOptional {
 		if !optionalOptions[name] {
 			t.Errorf("Expected %s to be optional", name)

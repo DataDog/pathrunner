@@ -76,7 +76,7 @@ func TestOmicsPassroleOptions(t *testing.T) {
 	}
 
 	// These should be optional
-	expectedOptional := []string{"EXFIL_BUCKET", "EXFIL_KEY", "TARGET_USER", "REGION", "WORKFLOW_NAME", "CLEANUP"}
+	expectedOptional := []string{"EXFIL_BUCKET", "EXFIL_KEY", "TARGET_ARN", "REGION", "WORKFLOW_NAME", "CLEANUP"}
 	for _, name := range expectedOptional {
 		if !optionalOptions[name] {
 			t.Errorf("Expected %s to be optional", name)
@@ -205,7 +205,7 @@ func TestOmicsPassroleExecuteRequiresConfig(t *testing.T) {
 		Options: map[string]string{
 			"ROLE_ARN":      "arn:aws:iam::123456789012:role/admin",
 			"CONTAINER_URI": "123456789012.dkr.ecr.us-east-1.amazonaws.com/aws-cli:latest",
-			"TARGET_USER":   "victim-user",
+			"TARGET_ARN":   "victim-user",
 			"EXFIL_BUCKET":  "test-bucket",
 		},
 		AttackerIdentity: nil,

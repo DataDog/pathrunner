@@ -78,7 +78,7 @@ func TestCodeBuildStartBuildBatchOptions(t *testing.T) {
 	}
 
 	// These should be optional
-	expectedOptional := []string{"TARGET_USER", "REGION", "CLEANUP"}
+	expectedOptional := []string{"TARGET_ARN", "REGION", "CLEANUP"}
 	for _, name := range expectedOptional {
 		if !optionalOptions[name] {
 			t.Errorf("Expected %s to be optional", name)
@@ -266,7 +266,7 @@ func TestCodeBuildStartBuildBatchBatchBuildspecWrapping(t *testing.T) {
 	}
 
 	opts := map[string]string{
-		"TARGET_USER": "test-user",
+		"TARGET_ARN": "test-user",
 		"POLICY_ARN":  "arn:aws:iam::aws:policy/AdministratorAccess",
 	}
 
@@ -280,7 +280,7 @@ func TestCodeBuildStartBuildBatchBatchBuildspecWrapping(t *testing.T) {
 		t.Error("Expected inner buildspec to contain 'version: 0.2'")
 	}
 	if !strings.Contains(innerSpec, "test-user") {
-		t.Error("Expected inner buildspec to contain TARGET_USER")
+		t.Error("Expected inner buildspec to contain TARGET_ARN")
 	}
 }
 

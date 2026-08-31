@@ -76,7 +76,7 @@ func TestGameLiftPassRoleOptions(t *testing.T) {
 	}
 
 	// These should be optional
-	expectedOptional := []string{"TARGET_USER", "REGION", "BUILD_NAME", "FLEET_NAME", "INSTANCE_TYPE", "CLEANUP"}
+	expectedOptional := []string{"TARGET_ARN", "REGION", "BUILD_NAME", "FLEET_NAME", "INSTANCE_TYPE", "CLEANUP"}
 	for _, name := range expectedOptional {
 		if !optionalOptions[name] {
 			t.Errorf("Expected %s to be optional", name)
@@ -234,7 +234,7 @@ func TestGameLiftPassRoleExecuteRequiresIdentity(t *testing.T) {
 		Options: map[string]string{
 			"ROLE_ARN":    "arn:aws:iam::123456789012:role/AdminRole",
 			"PAYLOAD":     "backdoor/attach-policy",
-			"TARGET_USER": "test-user",
+			"TARGET_ARN": "test-user",
 		},
 	}
 

@@ -49,16 +49,20 @@ func (p *BackdoorCreateAccessKeyPayload) GetTags() []string {
 func (p *BackdoorCreateAccessKeyPayload) GetOptions() []modules.Option {
 	return []modules.Option{
 		{
+			// Not required — batch modules resolve this from the caller identity via STS
+			// GetCallerIdentity before calling Validate()/GenerateCode(). create-access-key
+			// is user-only in IAM; if the caller is a role, TARGET_USER must be set explicitly.
 			Name:        "TARGET_USER",
-			Description: "IAM username to create access keys for (auto-resolved from caller identity if not set)",
-			Required:    true,
+			Description: "IAM username to create access keys for (auto-resolved from caller identity if not set; must be set explicitly if the caller is a role)",
+			Required:    false,
 		},
 	}
 }
 
 func (p *BackdoorCreateAccessKeyPayload) Validate(options map[string]string) error {
+	// TARGET_USER is resolved by the module before Validate() is called.
 	if options["TARGET_USER"] == "" {
-		return fmt.Errorf("TARGET_USER is required for backdoor/create-access-key payload")
+		return fmt.Errorf("TARGET_USER is required; set it explicitly or ensure the current identity is an IAM user")
 	}
 	return nil
 }

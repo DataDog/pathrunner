@@ -80,7 +80,7 @@ func TestBatch003Options(t *testing.T) {
 	}
 
 	// These should be optional
-	for _, name := range []string{"TARGET_USER", "REGION", "CLEANUP", "JOB_DEF_NAME", "COMPUTE_ENV_NAME", "JOB_QUEUE_NAME", "CONTAINER_RUNTIME", "IMAGE"} {
+	for _, name := range []string{"TARGET_PRINCIPAL", "REGION", "CLEANUP", "JOB_DEF_NAME", "COMPUTE_ENV_NAME", "JOB_QUEUE_NAME", "CONTAINER_RUNTIME", "IMAGE"} {
 		if !optionalOptions[name] {
 			t.Errorf("Expected %s to be optional", name)
 		}
@@ -240,7 +240,7 @@ func TestBatch003ExecuteRequiresAdminRoleArn(t *testing.T) {
 			"EXECUTION_ROLE_ARN": "arn:aws:iam::123456789012:role/exec-role",
 			"SUBNET_ID":         "subnet-12345",
 			"SECURITY_GROUP_ID": "sg-12345",
-			"TARGET_USER":       "test-user",
+			"TARGET_PRINCIPAL":       "test-user",
 		},
 	}
 
@@ -263,7 +263,7 @@ func TestBatch003ExecuteRequiresExecutionRoleArn(t *testing.T) {
 			"ADMIN_ROLE_ARN":    "arn:aws:iam::123456789012:role/admin-role",
 			"SUBNET_ID":        "subnet-12345",
 			"SECURITY_GROUP_ID": "sg-12345",
-			"TARGET_USER":       "test-user",
+			"TARGET_PRINCIPAL":       "test-user",
 		},
 	}
 
@@ -286,7 +286,7 @@ func TestBatch003ExecuteRequiresSubnetID(t *testing.T) {
 			"ADMIN_ROLE_ARN":     "arn:aws:iam::123456789012:role/admin-role",
 			"EXECUTION_ROLE_ARN": "arn:aws:iam::123456789012:role/exec-role",
 			"SECURITY_GROUP_ID":  "sg-12345",
-			"TARGET_USER":        "test-user",
+			"TARGET_PRINCIPAL":        "test-user",
 		},
 	}
 
@@ -309,7 +309,7 @@ func TestBatch003ExecuteRequiresSecurityGroupID(t *testing.T) {
 			"ADMIN_ROLE_ARN":     "arn:aws:iam::123456789012:role/admin-role",
 			"EXECUTION_ROLE_ARN": "arn:aws:iam::123456789012:role/exec-role",
 			"SUBNET_ID":         "subnet-12345",
-			"TARGET_USER":       "test-user",
+			"TARGET_PRINCIPAL":       "test-user",
 		},
 	}
 

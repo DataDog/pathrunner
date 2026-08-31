@@ -77,7 +77,7 @@ func TestCodeBuildStartBuildOptions(t *testing.T) {
 	}
 
 	// These should be optional
-	expectedOptional := []string{"TARGET_USER", "REGION", "CLEANUP"}
+	expectedOptional := []string{"TARGET_ARN", "REGION", "CLEANUP"}
 	for _, name := range expectedOptional {
 		if !optionalOptions[name] {
 			t.Errorf("Expected %s to be optional", name)
@@ -262,7 +262,7 @@ func TestCodeBuildBackdoorAttachPolicyPayload(t *testing.T) {
 	}
 
 	opts := map[string]string{
-		"TARGET_USER": "test-user",
+		"TARGET_ARN": "test-user",
 		"POLICY_ARN":  "arn:aws:iam::aws:policy/AdministratorAccess",
 	}
 
@@ -277,7 +277,7 @@ func TestCodeBuildBackdoorAttachPolicyPayload(t *testing.T) {
 
 	// The generated code should be a buildspec YAML.
 	if !contains(code, "test-user") {
-		t.Error("Expected buildspec to contain TARGET_USER")
+		t.Error("Expected buildspec to contain TARGET_ARN")
 	}
 	if !contains(code, "arn:aws:iam::aws:policy/AdministratorAccess") {
 		t.Error("Expected buildspec to contain POLICY_ARN")
@@ -298,7 +298,7 @@ func TestCodeBuildBackdoorAttachPolicyDefaultPolicyArn(t *testing.T) {
 
 	// Empty POLICY_ARN should default to AdministratorAccess.
 	opts := map[string]string{
-		"TARGET_USER": "test-user",
+		"TARGET_ARN": "test-user",
 		"POLICY_ARN":  "",
 	}
 
@@ -318,8 +318,8 @@ func TestCodeBuildBackdoorAttachPolicyValidateMissingUser(t *testing.T) {
 		t.Fatalf("Expected backdoor/attach-policy payload to be registered: %v", err)
 	}
 
-	if err := pl.Validate(map[string]string{"TARGET_USER": ""}); err == nil {
-		t.Error("Expected validation to fail when TARGET_USER is empty")
+	if err := pl.Validate(map[string]string{"TARGET_ARN": ""}); err == nil {
+		t.Error("Expected validation to fail when TARGET_ARN is empty")
 	}
 }
 
@@ -335,7 +335,7 @@ func TestCodeBuildBackdoorAttachPolicySideEffects(t *testing.T) {
 	}
 
 	opts := map[string]string{
-		"TARGET_USER": "test-user",
+		"TARGET_ARN": "test-user",
 		"POLICY_ARN":  "arn:aws:iam::aws:policy/AdministratorAccess",
 	}
 
