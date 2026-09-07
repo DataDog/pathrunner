@@ -26,8 +26,8 @@ github.com/aws/aws-sdk-go-v2/service/batch v1.72.1 h1:ugjT1jXZ2DyMBECG/w7C5g+t73
 github.com/aws/aws-sdk-go-v2/service/batch v1.72.1/go.mod h1:1Ip776OeE7Lyu8AiZuo1rM4v/qL3wMcFKtqJMJzrviM=
 github.com/aws/aws-sdk-go-v2/service/bedrockagentcore v1.43.0 h1:hhELWYfABV0jVkZ7v6nx6odG8zI3dUw+XDe5oV1xps8=
 github.com/aws/aws-sdk-go-v2/service/bedrockagentcore v1.43.0/go.mod h1:7nvltf+SxVHxk1uZAN4U+uMTSgsxUi1wUY++zRQNxMU=
-github.com/aws/aws-sdk-go-v2/service/bedrockagentcorecontrol v1.61.1 h1:VkNnCUjMkGzBG89J23l/LGbtmJXMoS8trNTiXWjaK/E=
-github.com/aws/aws-sdk-go-v2/service/bedrockagentcorecontrol v1.61.1/go.mod h1:8GtpxB95gE15Wif0/Kdak56z23RRksg4pYO78hFHAY8=
+github.com/aws/aws-sdk-go-v2/service/bedrockagentcorecontrol v1.64.0 h1:nIwiGZ2QFOBdgBAvRYUjJSNHOqopX6vhXtaXdURxTuw=
+github.com/aws/aws-sdk-go-v2/service/bedrockagentcorecontrol v1.64.0/go.mod h1:8GtpxB95gE15Wif0/Kdak56z23RRksg4pYO78hFHAY8=
 github.com/aws/aws-sdk-go-v2/service/braket v1.45.1 h1:RdqhusFZSZtddJk1axZHiYudCAaXjo33rT26gai9yno=
 github.com/aws/aws-sdk-go-v2/service/braket v1.45.1/go.mod h1:dmmlGvPt9TMRLo8g6039gz4YSmc1XCguzbhbt7BrDSQ=
 github.com/aws/aws-sdk-go-v2/service/cloudformation v1.78.1 h1:QYFHk3rakk4vryQg4PG36RtJIXOKQQqzxIoSbGLTSsc=
