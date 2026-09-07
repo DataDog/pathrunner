@@ -43,7 +43,7 @@ require (
 	github.com/spf13/cobra v1.10.2
 )
 
-require github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.84.1
+require github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.85.0
 
 require (
 	github.com/atotto/clipboard v0.1.4 // indirect
