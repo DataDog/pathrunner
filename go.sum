@@ -48,8 +48,8 @@ github.com/aws/aws-sdk-go-v2/service/ecr v1.62.1 h1:is/YQsDD3gNYwHakX0dlFbKot+uF
 github.com/aws/aws-sdk-go-v2/service/ecr v1.62.1/go.mod h1:BITpKEMb6U6dnjcbrlonpiStseuI9I0GZ21p61iqeFA=
 github.com/aws/aws-sdk-go-v2/service/ecs v1.93.0 h1:vGID9MLvMp5goA8erHQceyoQ+bXx2Bbm1cuqQu1uZjM=
 github.com/aws/aws-sdk-go-v2/service/ecs v1.93.0/go.mod h1:SWnb6UqGrRl+8szKjonPFm9cO31HpS9NdqdOLXS9vbA=
-github.com/aws/aws-sdk-go-v2/service/emr v1.66.1 h1:V/wJdjLLrvn62z83IGS0OoU5ScaFm9yFS3Stn64jPQs=
-github.com/aws/aws-sdk-go-v2/service/emr v1.66.1/go.mod h1:8vIAU4t7I34p+ODNJjVDnRSiI8P1JQNWzWEfpPMFHWw=
+github.com/aws/aws-sdk-go-v2/service/emr v1.68.0 h1:1eVEjNvt4pMQdtjSqLwoZexdJrrx4SnBvf6JD7uv/iA=
+github.com/aws/aws-sdk-go-v2/service/emr v1.68.0/go.mod h1:8vIAU4t7I34p+ODNJjVDnRSiI8P1JQNWzWEfpPMFHWw=
 github.com/aws/aws-sdk-go-v2/service/emrserverless v1.46.1 h1:ua/pYuQJ82uqGs9OCMtn8VDS6gW0Z8gbJvl36Nz0eoc=
 github.com/aws/aws-sdk-go-v2/service/emrserverless v1.46.1/go.mod h1:Xnfaskmp8OGSUMI+o2vS7kJpiiVoTSYMyIz7mOGlVKo=
 github.com/aws/aws-sdk-go-v2/service/gamelift v1.63.1 h1:jifqZjl2XmuTGAJdu/umWx7xpBX0KD0UOdt22qVnWNQ=
