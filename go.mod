@@ -15,7 +15,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.78.1
 	github.com/aws/aws-sdk-go-v2/service/codebuild v1.75.1
 	github.com/aws/aws-sdk-go-v2/service/codedeploy v1.40.1
-	github.com/aws/aws-sdk-go-v2/service/cognitoidentity v1.39.0
+	github.com/aws/aws-sdk-go-v2/service/cognitoidentity v1.40.0
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.65.1
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.325.1
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.62.1
