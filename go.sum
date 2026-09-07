@@ -54,8 +54,8 @@ github.com/aws/aws-sdk-go-v2/service/emrserverless v1.46.1 h1:ua/pYuQJ82uqGs9OCM
 github.com/aws/aws-sdk-go-v2/service/emrserverless v1.46.1/go.mod h1:Xnfaskmp8OGSUMI+o2vS7kJpiiVoTSYMyIz7mOGlVKo=
 github.com/aws/aws-sdk-go-v2/service/gamelift v1.63.1 h1:jifqZjl2XmuTGAJdu/umWx7xpBX0KD0UOdt22qVnWNQ=
 github.com/aws/aws-sdk-go-v2/service/gamelift v1.63.1/go.mod h1:BK27zV5R/0LAfP0Vo3/JDg0mugJD4PqNq9xK+2YaF+M=
-github.com/aws/aws-sdk-go-v2/service/glue v1.155.1 h1:PIG94g4O8ZVGcRN0B3dO4PZI+lwNCFEPw77WJk241Hc=
-github.com/aws/aws-sdk-go-v2/service/glue v1.155.1/go.mod h1:rFkH3UgvXgadg/HuhbCEInqFOqC6ZpcOgI/Z87O0N7E=
+github.com/aws/aws-sdk-go-v2/service/glue v1.156.0 h1:fUHHMdLtVMKbUeQ92wiJYQcRuXeopxkSs0JIm57fhIo=
+github.com/aws/aws-sdk-go-v2/service/glue v1.156.0/go.mod h1:rFkH3UgvXgadg/HuhbCEInqFOqC6ZpcOgI/Z87O0N7E=
 github.com/aws/aws-sdk-go-v2/service/iam v1.61.1 h1:89xLwRWrLsCaIpxpVqtWiwWmXAcpJZXk5a73SJaqd40=
 github.com/aws/aws-sdk-go-v2/service/iam v1.61.1/go.mod h1:k0YVlnUF0eaJtm8g0VcFDn9LVfK38XdrXTHRd/EeflQ=
 github.com/aws/aws-sdk-go-v2/service/imagebuilder v1.60.1 h1:JAM6TAGS09o5JYqdCBjCaZ+E9cSVHacYVlRKko0tCdU=
