@@ -10,7 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.75.1
 	github.com/aws/aws-sdk-go-v2/service/batch v1.72.1
 	github.com/aws/aws-sdk-go-v2/service/bedrockagentcore v1.43.0
-	github.com/aws/aws-sdk-go-v2/service/bedrockagentcorecontrol v1.61.1
+	github.com/aws/aws-sdk-go-v2/service/bedrockagentcorecontrol v1.64.0
 	github.com/aws/aws-sdk-go-v2/service/braket v1.45.1
 	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.78.1
 	github.com/aws/aws-sdk-go-v2/service/codebuild v1.75.1
