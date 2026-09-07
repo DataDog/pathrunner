@@ -20,7 +20,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.325.1
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.62.1
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.93.0
-	github.com/aws/aws-sdk-go-v2/service/emr v1.66.1
+	github.com/aws/aws-sdk-go-v2/service/emr v1.68.0
 	github.com/aws/aws-sdk-go-v2/service/emrserverless v1.46.1
 	github.com/aws/aws-sdk-go-v2/service/gamelift v1.63.1
 	github.com/aws/aws-sdk-go-v2/service/glue v1.155.1
