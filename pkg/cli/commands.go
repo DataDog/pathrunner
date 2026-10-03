@@ -56,7 +56,11 @@ func (c *CLI) createIdentityCmd() *cobra.Command {
 			// Build command based on flags
 			var replArgs []string
 
-			if profile, _ := cmd.Flags().GetString("profile"); profile != "" {
+			profile, _ := cmd.Flags().GetString("profile")
+			if fromProfile, _ := cmd.Flags().GetString("from-profile"); fromProfile != "" && profile == "" {
+				profile = fromProfile
+			}
+			if profile != "" {
 				replArgs = append(replArgs, "--profile", profile)
 			} else if accessKey, _ := cmd.Flags().GetString("access"); accessKey != "" {
 				secretKey, _ := cmd.Flags().GetString("secret")
@@ -95,6 +99,7 @@ func (c *CLI) createIdentityCmd() *cobra.Command {
 		},
 	}
 	addCmd.Flags().String("profile", "", "AWS profile name")
+	addCmd.Flags().String("from-profile", "", "AWS profile name (alias for --profile)")
 	addCmd.Flags().String("access", "", "Access key ID (requires --secret)")
 	addCmd.Flags().String("secret", "", "Secret access key")
 	addCmd.Flags().String("token", "", "Session token (optional)")
