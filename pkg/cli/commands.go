@@ -267,11 +267,15 @@ func (c *CLI) createWorkspaceCmd() *cobra.Command {
 			if module, _ := cmd.Flags().GetString("module"); module != "" {
 				replArgs = append(replArgs, "--module", module)
 			}
+			if output, _ := cmd.Flags().GetString("output"); output != "" {
+				replArgs = append(replArgs, "--output", output)
+			}
 
 			_ = c.executeREPLCommand(strings.Join(replArgs, " "))
 		},
 	}
 	reportCmd.Flags().String("module", "", "Only report resources from a specific module ID")
+	reportCmd.Flags().StringP("output", "o", "", "Write report to file (format inferred from extension: .html or .md)")
 	workspaceCmd.AddCommand(reportCmd)
 
 	// workspace history

@@ -16,7 +16,12 @@ import (
 
 // DiscoverBedrockAgentRuntimes lists Bedrock AgentCore agent runtimes.
 // Returns choices with runtime ARNs as values.
-func DiscoverBedrockAgentRuntimes(ctx context.Context, config aws.Config) ([]modules.DiscoveryChoice, error) {
+func DiscoverBedrockAgentRuntimes(ctx context.Context, config aws.Config, logger ...modules.ActionLogger) ([]modules.DiscoveryChoice, error) {
+	var log modules.ActionLogger
+	if len(logger) > 0 {
+		log = logger[0]
+	}
+
 	client := bedrockagentcorecontrol.NewFromConfig(config)
 
 	listCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -30,6 +35,9 @@ func DiscoverBedrockAgentRuntimes(ctx context.Context, config aws.Config) ([]mod
 			return nil, fmt.Errorf("%s", FormatPermissionError("TARGET_RUNTIME_ARN", "bedrock-agentcore:ListAgentRuntimes", err))
 		}
 		return nil, fmt.Errorf("failed to list Bedrock AgentCore runtimes: %v", err)
+	}
+	if log != nil {
+		log.LogAWSCall("bedrock-agentcore", "ListAgentRuntimes", config.Region, "Enumerated Bedrock AgentCore runtimes for discovery", nil)
 	}
 
 	var choices []modules.DiscoveryChoice

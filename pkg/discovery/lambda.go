@@ -28,7 +28,12 @@ type LambdaFunctionInfo struct {
 
 // DiscoverLambdaFunctions lists Lambda functions and enriches them with
 // execution role information. Returns choices with function names as values.
-func DiscoverLambdaFunctions(ctx context.Context, config aws.Config) ([]modules.DiscoveryChoice, error) {
+func DiscoverLambdaFunctions(ctx context.Context, config aws.Config, logger ...modules.ActionLogger) ([]modules.DiscoveryChoice, error) {
+	var log modules.ActionLogger
+	if len(logger) > 0 {
+		log = logger[0]
+	}
+
 	lambdaClient := lambda.NewFromConfig(config)
 
 	listCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -40,6 +45,9 @@ func DiscoverLambdaFunctions(ctx context.Context, config aws.Config) ([]modules.
 			return nil, fmt.Errorf("%s", FormatPermissionError("FUNCTION_NAME", "lambda:ListFunctions", err))
 		}
 		return nil, fmt.Errorf("failed to list Lambda functions: %v", err)
+	}
+	if log != nil {
+		log.LogAWSCall("lambda", "ListFunctions", config.Region, "Enumerated Lambda functions for discovery", nil)
 	}
 
 	var choices []modules.DiscoveryChoice

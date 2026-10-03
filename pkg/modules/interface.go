@@ -174,7 +174,8 @@ type ExecutionContext struct {
 	Identity         *Identity
 	Options          map[string]string
 	Tracker          ResourceTracker
-	AttackerIdentity *Identity // nil when no attacker account is configured
+	AttackerIdentity *Identity    // nil when no attacker account is configured
+	Logger           ActionLogger // nil-safe; always set by the REPL, may be nil in tests
 }
 
 type Module interface {
@@ -225,6 +226,33 @@ type CreatedResource struct {
 
 type ResourceTracker interface {
 	TrackResource(resource CreatedResource)
+}
+
+// CloudTrailEvent records one AWS API call made during module execution,
+// for use in purple team detection-reference reports.
+type CloudTrailEvent struct {
+	Timestamp   time.Time         `json:"timestamp"`
+	ModuleID    string            `json:"module_id"`
+	Service     string            `json:"service"`            // e.g. "sts"
+	Operation   string            `json:"operation"`          // e.g. "AssumeRole"
+	Region      string            `json:"region,omitempty"`
+	Description string            `json:"description"`        // human-readable context for blue team
+	Metadata    map[string]string `json:"metadata,omitempty"` // key resource identifiers (ARNs, names)
+}
+
+// ActionLogger records AWS API calls made during module execution. Modules must
+// nil-check before calling — the REPL always supplies one, but unit tests that
+// don't care about logging may pass nil.
+type ActionLogger interface {
+	LogAWSCall(service, operation, region, description string, metadata map[string]string)
+}
+
+// DiscoverLogged is an optional interface implemented automatically by modules
+// that embed BaseModule. The REPL calls SetDiscoveryLogger before each Discover()
+// invocation so discovery functions can record their AWS API calls in the
+// CloudTrail events log.
+type DiscoverLogged interface {
+	SetDiscoveryLogger(logger ActionLogger)
 }
 
 // Discoverable is an optional interface that modules can implement

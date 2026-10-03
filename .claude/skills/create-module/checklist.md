@@ -45,7 +45,9 @@ Use this checklist after generating a new module to verify everything is complet
   - `CleanupMethod` set to the API action
   - `ModuleID` set to the path ID
   - `Metadata` includes info needed for cleanup
-- [ ] Cleanup handler exists in `pkg/core/repl/session.go` for each resource type created
+- [ ] Cleanup handler exists in `pkg/core/repl/session.go` `sessionCleanup()` for each resource type created
+- [ ] `CleanupCommand()` in `pkg/report/cleanup.go` has a `case` for each resource type — this drives the AWS CLI command shown in `workspace cleanup`, the terminal report, and every exported report (HTML/Markdown). Falling through to `default` produces "manual cleanup required" instead of a real command.
+- [ ] `cleanupOperationFromType()` in `pkg/core/repl/session.go` has a `case` for each resource type — this maps the type to an AWS operation name (e.g., `DeleteFunction`) for CloudTrail audit log entries emitted after cleanup.
 
 ## Side Effect Tracking (payload modifications)
 - [ ] After execution, module checks if payload implements `SideEffectReporter`

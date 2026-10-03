@@ -336,6 +336,7 @@ func (r *REPL) buildWorkspaceCompleter() readline.PrefixCompleterInterface {
 		),
 		readline.PcItem("report",
 			readline.PcItem("--module"),
+			readline.PcItem("--output"),
 		),
 		readline.PcItem("history"),
 		readline.PcItem("help"),

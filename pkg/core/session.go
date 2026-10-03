@@ -17,17 +17,30 @@ import (
 )
 
 type Session struct {
-	Name             string                       `json:"name"`
-	Created          time.Time                    `json:"created"`
-	LastAccessed     time.Time                    `json:"last_accessed"`
-	Identities       map[string]*modules.Identity `json:"identities"`
-	CurrentIdentity  string                       `json:"current_identity"`
-	AttackerIdentity *modules.Identity            `json:"attacker_identity,omitempty"`
-	CurrentModule    string                       `json:"current_module"`
-	Options          map[string]string            `json:"options"`
-	CommandLog       []CommandLogEntry            `json:"command_log"`
-	CreatedResources []CreatedResource            `json:"created_resources"`
-	LastResult       string                       `json:"last_result"`
+	Name              string                       `json:"name"`
+	Created           time.Time                    `json:"created"`
+	LastAccessed      time.Time                    `json:"last_accessed"`
+	Identities        map[string]*modules.Identity `json:"identities"`
+	CurrentIdentity   string                       `json:"current_identity"`
+	AttackerIdentity  *modules.Identity            `json:"attacker_identity,omitempty"`
+	CurrentModule     string                       `json:"current_module"`
+	Options           map[string]string            `json:"options"`
+	CommandLog        []CommandLogEntry            `json:"command_log"`
+	CreatedResources  []CreatedResource            `json:"created_resources"`
+	CloudTrailEvents  []CloudTrailEvent            `json:"cloudtrail_events,omitempty"`
+	LastResult        string                       `json:"last_result"`
+}
+
+// CloudTrailEvent mirrors modules.CloudTrailEvent for workspace-persisted storage.
+type CloudTrailEvent struct {
+	Timestamp   time.Time         `json:"timestamp"`
+	ModuleID    string            `json:"module_id"`
+	Service     string            `json:"service"`
+	Operation   string            `json:"operation"`
+	Region      string            `json:"region,omitempty"`
+	Description string            `json:"description"`
+	Principal   string            `json:"principal,omitempty"`
+	Metadata    map[string]string `json:"metadata,omitempty"`
 }
 
 type CommandLogEntry struct {
@@ -335,4 +348,51 @@ func (sm *SessionManager) TrackResource(resource modules.CreatedResource) {
 	}
 
 	sm.currentSession.CreatedResources = append(sm.currentSession.CreatedResources, coreResource)
+}
+
+// LogCloudTrailEvent records an AWS API call made during module execution.
+// The module ID is taken from the session's CurrentModule field so callers
+// don't need to supply it.
+func (sm *SessionManager) LogCloudTrailEvent(service, operation, region, description string, metadata map[string]string) {
+	if sm.currentSession == nil {
+		return
+	}
+
+	// Capture the current identity's ARN as the acting principal.
+	var principal string
+	if sm.currentSession.CurrentIdentity != "" {
+		if identity, ok := sm.currentSession.Identities[sm.currentSession.CurrentIdentity]; ok {
+			if identity.CallerARN != "" {
+				principal = identity.CallerARN
+			} else {
+				principal = sm.currentSession.CurrentIdentity
+			}
+		}
+	}
+
+	event := CloudTrailEvent{
+		Timestamp:   time.Now(),
+		ModuleID:    sm.currentSession.CurrentModule,
+		Service:     service,
+		Operation:   operation,
+		Region:      region,
+		Description: description,
+		Principal:   principal,
+		Metadata:    metadata,
+	}
+
+	sm.currentSession.CloudTrailEvents = append(sm.currentSession.CloudTrailEvents, event)
+
+	// Cap at 5000 events to prevent excessive growth.
+	if len(sm.currentSession.CloudTrailEvents) > 5000 {
+		sm.currentSession.CloudTrailEvents = sm.currentSession.CloudTrailEvents[len(sm.currentSession.CloudTrailEvents)-5000:]
+	}
+}
+
+// GetCloudTrailEvents returns all recorded CloudTrail events for the current session.
+func (sm *SessionManager) GetCloudTrailEvents() []CloudTrailEvent {
+	if sm.currentSession == nil {
+		return nil
+	}
+	return sm.currentSession.CloudTrailEvents
 }

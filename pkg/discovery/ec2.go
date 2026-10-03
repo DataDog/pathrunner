@@ -17,7 +17,12 @@ import (
 )
 
 // DiscoverSubnets lists VPC subnets available in the current region.
-func DiscoverSubnets(ctx context.Context, config aws.Config) ([]modules.DiscoveryChoice, error) {
+func DiscoverSubnets(ctx context.Context, config aws.Config, logger ...modules.ActionLogger) ([]modules.DiscoveryChoice, error) {
+	var log modules.ActionLogger
+	if len(logger) > 0 {
+		log = logger[0]
+	}
+
 	client := ec2.NewFromConfig(config)
 
 	listCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -29,6 +34,9 @@ func DiscoverSubnets(ctx context.Context, config aws.Config) ([]modules.Discover
 			return nil, fmt.Errorf("%s", FormatPermissionError("SUBNET_ID", "ec2:DescribeSubnets", err))
 		}
 		return nil, fmt.Errorf("failed to describe subnets: %v", err)
+	}
+	if log != nil {
+		log.LogAWSCall("ec2", "DescribeSubnets", config.Region, "Enumerated VPC subnets for discovery", nil)
 	}
 
 	var choices []modules.DiscoveryChoice
@@ -65,13 +73,19 @@ func DiscoverSubnets(ctx context.Context, config aws.Config) ([]modules.Discover
 }
 
 // DiscoverSecurityGroups lists security groups available in the current region.
-func DiscoverSecurityGroups(ctx context.Context, config aws.Config) ([]modules.DiscoveryChoice, error) {
+func DiscoverSecurityGroups(ctx context.Context, config aws.Config, logger ...modules.ActionLogger) ([]modules.DiscoveryChoice, error) {
+	var log modules.ActionLogger
+	if len(logger) > 0 {
+		log = logger[0]
+	}
+
 	client := ec2.NewFromConfig(config)
 
 	listCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	var allGroups []modules.DiscoveryChoice
+	loggedOnce := false
 	paginator := ec2.NewDescribeSecurityGroupsPaginator(client, &ec2.DescribeSecurityGroupsInput{})
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(listCtx)
@@ -80,6 +94,10 @@ func DiscoverSecurityGroups(ctx context.Context, config aws.Config) ([]modules.D
 				return nil, fmt.Errorf("%s", FormatPermissionError("SECURITY_GROUP_ID", "ec2:DescribeSecurityGroups", err))
 			}
 			return nil, fmt.Errorf("failed to describe security groups: %v", err)
+		}
+		if log != nil && !loggedOnce {
+			log.LogAWSCall("ec2", "DescribeSecurityGroups", config.Region, "Enumerated security groups for discovery", nil)
+			loggedOnce = true
 		}
 
 		for _, sg := range page.SecurityGroups {
@@ -119,7 +137,12 @@ func DiscoverSecurityGroups(ctx context.Context, config aws.Config) ([]modules.D
 // DiscoverEC2InstancesWithProfiles lists running EC2 instances that have an IAM
 // instance profile attached. Results include the instance ID, public IP, and
 // profile ARN so the caller can assess privilege escalation potential.
-func DiscoverEC2InstancesWithProfiles(ctx context.Context, config aws.Config) ([]modules.DiscoveryChoice, error) {
+func DiscoverEC2InstancesWithProfiles(ctx context.Context, config aws.Config, logger ...modules.ActionLogger) ([]modules.DiscoveryChoice, error) {
+	var log modules.ActionLogger
+	if len(logger) > 0 {
+		log = logger[0]
+	}
+
 	client := ec2.NewFromConfig(config)
 
 	listCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -132,6 +155,7 @@ func DiscoverEC2InstancesWithProfiles(ctx context.Context, config aws.Config) ([
 	}
 
 	var choices []modules.DiscoveryChoice
+	loggedOnce := false
 	paginator := ec2.NewDescribeInstancesPaginator(client, input)
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(listCtx)
@@ -140,6 +164,10 @@ func DiscoverEC2InstancesWithProfiles(ctx context.Context, config aws.Config) ([
 				return nil, fmt.Errorf("%s", FormatPermissionError("INSTANCE_ID", "ec2:DescribeInstances", err))
 			}
 			return nil, fmt.Errorf("failed to describe instances: %v", err)
+		}
+		if log != nil && !loggedOnce {
+			log.LogAWSCall("ec2", "DescribeInstances", config.Region, "Enumerated running EC2 instances with IAM profiles for discovery", nil)
+			loggedOnce = true
 		}
 
 		for _, reservation := range page.Reservations {
@@ -186,13 +214,19 @@ func DiscoverEC2InstancesWithProfiles(ctx context.Context, config aws.Config) ([
 // DiscoverEC2Instances lists EC2 instances that are running or stopped.
 // Both states are valid targets for ec2-002 (ModifyInstanceAttribute requires
 // the instance to be stopped, but if it's running the module will stop it first).
-func DiscoverEC2Instances(ctx context.Context, config aws.Config) ([]modules.DiscoveryChoice, error) {
+func DiscoverEC2Instances(ctx context.Context, config aws.Config, logger ...modules.ActionLogger) ([]modules.DiscoveryChoice, error) {
+	var log modules.ActionLogger
+	if len(logger) > 0 {
+		log = logger[0]
+	}
+
 	client := ec2.NewFromConfig(config)
 
 	listCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	var choices []modules.DiscoveryChoice
+	loggedOnce := false
 	paginator := ec2.NewDescribeInstancesPaginator(client, &ec2.DescribeInstancesInput{
 		Filters: []types.Filter{
 			{
@@ -209,6 +243,10 @@ func DiscoverEC2Instances(ctx context.Context, config aws.Config) ([]modules.Dis
 				return nil, fmt.Errorf("%s", FormatPermissionError("INSTANCE_ID", "ec2:DescribeInstances", err))
 			}
 			return nil, fmt.Errorf("failed to describe instances: %v", err)
+		}
+		if log != nil && !loggedOnce {
+			log.LogAWSCall("ec2", "DescribeInstances", config.Region, "Enumerated running and stopped EC2 instances for discovery", nil)
+			loggedOnce = true
 		}
 
 		for _, reservation := range page.Reservations {

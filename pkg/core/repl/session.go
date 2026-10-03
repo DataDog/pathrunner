@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/pathrunner/pkg/modules"
+	"github.com/DataDog/pathrunner/pkg/report"
 	"github.com/DataDog/pathrunner/pkg/ui"
 
 	"github.com/DataDog/pathrunner/pkg/attacker"
@@ -367,6 +368,13 @@ func (r *REPL) sessionCleanup(args []string) error {
 				}
 				if removeIt {
 					r.sessionManager.RemoveCreatedResource(resource.Name)
+					r.sessionManager.LogAWSCall(
+						cleanupServiceFromType(resource.Type),
+						cleanupOperationFromType(resource.Type),
+						resource.Region,
+						fmt.Sprintf("Cleanup: %s '%s' not found in AWS — removed from tracking", resource.Type, resource.Name),
+						map[string]string{"resource_type": resource.Type, "resource_name": resource.Name, "outcome": "not_found"},
+					)
 					gone++
 				} else if !quit {
 					failed++
@@ -382,6 +390,13 @@ func (r *REPL) sessionCleanup(args []string) error {
 			fmt.Printf(" OK\n")
 			cleaned++
 			r.sessionManager.RemoveCreatedResource(resource.Name)
+			r.sessionManager.LogAWSCall(
+				cleanupServiceFromType(resource.Type),
+				cleanupOperationFromType(resource.Type),
+				resource.Region,
+				fmt.Sprintf("Cleanup: deleted %s '%s'", resource.Type, resource.Name),
+				map[string]string{"resource_type": resource.Type, "resource_name": resource.Name, "outcome": "deleted"},
+			)
 		}
 	}
 
@@ -437,35 +452,51 @@ func isNotFoundError(err error) bool {
 }
 
 // sessionReport generates a cleanup report for handoff to a client or admin.
+// Supports --module <id> to filter by module and --output <file> to write HTML or Markdown.
 func (r *REPL) sessionReport(args []string) error {
 	if len(args) > 0 && args[0] == "help" {
 		return r.showWorkspaceReportHelp()
 	}
 
 	resources := r.sessionManager.GetCreatedResources()
-	if len(resources) == 0 {
-		fmt.Println("No tracked resources in current workspace. Nothing to report.")
+	events := r.sessionManager.GetCloudTrailEvents()
+
+	if len(resources) == 0 && len(events) == 0 {
+		fmt.Println("No tracked resources or CloudTrail events in current workspace. Nothing to report.")
 		return nil
 	}
 
-	// Parse optional --module filter
+	// Parse optional flags
 	moduleFilter := ""
+	outputPath := ""
 	for i, arg := range args {
 		if arg == "--module" && i+1 < len(args) {
 			moduleFilter = args[i+1]
 		}
+		if arg == "--output" && i+1 < len(args) {
+			outputPath = args[i+1]
+		}
 	}
 
 	if moduleFilter != "" {
-		var filtered []CreatedResource
+		var filteredResources []CreatedResource
 		for _, res := range resources {
 			if res.ModuleID == moduleFilter {
-				filtered = append(filtered, res)
+				filteredResources = append(filteredResources, res)
 			}
 		}
-		resources = filtered
-		if len(resources) == 0 {
-			fmt.Printf("No tracked resources for module '%s'.\n", moduleFilter)
+		resources = filteredResources
+
+		var filteredEvents []CloudTrailEvent
+		for _, ev := range events {
+			if ev.ModuleID == moduleFilter {
+				filteredEvents = append(filteredEvents, ev)
+			}
+		}
+		events = filteredEvents
+
+		if len(resources) == 0 && len(events) == 0 {
+			fmt.Printf("No tracked resources or CloudTrail events for module '%s'.\n", moduleFilter)
 			return nil
 		}
 	}
@@ -486,10 +517,14 @@ func (r *REPL) sessionReport(args []string) error {
 		}
 	}
 
-	// Header
+	// Export to file when --output is given
+	if outputPath != "" {
+		return r.exportReport(buildReportData(workspaceName, moduleFilter, created, modified, events), outputPath)
+	}
+
+	// Terminal rendering (unchanged)
 	ui.ReportHeader(workspaceName, time.Now().Format("2006-01-02 15:04:05 MST"), len(resources), len(created), len(modified))
 
-	// Created resources
 	if len(created) > 0 {
 		ui.ReportSection("CREATED RESOURCES (delete to clean up)")
 		for _, res := range created {
@@ -509,11 +544,11 @@ func (r *REPL) sessionReport(args []string) error {
 			if res.Created != "" {
 				fmt.Printf("    Created:  %s\n", res.Created)
 			}
+			printManualCleanupCommand(res)
 		}
 		fmt.Println()
 	}
 
-	// Modified resources
 	if len(modified) > 0 {
 		ui.ReportSection("MODIFIED RESOURCES (revert to clean up)")
 		for _, res := range modified {
@@ -534,23 +569,127 @@ func (r *REPL) sessionReport(args []string) error {
 				fmt.Printf("    Module:     %s\n", res.ModuleID)
 			}
 			fmt.Printf("    Reversal:   %s\n", res.CleanupMethod)
+			printManualCleanupCommand(res)
 		}
 		fmt.Println()
 	}
 
-	// Manual cleanup instructions
-	ui.ReportSection("MANUAL CLEANUP COMMANDS")
-	fmt.Println()
-	for _, res := range created {
-		printManualCleanupCommand(res)
-	}
-	for _, res := range modified {
-		printManualCleanupCommand(res)
+	if len(events) > 0 {
+		printCloudTrailEventsSection(events)
 	}
 
 	ui.ReportFooter()
-
 	return nil
+}
+
+// buildReportData converts repl-layer types into the format-agnostic report.ReportData struct.
+func buildReportData(workspaceName, moduleFilter string, created, modified []CreatedResource, events []CloudTrailEvent) report.ReportData {
+	toResource := func(res CreatedResource) report.Resource {
+		return report.Resource{
+			Type:          res.Type,
+			Name:          res.Name,
+			ARN:           res.ARN,
+			Region:        res.Region,
+			ModuleID:      res.ModuleID,
+			CleanupMethod: res.CleanupMethod,
+			Created:       res.Created,
+			Metadata:      res.Metadata,
+		}
+	}
+
+	reportCreated := make([]report.Resource, len(created))
+	for i, res := range created {
+		reportCreated[i] = toResource(res)
+	}
+	reportModified := make([]report.Resource, len(modified))
+	for i, res := range modified {
+		reportModified[i] = toResource(res)
+	}
+
+	reportEvents := make([]report.Event, len(events))
+	for i, ev := range events {
+		reportEvents[i] = report.Event{
+			Timestamp:   ev.Timestamp,
+			ModuleID:    ev.ModuleID,
+			Service:     ev.Service,
+			Operation:   ev.Operation,
+			Region:      ev.Region,
+			Principal:   ev.Principal,
+			Description: ev.Description,
+		}
+	}
+
+	return report.ReportData{
+		WorkspaceName: workspaceName,
+		GeneratedAt:   time.Now().UTC(),
+		ModuleFilter:  moduleFilter,
+		Created:       reportCreated,
+		Modified:      reportModified,
+		Events:        reportEvents,
+	}
+}
+
+// exportReport renders data in the format inferred from outputPath's extension and writes it to disk.
+func (r *REPL) exportReport(data report.ReportData, outputPath string) error {
+	lower := strings.ToLower(outputPath)
+
+	var content string
+	var format string
+
+	switch {
+	case strings.HasSuffix(lower, ".html"):
+		format = "HTML"
+		rendered, err := report.RenderHTML(data)
+		if err != nil {
+			return fmt.Errorf("failed to render HTML report: %w", err)
+		}
+		content = rendered
+	case strings.HasSuffix(lower, ".md"), strings.HasSuffix(lower, ".markdown"):
+		format = "Markdown"
+		content = report.RenderMarkdown(data)
+	default:
+		return NewInvalidArgumentsError("unsupported output format (use .html or .md)")
+	}
+
+	if err := os.WriteFile(outputPath, []byte(content), 0644); err != nil {
+		return fmt.Errorf("failed to write %s report: %w", format, err)
+	}
+
+	fmt.Printf("Report written to %s\n", outputPath)
+	return nil
+}
+
+// printCloudTrailEventsSection renders the CloudTrail events table for blue team reference.
+func printCloudTrailEventsSection(events []CloudTrailEvent) {
+	ui.ReportSection("CLOUDTRAIL EVENTS (blue team detection reference)")
+	fmt.Println()
+
+	// Column widths: timestamp(23) module(12) service(10) operation(25) principal(40) description(remainder)
+	fmt.Printf("    %-23s  %-12s  %-10s  %-25s  %-40s  %s\n", "Timestamp", "Module", "Service", "Operation", "Principal", "Description")
+	fmt.Printf("    %-23s  %-12s  %-10s  %-25s  %-40s  %s\n",
+		"-----------------------", "------------", "----------", "-------------------------", "----------------------------------------", "-----------")
+
+	for _, ev := range events {
+		moduleID := ev.ModuleID
+		if len(moduleID) > 12 {
+			moduleID = moduleID[:11] + "…"
+		}
+		service := ev.Service
+		if len(service) > 10 {
+			service = service[:9] + "…"
+		}
+		operation := ev.Operation
+		if len(operation) > 25 {
+			operation = operation[:24] + "…"
+		}
+		principal := ev.Principal
+		if len(principal) > 40 {
+			principal = "…" + principal[len(principal)-39:]
+		}
+		fmt.Printf("    %-23s  %-12s  %-10s  %-25s  %-40s  %s\n",
+			ev.Timestamp, moduleID, service, operation, principal, ev.Description)
+	}
+	fmt.Println()
 }
 
 // isModificationResource returns true for resources that represent modifications
@@ -561,146 +700,162 @@ func isModificationResource(res CreatedResource) bool {
 		res.Type == "iam:trust-policy"
 }
 
-// printManualCleanupCommand prints the AWS CLI command to clean up a resource.
+// printManualCleanupCommand prints the AWS CLI command(s) for a resource paired with its listing.
+// Multi-line commands (e.g. stop then delete) are printed with continuation indentation.
 func printManualCleanupCommand(res CreatedResource) {
-	region := res.Region
-	if region == "" {
-		region = "us-east-1"
+	cmd := report.CleanupCommand(report.Resource{
+		Type:     res.Type,
+		Name:     res.Name,
+		ARN:      res.ARN,
+		Region:   res.Region,
+		Metadata: res.Metadata,
+	})
+	if cmd == "" {
+		return
 	}
+	lines := strings.SplitSeq(cmd, "\n")
+	const label = "    Command:  "
+	const cont = "              " // same width as label for continuation lines
+	first := true
+	for line := range lines {
+		if first {
+			fmt.Printf("%s%s\n", label, line)
+			first = false
+		} else {
+			fmt.Printf("%s%s\n", cont, line)
+		}
+	}
+}
 
-	switch res.Type {
+// cleanupServiceFromType extracts the AWS service name from a resource type string (e.g. "lambda:function" → "lambda").
+func cleanupServiceFromType(resourceType string) string {
+	if idx := strings.Index(resourceType, ":"); idx > 0 {
+		return resourceType[:idx]
+	}
+	return resourceType
+}
+
+// cleanupOperationFromType maps a resource type to its primary AWS delete/detach/revert operation name.
+func cleanupOperationFromType(resourceType string) string {
+	switch resourceType {
 	case "lambda:function":
-		fmt.Printf("    aws lambda delete-function --function-name %s --region %s\n", res.Name, region)
+		return "DeleteFunction"
 	case "lambda:event-source-mapping":
-		uuid := res.Metadata["uuid"]
-		if uuid == "" {
-			uuid = res.Name
-		}
-		fmt.Printf("    aws lambda delete-event-source-mapping --uuid %s --region %s\n", uuid, region)
+		return "DeleteEventSourceMapping"
 	case "lambda:permission":
-		funcName := res.Metadata["function_name"]
-		stmtID := res.Metadata["statement_id"]
-		fmt.Printf("    aws lambda remove-permission --function-name %s --statement-id %s --region %s\n", funcName, stmtID, region)
+		return "RemovePermission"
 	case "ec2:instance":
-		instanceID := res.Metadata["instance_id"]
-		if instanceID == "" {
-			instanceID = res.Name
-		}
-		fmt.Printf("    aws ec2 terminate-instances --instance-ids %s --region %s\n", instanceID, region)
+		return "TerminateInstances"
 	case "ec2:spot-instance-request":
-		spotRequestID := res.Metadata["spot_request_id"]
-		if spotRequestID == "" {
-			spotRequestID = res.Name
-		}
-		fmt.Printf("    aws ec2 cancel-spot-instance-requests --spot-instance-request-ids %s --region %s\n", spotRequestID, region)
+		return "CancelSpotInstanceRequests"
 	case "iam:attached-policy":
-		principalType := res.Metadata["principal_type"]
-		principalName := res.Metadata["principal_name"]
-		policyArn := res.Metadata["policy_arn"]
-		switch principalType {
-		case "role":
-			fmt.Printf("    aws iam detach-role-policy --role-name %s --policy-arn %s\n", principalName, policyArn)
-		case "group":
-			fmt.Printf("    aws iam detach-group-policy --group-name %s --policy-arn %s\n", principalName, policyArn)
-		default:
-			fmt.Printf("    aws iam detach-user-policy --user-name %s --policy-arn %s\n", principalName, policyArn)
-		}
+		return "DetachPolicy"
 	case "iam:inline-policy":
-		principalType := res.Metadata["principal_type"]
-		principalName := res.Metadata["principal_name"]
-		policyName := res.Metadata["policy_name"]
-		switch principalType {
-		case "role":
-			fmt.Printf("    aws iam delete-role-policy --role-name %s --policy-name %s\n", principalName, policyName)
-		case "group":
-			fmt.Printf("    aws iam delete-group-policy --group-name %s --policy-name %s\n", principalName, policyName)
-		default:
-			fmt.Printf("    aws iam delete-user-policy --user-name %s --policy-name %s\n", principalName, policyName)
-		}
+		return "DeleteRolePolicy"
 	case "iam:group-membership":
-		userName := res.Metadata["user_name"]
-		groupName := res.Metadata["group_name"]
-		fmt.Printf("    aws iam remove-user-from-group --user-name %s --group-name %s\n", userName, groupName)
+		return "RemoveUserFromGroup"
 	case "iam:trust-policy":
-		roleName := res.Metadata["role_name"]
-		fmt.Printf("    aws iam update-assume-role-policy --role-name %s --policy-document '<original-trust-policy>'\n", roleName)
+		return "UpdateAssumeRolePolicy"
 	case "iam:policy-version":
-		policyArn := res.Metadata["policy_arn"]
-		versionID := res.Metadata["version_id"]
-		fmt.Printf("    aws iam delete-policy-version --policy-arn %s --version-id %s\n", policyArn, versionID)
+		return "DeletePolicyVersion"
 	case "iam:access-key":
-		username := res.Metadata["username"]
-		accessKeyID := res.Metadata["access_key_id"]
-		if accessKeyID == "" {
-			accessKeyID = res.Name
-		}
-		fmt.Printf("    aws iam delete-access-key --user-name %s --access-key-id %s\n", username, accessKeyID)
+		return "DeleteAccessKey"
 	case "iam:login-profile":
-		username := res.Metadata["username"]
-		if username == "" {
-			username = res.Name
-		}
-		fmt.Printf("    aws iam delete-login-profile --user-name %s\n", username)
+		return "DeleteLoginProfile"
 	case "iam:role":
-		fmt.Printf("    aws iam delete-role --role-name %s\n", res.Name)
+		return "DeleteRole"
 	case "iam:user":
-		fmt.Printf("    aws iam delete-user --user-name %s\n", res.Name)
+		return "DeleteUser"
 	case "ecs:service":
-		cluster := res.Metadata["cluster"]
-		fmt.Printf("    aws ecs delete-service --cluster %s --service %s --force --region %s\n", cluster, res.Name, region)
+		return "DeleteService"
 	case "ecs:cluster":
-		fmt.Printf("    aws ecs delete-cluster --cluster %s --region %s\n", res.Name, region)
+		return "DeleteCluster"
 	case "s3_bucket":
-		fmt.Printf("    aws s3 rm s3://%s --recursive --region %s\n", res.Name, region)
-		fmt.Printf("    aws s3api delete-bucket --bucket %s --region %s\n", res.Name, region)
+		return "DeleteBucket"
 	case "glue:dev-endpoint":
-		fmt.Printf("    aws glue delete-dev-endpoint --endpoint-name %s --region %s\n", res.Name, region)
+		return "DeleteDevEndpoint"
 	case "glue:job":
-		fmt.Printf("    aws glue delete-job --job-name %s --region %s\n", res.Name, region)
+		return "DeleteJob"
 	case "glue:session":
-		fmt.Printf("    aws glue stop-session --id %s --region %s\n", res.Name, region)
-		fmt.Printf("    aws glue delete-session --id %s --region %s\n", res.Name, region)
+		return "DeleteSession"
 	case "glue:trigger":
-		fmt.Printf("    aws glue stop-trigger --name %s --region %s\n", res.Name, region)
-		fmt.Printf("    aws glue delete-trigger --name %s --region %s\n", res.Name, region)
+		return "DeleteTrigger"
 	case "imagebuilder:component":
-		componentArn := res.Metadata["component_arn"]
-		if componentArn == "" {
-			componentArn = res.ARN
-		}
-		fmt.Printf("    aws imagebuilder delete-component --component-build-version-arn %s --region %s\n", componentArn, region)
+		return "DeleteComponent"
 	case "imagebuilder:recipe":
-		recipeArn := res.Metadata["recipe_arn"]
-		if recipeArn == "" {
-			recipeArn = res.ARN
-		}
-		fmt.Printf("    aws imagebuilder delete-image-recipe --image-recipe-arn %s --region %s\n", recipeArn, region)
+		return "DeleteImageRecipe"
 	case "imagebuilder:infra-config":
-		infraArn := res.Metadata["infra_config_arn"]
-		if infraArn == "" {
-			infraArn = res.ARN
-		}
-		fmt.Printf("    aws imagebuilder delete-infrastructure-configuration --infrastructure-configuration-arn %s --region %s\n", infraArn, region)
+		return "DeleteInfrastructureConfiguration"
 	case "imagebuilder:image":
-		imageArn := res.Metadata["image_build_arn"]
-		if imageArn == "" {
-			imageArn = res.ARN
-		}
-		fmt.Printf("    aws imagebuilder cancel-image-creation --image-build-version-arn %s --region %s 2>/dev/null || true\n", imageArn, region)
-		fmt.Printf("    aws imagebuilder delete-image --image-build-version-arn %s --region %s\n", imageArn, region)
+		return "DeleteImage"
 	case "kinesisanalyticsv2:application":
-		createTimestamp := res.Metadata["create_timestamp"]
-		fmt.Printf("    # First stop the application, then delete it using its original CreateTimestamp\n")
-		fmt.Printf("    aws kinesisanalyticsv2 stop-application --application-name %s --force --region %s 2>/dev/null || true\n", res.Name, region)
-		fmt.Printf("    aws kinesisanalyticsv2 delete-application --application-name %s --create-timestamp %s --region %s\n", res.Name, createTimestamp, region)
+		return "DeleteApplication"
 	case "local:file":
-		path := res.Metadata["path"]
-		if path == "" {
-			path = res.Name
-		}
-		fmt.Printf("    rm -f %s\n", path)
+		return "DeleteLocalFile"
+	case "batch:job-definition":
+		return "DeregisterJobDefinition"
+	case "batch:job-queue":
+		return "DeleteJobQueue"
+	case "batch:compute-environment":
+		return "DeleteComputeEnvironment"
+	case "bedrock-agentcore:code-interpreter":
+		return "DeleteCodeInterpreter"
+	case "bedrock-agentcore:agent-runtime":
+		return "DeleteAgentRuntime"
+	case "bedrock-agentcore:browser":
+		return "DeleteBrowser"
+	case "bedrock-agentcore:harness":
+		return "DeleteHarness"
+	case "apprunner:service":
+		return "DeleteService"
+	case "braket:job":
+		return "CancelJob"
+	case "cloudformation:stack":
+		return "DeleteStack"
+	case "cloudformation:stack-update":
+		return "UpdateStack"
+	case "cloudformation:stackset":
+		return "DeleteStackSet"
+	case "cloudformation:stackset-update":
+		return "UpdateStackSet"
+	case "codebuild:project":
+		return "DeleteProject"
+	case "cognito-identity:identity-pool-roles":
+		return "SetIdentityPoolRoles"
+	case "ec2:launch-template-version":
+		return "DeleteLaunchTemplateVersions"
+	case "ec2:launch-template-default":
+		return "ModifyLaunchTemplate"
+	case "ec2:userdata":
+		return "ModifyInstanceAttribute"
+	case "ecs:task-definition":
+		return "DeregisterTaskDefinition"
+	case "ecs:task":
+		return "StopTask"
+	case "emr:cluster":
+		return "TerminateJobFlows"
+	case "emrserverless:application":
+		return "DeleteApplication"
+	case "gamelift:build":
+		return "DeleteBuild"
+	case "gamelift:fleet":
+		return "DeleteFleet"
+	case "omics:workflow":
+		return "DeleteWorkflow"
+	case "omics:run":
+		return "DeleteRun"
+	case "ssm:automation-document":
+		return "DeleteDocument"
+	case "lambda:function-code":
+		return "UpdateFunctionCode"
+	case "glue:job-update":
+		return "UpdateJob"
+	case "apprunner:service-update":
+		return "UpdateService"
+	case "iam:login-profile-update":
+		return "UpdateLoginProfile"
 	default:
-		fmt.Printf("    # %s: %s (manual cleanup required)\n", res.Type, res.Name)
+		return "Delete"
 	}
 }
 
