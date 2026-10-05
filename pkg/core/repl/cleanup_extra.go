@@ -421,7 +421,7 @@ func (r *REPL) cleanupEC2UserData(ctx context.Context, config aws.Config, resour
 	}
 
 	// Restore original user-data. The stored value is base64-encoded (as returned by the API).
-	// BlobAttributeValue.Value takes raw bytes; the SDK re-encodes them automatically.
+	// SecureBlobAttributeValue.Value takes raw bytes; the SDK re-encodes them automatically.
 	var rawUserData []byte
 	if originalUserData != "" {
 		decoded, decErr := base64.StdEncoding.DecodeString(originalUserData)
@@ -434,7 +434,7 @@ func (r *REPL) cleanupEC2UserData(ctx context.Context, config aws.Config, resour
 
 	_, err = client.ModifyInstanceAttribute(longCtx, &ec2.ModifyInstanceAttributeInput{
 		InstanceId: aws.String(instanceID),
-		UserData: &ec2types.BlobAttributeValue{
+		UserData: &ec2types.SecureBlobAttributeValue{
 			Value: rawUserData,
 		},
 	})
