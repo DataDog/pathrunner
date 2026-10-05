@@ -16,7 +16,12 @@ import (
 
 // DiscoverDynamoDBStreams lists DynamoDB tables with streams enabled
 // and returns their stream ARNs as discovery choices.
-func DiscoverDynamoDBStreams(ctx context.Context, config aws.Config) ([]modules.DiscoveryChoice, error) {
+func DiscoverDynamoDBStreams(ctx context.Context, config aws.Config, logger ...modules.ActionLogger) ([]modules.DiscoveryChoice, error) {
+	var log modules.ActionLogger
+	if len(logger) > 0 {
+		log = logger[0]
+	}
+
 	client := dynamodb.NewFromConfig(config)
 
 	listCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -25,6 +30,7 @@ func DiscoverDynamoDBStreams(ctx context.Context, config aws.Config) ([]modules.
 	// List all tables
 	var tableNames []string
 	var lastTable *string
+	listedTables := false
 	for {
 		input := &dynamodb.ListTablesInput{}
 		if lastTable != nil {
@@ -37,6 +43,12 @@ func DiscoverDynamoDBStreams(ctx context.Context, config aws.Config) ([]modules.
 				return nil, fmt.Errorf("%s", FormatPermissionError("EVENT_SOURCE_ARN", "dynamodb:ListTables", err))
 			}
 			return nil, fmt.Errorf("failed to list tables: %v", err)
+		}
+		if !listedTables {
+			if log != nil {
+				log.LogAWSCall("dynamodb", "ListTables", config.Region, "Enumerated DynamoDB tables for stream discovery", nil)
+			}
+			listedTables = true
 		}
 
 		tableNames = append(tableNames, result.TableNames...)
@@ -82,9 +94,9 @@ func DiscoverDynamoDBStreams(ctx context.Context, config aws.Config) ([]modules.
 
 // DiscoverDynamoDBTableNames lists DynamoDB tables with streams enabled
 // and returns their table names as discovery choices.
-func DiscoverDynamoDBTableNames(ctx context.Context, config aws.Config) ([]modules.DiscoveryChoice, error) {
+func DiscoverDynamoDBTableNames(ctx context.Context, config aws.Config, logger ...modules.ActionLogger) ([]modules.DiscoveryChoice, error) {
 	// Reuse the stream discovery and convert to table name choices
-	streamChoices, err := DiscoverDynamoDBStreams(ctx, config)
+	streamChoices, err := DiscoverDynamoDBStreams(ctx, config, logger...)
 	if err != nil {
 		return nil, err
 	}

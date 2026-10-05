@@ -13,6 +13,9 @@
 *.out
 coverage.html
 
+# Generated HTML reports
+*.html
+
 # Go workspace file
 go.work
 

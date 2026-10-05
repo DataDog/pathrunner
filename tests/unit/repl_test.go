@@ -126,6 +126,13 @@ func (m *MockSessionManager) GetCreatedResources() []repl.CreatedResource {
 func (m *MockSessionManager) TrackResource(resource modules.CreatedResource) {
 }
 
+func (m *MockSessionManager) LogAWSCall(service, operation, region, description string, metadata map[string]string) {
+}
+
+func (m *MockSessionManager) GetCloudTrailEvents() []repl.CloudTrailEvent {
+	return []repl.CloudTrailEvent{}
+}
+
 type MockSession struct{}
 
 func (m *MockSession) GetName() string {

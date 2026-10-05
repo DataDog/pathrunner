@@ -17,7 +17,12 @@ import (
 
 // DiscoverGlueJobs lists existing Glue jobs and returns them as discovery choices.
 // Each choice includes the job name as the value and the current role as metadata.
-func DiscoverGlueJobs(ctx context.Context, config aws.Config) ([]modules.DiscoveryChoice, error) {
+func DiscoverGlueJobs(ctx context.Context, config aws.Config, logger ...modules.ActionLogger) ([]modules.DiscoveryChoice, error) {
+	var log modules.ActionLogger
+	if len(logger) > 0 {
+		log = logger[0]
+	}
+
 	glueClient := glue.NewFromConfig(config)
 
 	listCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -29,6 +34,9 @@ func DiscoverGlueJobs(ctx context.Context, config aws.Config) ([]modules.Discove
 			return nil, fmt.Errorf("%s", FormatPermissionError("JOB_NAME", "glue:ListJobs", err))
 		}
 		return nil, fmt.Errorf("failed to list Glue jobs: %v", err)
+	}
+	if log != nil {
+		log.LogAWSCall("glue", "ListJobs", config.Region, "Enumerated Glue jobs for discovery", nil)
 	}
 
 	var choices []modules.DiscoveryChoice

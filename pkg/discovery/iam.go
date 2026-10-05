@@ -49,13 +49,19 @@ type trustPolicyStatement struct {
 // DiscoverRolesForService lists IAM roles whose trust policy allows
 // the given service principal (e.g., "lambda.amazonaws.com").
 // Enriches with attached policy names when possible.
-func DiscoverRolesForService(ctx context.Context, config aws.Config, servicePrincipal string) ([]modules.DiscoveryChoice, error) {
+func DiscoverRolesForService(ctx context.Context, config aws.Config, servicePrincipal string, logger ...modules.ActionLogger) ([]modules.DiscoveryChoice, error) {
+	var log modules.ActionLogger
+	if len(logger) > 0 {
+		log = logger[0]
+	}
+
 	client := iam.NewFromConfig(config)
 
 	listCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	var allRoles []iamtypes.Role
+	loggedOnce := false
 	paginator := iam.NewListRolesPaginator(client, &iam.ListRolesInput{})
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(listCtx)
@@ -64,6 +70,12 @@ func DiscoverRolesForService(ctx context.Context, config aws.Config, servicePrin
 				return nil, fmt.Errorf("%s", FormatPermissionError("ROLE_ARN", "iam:ListRoles", err))
 			}
 			return nil, fmt.Errorf("failed to list roles: %v", err)
+		}
+		if log != nil && !loggedOnce {
+			log.LogAWSCall("iam", "ListRoles", config.Region,
+				fmt.Sprintf("Enumerated IAM roles with trust for %s", servicePrincipal),
+				map[string]string{"service_principal": servicePrincipal})
+			loggedOnce = true
 		}
 		allRoles = append(allRoles, page.Roles...)
 	}
@@ -130,13 +142,19 @@ func DiscoverRolesForService(ctx context.Context, config aws.Config, servicePrin
 
 // DiscoverIAMUsers lists IAM users with enriched metadata (attached policies,
 // access key count, login profile status). Useful for modules targeting specific users.
-func DiscoverIAMUsers(ctx context.Context, config aws.Config) ([]modules.DiscoveryChoice, error) {
+func DiscoverIAMUsers(ctx context.Context, config aws.Config, logger ...modules.ActionLogger) ([]modules.DiscoveryChoice, error) {
+	var log modules.ActionLogger
+	if len(logger) > 0 {
+		log = logger[0]
+	}
+
 	iamClient := iam.NewFromConfig(config)
 
 	listCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	var allUsers []iamtypes.User
+	loggedOnce := false
 	paginator := iam.NewListUsersPaginator(iamClient, &iam.ListUsersInput{})
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(listCtx)
@@ -145,6 +163,10 @@ func DiscoverIAMUsers(ctx context.Context, config aws.Config) ([]modules.Discove
 				return nil, fmt.Errorf("%s", FormatPermissionError("TARGET_USER", "iam:ListUsers", err))
 			}
 			return nil, fmt.Errorf("failed to list users: %v", err)
+		}
+		if log != nil && !loggedOnce {
+			log.LogAWSCall("iam", "ListUsers", config.Region, "Enumerated IAM users for discovery", nil)
+			loggedOnce = true
 		}
 		allUsers = append(allUsers, page.Users...)
 	}
@@ -262,13 +284,19 @@ func hasLoginProfile(ctx context.Context, client *iam.Client, userName string) (
 }
 
 // DiscoverInstanceProfiles lists IAM instance profiles and their associated roles.
-func DiscoverInstanceProfiles(ctx context.Context, config aws.Config) ([]modules.DiscoveryChoice, error) {
+func DiscoverInstanceProfiles(ctx context.Context, config aws.Config, logger ...modules.ActionLogger) ([]modules.DiscoveryChoice, error) {
+	var log modules.ActionLogger
+	if len(logger) > 0 {
+		log = logger[0]
+	}
+
 	client := iam.NewFromConfig(config)
 
 	listCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	var allProfiles []iamtypes.InstanceProfile
+	loggedOnce := false
 	paginator := iam.NewListInstanceProfilesPaginator(client, &iam.ListInstanceProfilesInput{})
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(listCtx)
@@ -277,6 +305,10 @@ func DiscoverInstanceProfiles(ctx context.Context, config aws.Config) ([]modules
 				return nil, fmt.Errorf("%s", FormatPermissionError("INSTANCE_PROFILE", "iam:ListInstanceProfiles", err))
 			}
 			return nil, fmt.Errorf("failed to list instance profiles: %v", err)
+		}
+		if log != nil && !loggedOnce {
+			log.LogAWSCall("iam", "ListInstanceProfiles", config.Region, "Enumerated IAM instance profiles for discovery", nil)
+			loggedOnce = true
 		}
 		allProfiles = append(allProfiles, page.InstanceProfiles...)
 	}
@@ -373,7 +405,12 @@ func trustsService(policyDoc string, servicePrincipal string) bool {
 // DiscoverAssumableRoles lists IAM roles whose trust policy allows the
 // current caller to assume them. Calls sts:GetCallerIdentity to determine
 // the caller's ARN and account, then filters roles by trust policy.
-func DiscoverAssumableRoles(ctx context.Context, config aws.Config) ([]modules.DiscoveryChoice, error) {
+func DiscoverAssumableRoles(ctx context.Context, config aws.Config, logger ...modules.ActionLogger) ([]modules.DiscoveryChoice, error) {
+	var log modules.ActionLogger
+	if len(logger) > 0 {
+		log = logger[0]
+	}
+
 	// Get caller identity to know who we are
 	stsClient := sts.NewFromConfig(config)
 	identityCtx, identityCancel := context.WithTimeout(ctx, 15*time.Second)
@@ -385,6 +422,9 @@ func DiscoverAssumableRoles(ctx context.Context, config aws.Config) ([]modules.D
 			return nil, fmt.Errorf("%s", FormatPermissionError("ROLE_ARN", "sts:GetCallerIdentity", err))
 		}
 		return nil, fmt.Errorf("failed to get caller identity: %v", err)
+	}
+	if log != nil {
+		log.LogAWSCall("sts", "GetCallerIdentity", config.Region, "Resolved caller ARN to filter assumable roles", nil)
 	}
 
 	callerArn := aws.ToString(callerIdentity.Arn)
@@ -399,6 +439,7 @@ func DiscoverAssumableRoles(ctx context.Context, config aws.Config) ([]modules.D
 	defer cancel()
 
 	var allRoles []iamtypes.Role
+	loggedOnce := false
 	paginator := iam.NewListRolesPaginator(iamClient, &iam.ListRolesInput{})
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(listCtx)
@@ -407,6 +448,10 @@ func DiscoverAssumableRoles(ctx context.Context, config aws.Config) ([]modules.D
 				return nil, fmt.Errorf("%s", FormatPermissionError("ROLE_ARN", "iam:ListRoles", err))
 			}
 			return nil, fmt.Errorf("failed to list roles: %v", err)
+		}
+		if log != nil && !loggedOnce {
+			log.LogAWSCall("iam", "ListRoles", config.Region, "Enumerated IAM roles to find assumable targets", nil)
+			loggedOnce = true
 		}
 		allRoles = append(allRoles, page.Roles...)
 	}
@@ -596,7 +641,12 @@ func actionAllowsAssumeRole(action any) bool {
 // DiscoverCallerPolicies lists customer-managed IAM policies attached to the
 // current caller (user or role). Useful for modules like iam:CreatePolicyVersion
 // that need to target a specific policy ARN.
-func DiscoverCallerPolicies(ctx context.Context, config aws.Config) ([]modules.DiscoveryChoice, error) {
+func DiscoverCallerPolicies(ctx context.Context, config aws.Config, logger ...modules.ActionLogger) ([]modules.DiscoveryChoice, error) {
+	var log modules.ActionLogger
+	if len(logger) > 0 {
+		log = logger[0]
+	}
+
 	stsClient := sts.NewFromConfig(config)
 	identityCtx, identityCancel := context.WithTimeout(ctx, 15*time.Second)
 	defer identityCancel()
@@ -607,6 +657,9 @@ func DiscoverCallerPolicies(ctx context.Context, config aws.Config) ([]modules.D
 			return nil, fmt.Errorf("%s", FormatPermissionError("POLICY_ARN", "sts:GetCallerIdentity", err))
 		}
 		return nil, fmt.Errorf("failed to get caller identity: %v", err)
+	}
+	if log != nil {
+		log.LogAWSCall("sts", "GetCallerIdentity", config.Region, "Resolved caller identity to discover attached policies", nil)
 	}
 
 	callerArn := aws.ToString(callerIdentity.Arn)
@@ -631,6 +684,7 @@ func DiscoverCallerPolicies(ctx context.Context, config aws.Config) ([]modules.D
 		listCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 
+		userPolicyLoggedOnce := false
 		paginator := iam.NewListAttachedUserPoliciesPaginator(iamClient, &iam.ListAttachedUserPoliciesInput{
 			UserName: aws.String(userName),
 		})
@@ -641,6 +695,12 @@ func DiscoverCallerPolicies(ctx context.Context, config aws.Config) ([]modules.D
 					return nil, fmt.Errorf("%s", FormatPermissionError("POLICY_ARN", "iam:ListAttachedUserPolicies", err))
 				}
 				return nil, fmt.Errorf("failed to list attached user policies: %v", err)
+			}
+			if log != nil && !userPolicyLoggedOnce {
+				log.LogAWSCall("iam", "ListAttachedUserPolicies", config.Region,
+					fmt.Sprintf("Enumerated policies attached to user %s for discovery", userName),
+					map[string]string{"user_name": userName})
+				userPolicyLoggedOnce = true
 			}
 			attachedPolicies = append(attachedPolicies, page.AttachedPolicies...)
 		}
@@ -678,6 +738,7 @@ func DiscoverCallerPolicies(ctx context.Context, config aws.Config) ([]modules.D
 		listCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 
+		rolePolicyLoggedOnce := false
 		paginator := iam.NewListAttachedRolePoliciesPaginator(iamClient, &iam.ListAttachedRolePoliciesInput{
 			RoleName: aws.String(roleName),
 		})
@@ -688,6 +749,12 @@ func DiscoverCallerPolicies(ctx context.Context, config aws.Config) ([]modules.D
 					return nil, fmt.Errorf("%s", FormatPermissionError("POLICY_ARN", "iam:ListAttachedRolePolicies", err))
 				}
 				return nil, fmt.Errorf("failed to list attached role policies: %v", err)
+			}
+			if log != nil && !rolePolicyLoggedOnce {
+				log.LogAWSCall("iam", "ListAttachedRolePolicies", config.Region,
+					fmt.Sprintf("Enumerated policies attached to role %s for discovery", roleName),
+					map[string]string{"role_name": roleName})
+				rolePolicyLoggedOnce = true
 			}
 			attachedPolicies = append(attachedPolicies, page.AttachedPolicies...)
 		}
@@ -767,7 +834,12 @@ func listUserGroupPolicies(ctx context.Context, client *iam.Client, userName str
 
 // DiscoverCallerGroups lists IAM groups that the calling user belongs to.
 // Useful for self-escalation modules targeting group policies (iam-010, iam-011).
-func DiscoverCallerGroups(ctx context.Context, config aws.Config) ([]modules.DiscoveryChoice, error) {
+func DiscoverCallerGroups(ctx context.Context, config aws.Config, logger ...modules.ActionLogger) ([]modules.DiscoveryChoice, error) {
+	var log modules.ActionLogger
+	if len(logger) > 0 {
+		log = logger[0]
+	}
+
 	// Get caller identity to determine username
 	stsClient := sts.NewFromConfig(config)
 	identityCtx, identityCancel := context.WithTimeout(ctx, 15*time.Second)
@@ -779,6 +851,9 @@ func DiscoverCallerGroups(ctx context.Context, config aws.Config) ([]modules.Dis
 			return nil, fmt.Errorf("%s", FormatPermissionError("GROUP_NAME", "sts:GetCallerIdentity", err))
 		}
 		return nil, fmt.Errorf("failed to get caller identity: %v", err)
+	}
+	if log != nil {
+		log.LogAWSCall("sts", "GetCallerIdentity", config.Region, "Resolved caller identity to discover group memberships", nil)
 	}
 
 	callerArn := aws.ToString(callerIdentity.Arn)
@@ -808,6 +883,11 @@ func DiscoverCallerGroups(ctx context.Context, config aws.Config) ([]modules.Dis
 			return nil, fmt.Errorf("%s", FormatPermissionError("GROUP_NAME", "iam:ListGroupsForUser", err))
 		}
 		return nil, fmt.Errorf("failed to list groups for user %s: %v", userName, err)
+	}
+	if log != nil {
+		log.LogAWSCall("iam", "ListGroupsForUser", config.Region,
+			fmt.Sprintf("Enumerated IAM groups for user %s", userName),
+			map[string]string{"user_name": userName})
 	}
 
 	var choices []modules.DiscoveryChoice
@@ -855,13 +935,19 @@ func DiscoverCallerGroups(ctx context.Context, config aws.Config) ([]modules.Dis
 
 // DiscoverIAMGroups lists all IAM groups with enriched metadata (attached policies).
 // Useful for modules like iam:AddUserToGroup that need to find privileged groups.
-func DiscoverIAMGroups(ctx context.Context, config aws.Config) ([]modules.DiscoveryChoice, error) {
+func DiscoverIAMGroups(ctx context.Context, config aws.Config, logger ...modules.ActionLogger) ([]modules.DiscoveryChoice, error) {
+	var log modules.ActionLogger
+	if len(logger) > 0 {
+		log = logger[0]
+	}
+
 	iamClient := iam.NewFromConfig(config)
 
 	listCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	var allGroups []iamtypes.Group
+	loggedOnce := false
 	paginator := iam.NewListGroupsPaginator(iamClient, &iam.ListGroupsInput{})
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(listCtx)
@@ -870,6 +956,10 @@ func DiscoverIAMGroups(ctx context.Context, config aws.Config) ([]modules.Discov
 				return nil, fmt.Errorf("%s", FormatPermissionError("GROUP_NAME", "iam:ListGroups", err))
 			}
 			return nil, fmt.Errorf("failed to list groups: %v", err)
+		}
+		if log != nil && !loggedOnce {
+			log.LogAWSCall("iam", "ListGroups", config.Region, "Enumerated IAM groups for discovery", nil)
+			loggedOnce = true
 		}
 		allGroups = append(allGroups, page.Groups...)
 	}
@@ -921,13 +1011,19 @@ func DiscoverIAMGroups(ctx context.Context, config aws.Config) ([]modules.Discov
 // DiscoverIAMRoles lists all IAM roles with enriched metadata.
 // Unlike DiscoverAssumableRoles, this does not filter by trust policy.
 // Useful for modules that modify trust policies (iam-012, iam-019, iam-020, iam-021).
-func DiscoverIAMRoles(ctx context.Context, config aws.Config) ([]modules.DiscoveryChoice, error) {
+func DiscoverIAMRoles(ctx context.Context, config aws.Config, logger ...modules.ActionLogger) ([]modules.DiscoveryChoice, error) {
+	var log modules.ActionLogger
+	if len(logger) > 0 {
+		log = logger[0]
+	}
+
 	iamClient := iam.NewFromConfig(config)
 
 	listCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	var allRoles []iamtypes.Role
+	loggedOnce := false
 	paginator := iam.NewListRolesPaginator(iamClient, &iam.ListRolesInput{})
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(listCtx)
@@ -936,6 +1032,10 @@ func DiscoverIAMRoles(ctx context.Context, config aws.Config) ([]modules.Discove
 				return nil, fmt.Errorf("%s", FormatPermissionError("TARGET_ROLE", "iam:ListRoles", err))
 			}
 			return nil, fmt.Errorf("failed to list roles: %v", err)
+		}
+		if log != nil && !loggedOnce {
+			log.LogAWSCall("iam", "ListRoles", config.Region, "Enumerated IAM roles for discovery", nil)
+			loggedOnce = true
 		}
 		allRoles = append(allRoles, page.Roles...)
 	}
@@ -998,13 +1098,19 @@ func DiscoverIAMRoles(ctx context.Context, config aws.Config) ([]modules.Discove
 // This distinguishes execution roles from administration roles, which trust
 // cloudformation.amazonaws.com and the account root (":root") instead of a specific role ARN.
 // Returns role names (not ARNs) since CloudFormation's ExecutionRoleName API field expects names.
-func DiscoverCFNStackSetExecutionRoles(ctx context.Context, config aws.Config) ([]modules.DiscoveryChoice, error) {
+func DiscoverCFNStackSetExecutionRoles(ctx context.Context, config aws.Config, logger ...modules.ActionLogger) ([]modules.DiscoveryChoice, error) {
+	var log modules.ActionLogger
+	if len(logger) > 0 {
+		log = logger[0]
+	}
+
 	client := iam.NewFromConfig(config)
 
 	listCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	var allRoles []iamtypes.Role
+	loggedOnce := false
 	paginator := iam.NewListRolesPaginator(client, &iam.ListRolesInput{})
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(listCtx)
@@ -1013,6 +1119,10 @@ func DiscoverCFNStackSetExecutionRoles(ctx context.Context, config aws.Config) (
 				return nil, fmt.Errorf("%s", FormatPermissionError("EXECUTION_ROLE_NAME", "iam:ListRoles", err))
 			}
 			return nil, fmt.Errorf("failed to list roles: %v", err)
+		}
+		if log != nil && !loggedOnce {
+			log.LogAWSCall("iam", "ListRoles", config.Region, "Enumerated IAM roles to find CloudFormation StackSet execution roles", nil)
+			loggedOnce = true
 		}
 		allRoles = append(allRoles, page.Roles...)
 	}
@@ -1075,13 +1185,19 @@ func DiscoverCFNStackSetExecutionRoles(ctx context.Context, config aws.Config) (
 // an execution role when the administration role ARN is already known: the execution role's
 // trust policy must contain the administration role's ARN as an AWS principal.
 // Returns role names (not ARNs) since CloudFormation's ExecutionRoleName API field expects names.
-func DiscoverCFNExecutionRoleForAdminRole(ctx context.Context, config aws.Config, adminRoleARN string) ([]modules.DiscoveryChoice, error) {
+func DiscoverCFNExecutionRoleForAdminRole(ctx context.Context, config aws.Config, adminRoleARN string, logger ...modules.ActionLogger) ([]modules.DiscoveryChoice, error) {
+	var log modules.ActionLogger
+	if len(logger) > 0 {
+		log = logger[0]
+	}
+
 	client := iam.NewFromConfig(config)
 
 	listCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	var allRoles []iamtypes.Role
+	loggedOnce := false
 	paginator := iam.NewListRolesPaginator(client, &iam.ListRolesInput{})
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(listCtx)
@@ -1090,6 +1206,12 @@ func DiscoverCFNExecutionRoleForAdminRole(ctx context.Context, config aws.Config
 				return nil, fmt.Errorf("%s", FormatPermissionError("EXECUTION_ROLE_NAME", "iam:ListRoles", err))
 			}
 			return nil, fmt.Errorf("failed to list roles: %v", err)
+		}
+		if log != nil && !loggedOnce {
+			log.LogAWSCall("iam", "ListRoles", config.Region,
+				fmt.Sprintf("Enumerated IAM roles to find StackSet execution role for admin role %s", adminRoleARN),
+				map[string]string{"admin_role_arn": adminRoleARN})
+			loggedOnce = true
 		}
 		allRoles = append(allRoles, page.Roles...)
 	}

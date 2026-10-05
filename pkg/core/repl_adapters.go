@@ -78,6 +78,30 @@ func (sa *SessionAdapter) GetCreatedResources() []repl.CreatedResource {
 	return result
 }
 
+// LogAWSCall satisfies modules.ActionLogger and repl.SessionManager.
+func (sa *SessionAdapter) LogAWSCall(service, operation, region, description string, metadata map[string]string) {
+	sa.SessionManager.LogCloudTrailEvent(service, operation, region, description, metadata)
+}
+
+// GetCloudTrailEvents converts core.CloudTrailEvent slice to the repl-layer type.
+func (sa *SessionAdapter) GetCloudTrailEvents() []repl.CloudTrailEvent {
+	events := sa.SessionManager.GetCloudTrailEvents()
+	result := make([]repl.CloudTrailEvent, len(events))
+	for i, e := range events {
+		result[i] = repl.CloudTrailEvent{
+			Timestamp:   e.Timestamp.Format("2006-01-02 15:04:05 MST"),
+			ModuleID:    e.ModuleID,
+			Service:     e.Service,
+			Operation:   e.Operation,
+			Region:      e.Region,
+			Description: e.Description,
+			Principal:   e.Principal,
+			Metadata:    e.Metadata,
+		}
+	}
+	return result
+}
+
 // SessionInterfaceAdapter wraps Session to implement repl.Session interface
 type SessionInterfaceAdapter struct {
 	*Session

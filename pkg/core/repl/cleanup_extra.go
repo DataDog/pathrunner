@@ -15,6 +15,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/apprunner"
 	"github.com/aws/aws-sdk-go-v2/service/batch"
 	batchtypes "github.com/aws/aws-sdk-go-v2/service/batch/types"
+	"github.com/aws/aws-sdk-go-v2/service/bedrockagentcore"
+	agentcoretypes "github.com/aws/aws-sdk-go-v2/service/bedrockagentcore/types"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockagentcorecontrol"
 	"github.com/aws/aws-sdk-go-v2/service/braket"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
@@ -283,8 +285,32 @@ func (r *REPL) cleanupBedrockCodeInterpreter(ctx context.Context, config aws.Con
 	if interpreterID == "" {
 		interpreterID = resource.Name
 	}
-	client := bedrockagentcorecontrol.NewFromConfig(config)
-	_, err := client.DeleteCodeInterpreter(ctx, &bedrockagentcorecontrol.DeleteCodeInterpreterInput{
+
+	runtimeClient := bedrockagentcore.NewFromConfig(config)
+
+	// Stop any active sessions before attempting to delete — the API returns
+	// a 409 ConflictException if active sessions exist.
+	listOut, err := runtimeClient.ListCodeInterpreterSessions(ctx, &bedrockagentcore.ListCodeInterpreterSessionsInput{
+		CodeInterpreterIdentifier: aws.String(interpreterID),
+		Status:                    agentcoretypes.CodeInterpreterSessionStatusReady,
+	})
+	if err == nil {
+		for _, session := range listOut.Items {
+			if session.SessionId == nil {
+				continue
+			}
+			_, stopErr := runtimeClient.StopCodeInterpreterSession(ctx, &bedrockagentcore.StopCodeInterpreterSessionInput{
+				CodeInterpreterIdentifier: aws.String(interpreterID),
+				SessionId:                 session.SessionId,
+			})
+			if stopErr != nil {
+				fmt.Printf("    Warning: failed to stop session %s: %v\n", *session.SessionId, stopErr)
+			}
+		}
+	}
+
+	controlClient := bedrockagentcorecontrol.NewFromConfig(config)
+	_, err = controlClient.DeleteCodeInterpreter(ctx, &bedrockagentcorecontrol.DeleteCodeInterpreterInput{
 		CodeInterpreterId: aws.String(interpreterID),
 	})
 	return err
@@ -395,7 +421,7 @@ func (r *REPL) cleanupEC2UserData(ctx context.Context, config aws.Config, resour
 	}
 
 	// Restore original user-data. The stored value is base64-encoded (as returned by the API).
-	// BlobAttributeValue.Value takes raw bytes; the SDK re-encodes them automatically.
+	// SecureBlobAttributeValue.Value takes raw bytes; the SDK re-encodes them automatically.
 	var rawUserData []byte
 	if originalUserData != "" {
 		decoded, decErr := base64.StdEncoding.DecodeString(originalUserData)
@@ -408,7 +434,7 @@ func (r *REPL) cleanupEC2UserData(ctx context.Context, config aws.Config, resour
 
 	_, err = client.ModifyInstanceAttribute(longCtx, &ec2.ModifyInstanceAttributeInput{
 		InstanceId: aws.String(instanceID),
-		UserData: &ec2types.BlobAttributeValue{
+		UserData: &ec2types.SecureBlobAttributeValue{
 			Value: rawUserData,
 		},
 	})

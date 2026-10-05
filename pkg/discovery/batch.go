@@ -19,7 +19,12 @@ import (
 // DiscoverBatchJobDefinitions lists active Batch job definitions and enriches each
 // with the jobRoleArn so the operator can identify definitions with privileged roles.
 // Returns choices with job definition names as values.
-func DiscoverBatchJobDefinitions(ctx context.Context, config aws.Config) ([]modules.DiscoveryChoice, error) {
+func DiscoverBatchJobDefinitions(ctx context.Context, config aws.Config, logger ...modules.ActionLogger) ([]modules.DiscoveryChoice, error) {
+	var log modules.ActionLogger
+	if len(logger) > 0 {
+		log = logger[0]
+	}
+
 	batchClient := batch.NewFromConfig(config)
 
 	listCtx, listCancel := context.WithTimeout(ctx, 30*time.Second)
@@ -33,6 +38,9 @@ func DiscoverBatchJobDefinitions(ctx context.Context, config aws.Config) ([]modu
 			return nil, fmt.Errorf("%s", FormatPermissionError("JOB_DEFINITION", "batch:DescribeJobDefinitions", err))
 		}
 		return nil, fmt.Errorf("failed to describe Batch job definitions: %v", err)
+	}
+	if log != nil {
+		log.LogAWSCall("batch", "DescribeJobDefinitions", config.Region, "Enumerated active Batch job definitions for discovery", nil)
 	}
 
 	var choices []modules.DiscoveryChoice
@@ -68,7 +76,12 @@ func DiscoverBatchJobDefinitions(ctx context.Context, config aws.Config) ([]modu
 
 // DiscoverBatchJobQueues lists active Batch job queues.
 // Returns choices with job queue names as values.
-func DiscoverBatchJobQueues(ctx context.Context, config aws.Config) ([]modules.DiscoveryChoice, error) {
+func DiscoverBatchJobQueues(ctx context.Context, config aws.Config, logger ...modules.ActionLogger) ([]modules.DiscoveryChoice, error) {
+	var log modules.ActionLogger
+	if len(logger) > 0 {
+		log = logger[0]
+	}
+
 	batchClient := batch.NewFromConfig(config)
 
 	listCtx, listCancel := context.WithTimeout(ctx, 30*time.Second)
@@ -80,6 +93,9 @@ func DiscoverBatchJobQueues(ctx context.Context, config aws.Config) ([]modules.D
 			return nil, fmt.Errorf("%s", FormatPermissionError("JOB_QUEUE", "batch:DescribeJobQueues", err))
 		}
 		return nil, fmt.Errorf("failed to describe Batch job queues: %v", err)
+	}
+	if log != nil {
+		log.LogAWSCall("batch", "DescribeJobQueues", config.Region, "Enumerated Batch job queues for discovery", nil)
 	}
 
 	var choices []modules.DiscoveryChoice

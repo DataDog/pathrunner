@@ -8,7 +8,15 @@ package modules
 // Embed this in concrete modules to reduce boilerplate — modules only need
 // to implement Options() and Execute() (plus payload methods if applicable).
 type BaseModule struct {
-	Info PathInfo
+	Info            PathInfo
+	DiscoveryLogger ActionLogger // injected by REPL before each Discover() call; nil in tests
+}
+
+// SetDiscoveryLogger satisfies the DiscoverLogged interface.
+// The REPL calls this before invoking Discover() so that discovery functions
+// can record their AWS API calls in the CloudTrail events log.
+func (b *BaseModule) SetDiscoveryLogger(logger ActionLogger) {
+	b.DiscoveryLogger = logger
 }
 
 // PathInfo returns the module's structured metadata.

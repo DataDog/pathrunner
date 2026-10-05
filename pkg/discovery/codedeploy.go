@@ -16,7 +16,12 @@ import (
 
 // DiscoverCodeDeployApps lists CodeDeploy applications.
 // Returns choices with application names as values.
-func DiscoverCodeDeployApps(ctx context.Context, config aws.Config) ([]modules.DiscoveryChoice, error) {
+func DiscoverCodeDeployApps(ctx context.Context, config aws.Config, logger ...modules.ActionLogger) ([]modules.DiscoveryChoice, error) {
+	var log modules.ActionLogger
+	if len(logger) > 0 {
+		log = logger[0]
+	}
+
 	client := codedeploy.NewFromConfig(config)
 
 	listCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -28,6 +33,9 @@ func DiscoverCodeDeployApps(ctx context.Context, config aws.Config) ([]modules.D
 			return nil, fmt.Errorf("%s", FormatPermissionError("APP_NAME", "codedeploy:ListApplications", err))
 		}
 		return nil, fmt.Errorf("failed to list CodeDeploy applications: %v", err)
+	}
+	if log != nil {
+		log.LogAWSCall("codedeploy", "ListApplications", config.Region, "Enumerated CodeDeploy applications for discovery", nil)
 	}
 
 	if len(result.Applications) == 0 {
@@ -47,7 +55,12 @@ func DiscoverCodeDeployApps(ctx context.Context, config aws.Config) ([]modules.D
 
 // DiscoverCodeDeployGroups lists deployment groups for a given CodeDeploy application.
 // Returns choices with deployment group names as values.
-func DiscoverCodeDeployGroups(ctx context.Context, config aws.Config, appName string) ([]modules.DiscoveryChoice, error) {
+func DiscoverCodeDeployGroups(ctx context.Context, config aws.Config, appName string, logger ...modules.ActionLogger) ([]modules.DiscoveryChoice, error) {
+	var log modules.ActionLogger
+	if len(logger) > 0 {
+		log = logger[0]
+	}
+
 	client := codedeploy.NewFromConfig(config)
 
 	listCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -61,6 +74,11 @@ func DiscoverCodeDeployGroups(ctx context.Context, config aws.Config, appName st
 			return nil, fmt.Errorf("%s", FormatPermissionError("DEPLOYMENT_GROUP", "codedeploy:ListDeploymentGroups", err))
 		}
 		return nil, fmt.Errorf("failed to list deployment groups for %s: %v", appName, err)
+	}
+	if log != nil {
+		log.LogAWSCall("codedeploy", "ListDeploymentGroups", config.Region,
+			fmt.Sprintf("Enumerated CodeDeploy deployment groups for app %s", appName),
+			map[string]string{"app_name": appName})
 	}
 
 	if len(result.DeploymentGroups) == 0 {

@@ -16,7 +16,12 @@ import (
 
 // DiscoverS3Buckets lists S3 buckets accessible to the current identity.
 // Returns choices with bucket names as values.
-func DiscoverS3Buckets(ctx context.Context, config aws.Config) ([]modules.DiscoveryChoice, error) {
+func DiscoverS3Buckets(ctx context.Context, config aws.Config, logger ...modules.ActionLogger) ([]modules.DiscoveryChoice, error) {
+	var log modules.ActionLogger
+	if len(logger) > 0 {
+		log = logger[0]
+	}
+
 	client := s3.NewFromConfig(config)
 
 	listCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -28,6 +33,9 @@ func DiscoverS3Buckets(ctx context.Context, config aws.Config) ([]modules.Discov
 			return nil, fmt.Errorf("%s", FormatPermissionError("BUCKET", "s3:ListAllMyBuckets", err))
 		}
 		return nil, fmt.Errorf("failed to list S3 buckets: %v", err)
+	}
+	if log != nil {
+		log.LogAWSCall("s3", "ListAllMyBuckets", config.Region, "Enumerated S3 buckets for discovery", nil)
 	}
 
 	if len(result.Buckets) == 0 {

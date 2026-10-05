@@ -456,6 +456,11 @@ func (r *REPL) discoverAndSetOption(discoverable modules.Discoverable, optionNam
 
 	accountID := r.getCurrentAccountID()
 
+	// Inject the CloudTrail logger so discovery functions record their AWS API calls.
+	if dl, ok := discoverable.(modules.DiscoverLogged); ok {
+		dl.SetDiscoveryLogger(r.sessionManager)
+	}
+
 	// Run live API discovery
 	choices, discoverErr := discoverable.Discover(optionName, identity, r.options)
 
@@ -1010,11 +1015,25 @@ func (r *REPL) cmdExploit(repl *REPL, args []string) error {
 	fmt.Printf("Using identity: %s\n", identity.Name)
 	fmt.Println()
 
+	// Build a resolved options map: start with explicitly set values, then fill in
+	// defaults for any option the user has not overridden. This ensures modules always
+	// receive the default value when one is defined, even if the user never ran `set`.
+	resolvedOptions := make(map[string]string, len(r.options))
+	for k, v := range r.options {
+		resolvedOptions[k] = v
+	}
+	for _, opt := range r.currentModule.Options() {
+		if resolvedOptions[opt.Name] == "" && opt.Default != "" {
+			resolvedOptions[opt.Name] = opt.Default
+		}
+	}
+
 	result, err := r.currentModule.Execute(modules.ExecutionContext{
 		Identity:         identity,
-		Options:          r.options,
+		Options:          resolvedOptions,
 		Tracker:          r.sessionManager,
 		AttackerIdentity: r.identityManager.GetAttackerIdentity(),
+		Logger:           r.sessionManager,
 	})
 	if err != nil {
 		return NewExecutionError(fmt.Sprintf("module execution failed: %v", err), err)

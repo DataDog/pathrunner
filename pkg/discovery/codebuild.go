@@ -18,7 +18,12 @@ import (
 // DiscoverCodeBuildProjects lists CodeBuild projects and enriches each with
 // service role information so the operator can identify privileged projects.
 // Returns choices with project names as values.
-func DiscoverCodeBuildProjects(ctx context.Context, config aws.Config) ([]modules.DiscoveryChoice, error) {
+func DiscoverCodeBuildProjects(ctx context.Context, config aws.Config, logger ...modules.ActionLogger) ([]modules.DiscoveryChoice, error) {
+	var log modules.ActionLogger
+	if len(logger) > 0 {
+		log = logger[0]
+	}
+
 	cbClient := codebuild.NewFromConfig(config)
 
 	listCtx, listCancel := context.WithTimeout(ctx, 30*time.Second)
@@ -31,6 +36,9 @@ func DiscoverCodeBuildProjects(ctx context.Context, config aws.Config) ([]module
 			return nil, fmt.Errorf("%s", FormatPermissionError("PROJECT_NAME", "codebuild:ListProjects", err))
 		}
 		return nil, fmt.Errorf("failed to list CodeBuild projects: %v", err)
+	}
+	if log != nil {
+		log.LogAWSCall("codebuild", "ListProjects", config.Region, "Enumerated CodeBuild projects for discovery", nil)
 	}
 
 	if len(listResult.Projects) == 0 {

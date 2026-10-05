@@ -76,6 +76,21 @@ type SessionManager interface {
 	RemoveCreatedResource(resourceName string)
 	GetCreatedResources() []CreatedResource
 	TrackResource(resource modules.CreatedResource)
+	LogAWSCall(service, operation, region, description string, metadata map[string]string)
+	GetCloudTrailEvents() []CloudTrailEvent
+}
+
+// CloudTrailEvent is the repl-layer representation of an AWS API call recorded
+// during module execution, for use in purple team detection-reference reports.
+type CloudTrailEvent struct {
+	Timestamp   string            `json:"timestamp"`
+	ModuleID    string            `json:"module_id"`
+	Service     string            `json:"service"`
+	Operation   string            `json:"operation"`
+	Region      string            `json:"region,omitempty"`
+	Description string            `json:"description"`
+	Principal   string            `json:"principal,omitempty"`
+	Metadata    map[string]string `json:"metadata,omitempty"`
 }
 
 // Session interface to avoid circular dependencies

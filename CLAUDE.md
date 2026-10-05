@@ -116,7 +116,7 @@ REPL surface:
 
 **Resource Tracking**: Modules must call `tracker.TrackResource()` for created resources and check for `SideEffectReporter` on payloads to track modifications. Cleanup is region-aware, interactive via `survey/v2`, with permission error guidance.
 
-**Cleanup Report**: `workspace report` generates handoff report with manual AWS CLI cleanup commands. Supports `--module <id>` filtering.
+**Cleanup Report**: `workspace report` generates handoff report with manual AWS CLI cleanup commands. Supports `--output <file.html|file.md>` for export and `--module <id>` filtering. **When adding a new resource type**, you must add a `case` to both `CleanupCommand()` in `pkg/report/cleanup.go` (drives the CLI command shown in the terminal, HTML, and Markdown reports) and `cleanupOperationFromType()` in `pkg/core/repl/session.go` (maps the type to an AWS operation name for CloudTrail audit log entries). Omitting either causes the resource to fall through to `default` and print "manual cleanup required" instead of a real command. The `/create-module` checklist enforces this.
 
 **Timeouts**: 30-second timeouts for AWS operations (SSO credential resolution).
 
