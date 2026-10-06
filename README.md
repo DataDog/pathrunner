@@ -1,8 +1,34 @@
+<div align="center">
+
+<!--
+  HERO BANNER: upload your banner image via the GitHub web UI (drag it into an issue
+  or the repo's README editor) and paste the resulting github.com/user-attachments/...
+  URL here, matching the pathfinding-labs style:
+  <img src="https://github.com/user-attachments/assets/REPLACE-ME" alt="Pathrunner" width="820"/>
+-->
+
 # Pathrunner
 
-A modular AWS privilege escalation exploitation framework with dual CLI/REPL interfaces.
+**A modular AWS privilege escalation exploitation framework — with a Metasploit-style REPL, a scriptable CLI, 80+ exploit modules, and interchangeable payloads.**
 
+![Modules](https://img.shields.io/badge/Modules-80%2B-9D4EDD?style=for-the-badge)
+![AWS](https://img.shields.io/badge/Cloud-AWS-232F3E?style=for-the-badge)
+![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge)
+
+[Quick Start](#quick-start) • [Install](#installation) • [Command Reference ↗](https://pathfinding.cloud/pathrunner) • [Ecosystem](#overview) • [Contributing](#contributing)
+
+<!--
+  DEMO GIF: the image below is the existing demo. Replace the URL with the GIF
+  converted from pathrunner-blog.mp4 when ready (upload it the same way as the banner).
+-->
 ![pathrunner - demo](https://github.com/user-attachments/assets/1cac76ca-9347-4aa7-b961-0a59bf400b43)
+
+</div>
+
+---
+
+> **Full documentation and command reference:** **[pathfinding.cloud/pathrunner](https://pathfinding.cloud/pathrunner)**
+> — every command, module, and payload, with examples. This README is the quick tour; the reference site is the manual.
 
 ## Overview
 
@@ -18,24 +44,27 @@ pathfinding.cloud (path definitions) → pathfinding-labs (deployable labs) → 
 
 Modules reference a pathfinding.cloud path ID when they implement a documented path, and are validated against deployed pathfinding-labs scenarios.
 
-## Features
+## Why pathrunner
 
-- **Dual Interface**: Includes a Metasploit style REPL for interactive use and a non-interactive CLI for automation use cases
-- **Multi-Identity Management**: Import, use, and switch between multiple AWS identities seamlessly
-- **Workspace Persistence**: JSON-based workspace storage with command logging and resource tracking
-- **Resource Tracking**: Automatic tracking of created AWS resources with interactive cleanup when permissions allow
-- **Auto-Discovery**: Modules automatically enumerate valid option values (roles, subnets, instance profiles) via AWS APIs when permissions allow
-- **PMapper Integration**: Import pmapper graph data to see which possible paths you can currently exploit with pathrunner
-- **CloudFox Integration**: Import cloudfox output to browse discovered AWS resources and use them as module option values
-- **Credential Auto-Import**: When a payload captures new credentials, they're automatically extracted and added to your identity store for continued escalation
+Defenders have more misconfigurations than time to fix them. Unlike software CVEs, IAM misconfigurations are hard to triage — what's actually exploitable versus merely a missing best practice? Pathrunner answers that by *demonstrating* the escalation, so teams can prioritize the paths that are genuinely exploitable and impactful, and build detections for each step along the way.
+
+## Highlights
+
+- **Identities are the sessions of the cloud.** Attacks hop from one identity to another by capturing credentials. Pathrunner is built around that: import an identity from almost any text format (`identity add --from-clipboard`) and switch between them instantly (`identity switch`).
+- **Modular exploits (80+).** A single interface over 80+ AWS privilege escalation modules, influenced by Metasploit, NetExec, and Pacu. Browse exact counts and coverage on the [reference site](https://pathfinding.cloud/pathrunner).
+- **Modular payloads → better detections.** Each module supports multiple interchangeable payloads, so you can pick one that works around network/SCP restrictions — and walk every payload to build a detection for each variant.
+- **Attacker infrastructure, built in.** Configure an attacker identity and stand up a remote listener in your own account (`attacker infra ec2 create`, `attacker listener start`) to catch credentials and shells — a few commands instead of manual setup.
+- **Be a team player — hand the blue team an audit log.** `workspace report --output pathrunner.html` produces a handoff report of the resources created/modified and the CloudTrail events your activity generated, with timestamps.
+- **Dual interface.** A Metasploit-style REPL for interactive use and a 1:1 CLI for automation.
+- **Workspace isolation, auto-discovery, and credential auto-import** round it out — isolated per-workspace identities and resource tracking, modules that enumerate valid option values via AWS APIs, and automatic capture of credentials from exploit output into your identity store.
 
 ### Coverage
 
-Pathrunner currently includes **83 exploit modules** across **22 AWS services** (IAM, EC2, Lambda, STS, ECS, Glue, CloudFormation, SSM, and more) with **37 interchangeable payloads** (credential exfiltration, HTTPS exfiltration, backdoor role/user/policy creation, reverse shells).
+Pathrunner ships 80+ exploit modules across 20+ AWS services (IAM, EC2, Lambda, STS, ECS, Glue, CloudFormation, SSM, Bedrock, and more) with dozens of interchangeable payloads (credential and HTTPS exfiltration, backdoor role/user/policy creation, reverse shells). The authoritative, always-current counts and the full catalog live at **[pathfinding.cloud/pathrunner](https://pathfinding.cloud/pathrunner)** (generated directly from the source).
 
 ## Installation
 
-Requires Go 1.25+ and valid AWS credentials.
+Requires Go 1.26+ and valid AWS credentials.
 
 #### Direct Install
 ```bash
@@ -94,38 +123,15 @@ After a successful exploit that captures credentials, they're auto-extracted and
 ```bash
 pathrunner> identity list          # New identity appears automatically
 pathrunner> identity switch lambda_AB12
-pathrunner> pmapper import         # Auto-detects PMapper data directory
-pathrunner> pmapper analyze        # See what's next from here
+pathrunner> pmapper analyze        # See what's reachable from here
 ```
 
-## PMapper Integration
+See the [command reference](https://pathfinding.cloud/pathrunner) for every command, module, and payload in detail.
 
-Import [Principal Mapper](https://github.com/nccgroup/PMapper) graph data to identify escalation paths and get actionable next steps:
+## Integrations
 
-```bash
-pathrunner> pmapper import           # Auto-detects PMapper data directory
-pathrunner> pmapper analyze          # Show escalation paths for current identity
-pathrunner> pmapper analyze --all    # Show paths for all workspace identities
-pathrunner> pmapper status           # Graph metadata and module coverage
-```
-
-For each escalation hop, pathrunner shows the matching module and suggested commands to execute it.
-
-## CloudFox Integration
-
-Import [CloudFox](https://github.com/BishopFox/cloudfox) output to browse discovered AWS resources and populate module options:
-
-```bash
-pathrunner> cloudfox import          # Auto-detects ~/.cloudfox/cloudfox-output/aws/
-pathrunner> cloudfox import --path /path/to/cloudfox-output
-pathrunner> resources list           # List all imported resources
-pathrunner> resources list ec2       # Filter by service (ec2, lambda, iam, s3, ...)
-pathrunner> resources list --wide    # Include ARN and resource type columns
-pathrunner> resources summary        # Overview of imported resource counts by service
-pathrunner> resources clear          # Remove all imported resources for current workspace
-```
-
-Resources are workspace-scoped and auto-populated as available option values when setting module options.
+- **[PMapper](https://github.com/nccgroup/PMapper)** — `pmapper import` a graph, then `pmapper analyze` to see which escalation paths you can currently exploit with pathrunner, with suggested commands for each hop.
+- **[CloudFox](https://github.com/BishopFox/cloudfox)** — `cloudfox import` its output to browse discovered AWS resources (`resources list`) and auto-populate them as module option values.
 
 ## Architecture
 
@@ -135,10 +141,12 @@ pkg/
 ├── cli/         # Cobra CLI wrapper (1:1 with REPL commands)
 ├── modules/     # Module system: interfaces, registry, search/filter
 ├── payloads/    # Payload registry: tag-based filtering, service subdirectories
-├── exploits/    # Exploit modules (83), each embedding BaseModule
+├── exploits/    # Exploit modules, each embedding BaseModule
+├── attacker/    # Attacker infrastructure: listener, EC2 box, exfil bucket
 ├── discovery/   # Reusable AWS enumeration (roles, subnets, streams, etc.)
 ├── pmapper/     # PMapper graph import, querying, and module mapping
-├── resources/   # CloudFox output import, resource store, and service-filtered display
+├── resources/   # CloudFox output import, resource store, service-filtered display
+├── report/      # Cleanup + CloudTrail handoff reports
 ├── utils/       # Credential extraction from env vars, JSON, Python dicts
 └── config/      # Application configuration
 ```
@@ -148,6 +156,8 @@ Key design patterns:
 - **Decoupled Payloads** — Modules query payloads by tags at runtime; payloads self-register via `init()`
 - **Workspace Isolation** — Each workspace maintains isolated identities, history, and tracked resources
 - **Auto-Refresh** — SSO tokens and profile credentials are rebuilt on-demand
+
+> The per-command/per-module reference on [pathfinding.cloud/pathrunner](https://pathfinding.cloud/pathrunner) is generated directly from the binary (see `cmd/gendocs` and `docs/reference/`), so it never drifts from the code.
 
 ## Contributing
 

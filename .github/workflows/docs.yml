@@ -1,0 +1,34 @@
+name: Docs
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # Fail if the committed documentation reference (docs/reference/*) is stale.
+  # The gendocs binary is deterministic — same commit produces byte-for-byte
+  # identical artifacts — so any diff means someone changed a command, module,
+  # or payload without running `make docs`. Mirrors how register.go currency is
+  # expected. (The artifacts live only in this repo; pathfinding.cloud pulls
+  # them. No cross-repo writes happen here.)
+  reference:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Regenerate docs reference and fail if stale
+        run: make docs-check

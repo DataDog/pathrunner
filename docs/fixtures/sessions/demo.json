@@ -1,0 +1,35 @@
+{
+  "name": "demo",
+  "created": "2026-01-02T15:04:05Z",
+  "last_accessed": "2026-01-02T15:40:00Z",
+  "identities": {
+    "starting-user": {
+      "name": "starting-user",
+      "type": "keys",
+      "access_key_id": "AKIAEXAMPLE0000000001",
+      "secret_key": "wExampleSecretKeyDoNotUseExampleSecret01",
+      "region": "us-east-1",
+      "caller_arn": "arn:aws:iam::111111111111:user/starting-user",
+      "is_admin": false
+    },
+    "second-identity": {
+      "name": "second-identity",
+      "type": "keys",
+      "access_key_id": "ASIAEXAMPLE0000000002",
+      "secret_key": "wExampleSecretKeyDoNotUseExampleSecret02",
+      "session_token": "EXAMPLEsessiontokenDoNotUseEXAMPLEsessiontokenDoNotUse==",
+      "region": "us-east-1",
+      "caller_arn": "arn:aws:sts::111111111111:assumed-role/pl-demo-role/session",
+      "is_admin": true
+    }
+  },
+  "current_identity": "starting-user",
+  "current_module": "",
+  "options": {
+    "REGION": "us-east-1",
+    "TARGET_ARN": "arn:aws:iam::111111111111:role/pl-demo-role"
+  },
+  "command_log": [],
+  "created_resources": [],
+  "last_result": ""
+}

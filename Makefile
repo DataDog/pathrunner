@@ -5,13 +5,26 @@ LDFLAGS := -X github.com/DataDog/pathrunner/pkg/version.Version=$(VERSION) \
            -X github.com/DataDog/pathrunner/pkg/version.GitCommit=$(GIT_COMMIT) \
            -X github.com/DataDog/pathrunner/pkg/version.BuildDate=$(BUILD_DATE)
 
-.PHONY: build dev clean test generate build-jars
+DOCS_OUT ?= docs/reference
+
+.PHONY: build dev clean test generate build-jars docs docs-check
 
 generate:
 	go generate ./pkg/exploits/
 
 build: generate
 	go build -ldflags "$(LDFLAGS)" -o pathrunner cmd/pathrunner/main.go
+
+# Regenerate the documentation reference artifacts (pathrunner-reference.json +
+# per-command/per-module markdown) consumed by pathfinding.cloud/pathrunner.
+# Runs the standalone gendocs binary so all module/payload init() hooks fire.
+docs:
+	go run -ldflags "$(LDFLAGS)" ./cmd/gendocs --out "$(DOCS_OUT)"
+
+# Fail if the committed docs artifacts are stale (used in CI, like register.go).
+docs-check: docs
+	@git diff --exit-code -- "$(DOCS_OUT)" \
+		|| (echo "ERROR: docs/reference is out of date. Run 'make docs' and commit." && exit 1)
 
 dev:
 	go run -ldflags "$(LDFLAGS)" cmd/pathrunner/main.go
