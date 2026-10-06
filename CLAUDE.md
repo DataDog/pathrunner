@@ -27,6 +27,8 @@ make generate                                    # Regenerate pkg/exploits/regis
 make dev                                         # Dev mode with version info (no regenerate)
 make test                                        # Run all tests
 make clean                                       # Remove built binary
+make docs                                        # Regenerate docs/reference/pathrunner-reference.json + .md files
+make docs-check                                  # Same as docs but fails if output differs (used by CI)
 go build -o pathrunner cmd/pathrunner/main.go     # Build (no version injection, no regenerate)
 go run cmd/pathrunner/main.go                     # Dev mode (no version injection)
 ./pathrunner [command] [subcommand] [flags]       # CLI mode
@@ -35,6 +37,9 @@ go test ./tests/unit/                             # Unit tests
 go test ./tests/integration/                      # Integration tests
 go test ./tests/...                               # All tests
 go test -v ./tests/... -run TestName              # Specific test
+./scripts/render-docs-tapes.sh                   # Render all CI-safe GIFs (needs vhs + built binary)
+./scripts/render-docs-tapes.sh <name>.tape       # Render a single tape
+./scripts/docs-sandbox.sh [command]              # Run a command against synthetic fixtures (no real AWS)
 ```
 
 `make build` runs `go generate ./pkg/exploits/` before compiling, so newly added exploit module directories are picked up automatically. `scripts/test-module.sh` provides a heavier smoke-test harness for individual modules against deployed labs.
@@ -180,6 +185,51 @@ The canonical checklist — CLI and REPL share handlers, so every entry point ne
 - [ ] Tab completion in `pkg/core/repl/completion.go`, including alias completers
 - [ ] Unit tests in `tests/unit/` and integration tests in `tests/integration/`
 - [ ] Manually verify tab completion in a running REPL
+- [ ] Run `make docs` and commit the updated `docs/reference/pathrunner-reference.json`
+- [ ] If the command's invocation syntax changed (renamed flags, new subcommands, removed options): update the affected tapes in `docs/reference/tapes/` and re-render (see **Documentation update workflow** below)
+
+### Documentation update workflow
+
+**After any change to commands, flags, modules, or payloads:**
+
+```bash
+make docs    # Regenerates docs/reference/pathrunner-reference.json + per-entry .md files
+             # CI (docs-check job) fails the PR if this is stale, so always run it.
+```
+
+**Additionally, if CLI invocation syntax changed** (renamed a command, added/removed/renamed
+a flag, changed subcommand structure) — update the affected VHS tapes and re-render:
+
+1. Find the tapes that invoke the changed command under `docs/reference/tapes/`.
+   The tape filename maps directly to the command: `attacker-identity-show.tape` demos
+   `attacker identity show`, `identity-switch.tape` demos `identity switch`, etc.
+2. Edit the `Type` line(s) in those tapes to match the new syntax.
+3. Re-render only the changed tapes and commit the new GIFs alongside the tape changes:
+
+```bash
+make build
+./scripts/render-docs-tapes.sh <name>.tape   # single tape
+./scripts/render-docs-tapes.sh               # all tapes (slower)
+git add docs/reference/tapes/<name>.tape docs/reference/gifs/<name>.gif
+```
+
+Always commit the updated tape + rendered GIF in the **same PR** as the code change,
+not as a follow-up. The GIF in `docs/reference/gifs/` is what pathfinding.cloud pulls.
+
+**Pushing updates to pathfinding.cloud:**
+
+pathfinding.cloud pulls from this repo on its own deploy cadence — there is no push
+step from pathrunner's side. Once the PR merges to `main`, run the pull manually from
+the pathfinding.cloud repo:
+
+```bash
+# From pathfinding.cloud/:
+make generate-pathrunner   # or: python scripts/generate-pathrunner-json.py --source-dir ../pathrunner
+```
+
+This fetches the updated `pathrunner-reference.json` and GIFs and emits the split
+per-entry JSON files + copies GIFs into `docs/pathrunner/`. Commit the result and
+deploy (or let the pathfinding.cloud CI deploy pick it up).
 
 ### Adding a New Module or Payload
 
