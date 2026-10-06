@@ -110,11 +110,13 @@ while IFS= read -r module_id; do
     count=$((count + 1))
 
     tape_file="$TAPE_TMP/${module_id}.tape"
-    gif_out="$GIFS_DIR/${module_id}.gif"
+    # VHS Output directive requires a relative path (absolute paths with leading /
+    # are not supported — VHS splits on / and misparses them as tokens).
+    gif_relative="docs/reference/gifs/modules/${module_id}.gif"
 
     # Generate the tape for this module.
     cat > "$tape_file" <<TAPE
-Output ${gif_out}
+Output ${gif_relative}
 
 Set Shell "bash"
 Set FontSize 16
