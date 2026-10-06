@@ -7,7 +7,7 @@ LDFLAGS := -X github.com/DataDog/pathrunner/pkg/version.Version=$(VERSION) \
 
 DOCS_OUT ?= docs/reference
 
-.PHONY: build dev clean test generate build-jars docs docs-check
+.PHONY: build dev clean test generate build-jars docs docs-check update-docs
 
 generate:
 	go generate ./pkg/exploits/
@@ -20,6 +20,12 @@ build: generate
 # Runs the standalone gendocs binary so all module/payload init() hooks fire.
 docs:
 	go run -ldflags "$(LDFLAGS)" ./cmd/gendocs --out "$(DOCS_OUT)"
+
+# Regen JSON reference, re-render GIFs, stage everything, and print the
+# pathfinding.cloud reminder. Pass tape names as args to render only specific
+# tapes: make update-docs TAPES="identity-switch workspace-list"
+update-docs: build
+	@./scripts/update-docs.sh $(TAPES)
 
 # Fail if the committed docs artifacts are stale (used in CI, like register.go).
 docs-check: docs
