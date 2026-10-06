@@ -7,7 +7,7 @@ LDFLAGS := -X github.com/DataDog/pathrunner/pkg/version.Version=$(VERSION) \
 
 DOCS_OUT ?= docs/reference
 
-.PHONY: build dev clean test generate build-jars docs docs-check update-docs
+.PHONY: build dev clean test generate build-jars docs docs-check update-docs render-module-tapes
 
 generate:
 	go generate ./pkg/exploits/
@@ -26,6 +26,11 @@ docs:
 # tapes: make update-docs TAPES="identity-switch workspace-list"
 update-docs: build
 	@./scripts/update-docs.sh $(TAPES)
+
+# Render "use <id> → show payloads" GIFs for every exploit module (or a subset).
+# Pass MODULE to filter by ID or service prefix: make render-module-tapes MODULE=lambda
+render-module-tapes: build
+	@./scripts/render-module-tapes.sh $(MODULE)
 
 # Fail if the committed docs artifacts are stale (used in CI, like register.go).
 docs-check: docs

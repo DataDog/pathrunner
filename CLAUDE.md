@@ -39,6 +39,9 @@ go test ./tests/...                               # All tests
 go test -v ./tests/... -run TestName              # Specific test
 ./scripts/render-docs-tapes.sh                   # Render all CI-safe GIFs (needs vhs + built binary)
 ./scripts/render-docs-tapes.sh <name>.tape       # Render a single tape
+./scripts/render-module-tapes.sh                 # Render use+show-payloads GIF for every module (~15 min)
+./scripts/render-module-tapes.sh lambda          # Render GIFs for all lambda-* modules
+./scripts/render-module-tapes.sh lambda-001      # Render GIF for one module
 ./scripts/docs-sandbox.sh [command]              # Run a command against synthetic fixtures (no real AWS)
 ```
 
