@@ -27,7 +27,7 @@ docs:
 update-docs: build
 	@./scripts/update-docs.sh $(TAPES)
 
-# Render "use <id> → show payloads" GIFs for every exploit module (or a subset).
+# Render "use <id> → show payloads" WebMs for every exploit module (or a subset).
 # Pass MODULE to filter by ID or service prefix: make render-module-tapes MODULE=lambda
 render-module-tapes: build
 	@./scripts/render-module-tapes.sh $(MODULE)

@@ -6,16 +6,16 @@
 
 set -euo pipefail
 
-# render-module-tapes.sh — render a "use <id> → show payloads" GIF for every
+# render-module-tapes.sh — render a "use <id> → show payloads" WebM for every
 # registered exploit module (or a filtered subset).
 #
-# Each GIF shows the REPL workflow of selecting a module and browsing its
+# Each WebM shows the REPL workflow of selecting a module and browsing its
 # compatible payloads — AWS-free and credential-free, run through the docs
 # sandbox against synthetic fixtures.
 #
-# GIFs are written to docs/reference/gifs/modules/<id>.gif.
+# WebMs are written to docs/reference/gifs/modules/<id>.webm.
 # Tape files are generated on the fly into a temp directory and cleaned up after
-# rendering — only the rendered GIFs are committed.
+# rendering — only the rendered WebMs are committed.
 #
 # Usage:
 #   ./scripts/render-module-tapes.sh                  # render all modules
@@ -90,7 +90,7 @@ else
 fi
 
 total=$(echo "$module_ids" | grep -c .)
-echo -e "\n${BOLD}Rendering ${total} module GIF(s) → docs/reference/gifs/modules/${RESET}\n"
+echo -e "\n${BOLD}Rendering ${total} module WebM(s) → docs/reference/gifs/modules/${RESET}\n"
 
 # ---------------------------------------------------------------------------
 # Temp directory for generated tape files (cleaned up on exit)
@@ -112,7 +112,7 @@ while IFS= read -r module_id; do
     tape_file="$TAPE_TMP/${module_id}.tape"
     # VHS Output directive requires a relative path (absolute paths with leading /
     # are not supported — VHS splits on / and misparses them as tokens).
-    gif_relative="docs/reference/gifs/modules/${module_id}.gif"
+    gif_relative="docs/reference/gifs/modules/${module_id}.webm"
 
     # Read cliSteps from the reference JSON and convert to tape commands.
     # We stop before "pathrunner exploit" — the sandbox has no real AWS credentials
@@ -196,6 +196,6 @@ if [[ ${#failed[@]} -gt 0 ]]; then
 fi
 
 echo ""
-echo "Stage the new GIFs with:"
+echo "Stage the new WebMs with:"
 echo "  git add docs/reference/gifs/modules/"
 echo ""
