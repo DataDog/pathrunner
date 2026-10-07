@@ -139,6 +139,104 @@ func TestRenderModuleMarkdownContainsSections(t *testing.T) {
 	}
 }
 
+func TestMockValueForOptionCoversKnownNames(t *testing.T) {
+	cases := []struct {
+		name      string
+		wantEmpty bool
+	}{
+		{"ROLE_ARN", false},
+		{"TARGET_ARN", false},
+		{"LISTENER_IP", false},
+		{"HTTPS_URL", false},
+		{"INSTANCE_ID", false},
+		{"PAYLOAD", true},  // handled specially in buildCLISteps
+		{"REGION", true},   // has a default; not in the mock map (callers use default)
+	}
+	for _, tc := range cases {
+		got := mockValueForOption(tc.name)
+		if tc.wantEmpty && got != "" {
+			t.Errorf("mockValueForOption(%q): expected empty, got %q", tc.name, got)
+		}
+		if !tc.wantEmpty && got == "" {
+			t.Errorf("mockValueForOption(%q): expected non-empty mock value, got empty", tc.name)
+		}
+	}
+}
+
+func TestBuildCLIStepsNoPayloads(t *testing.T) {
+	opts := []Option{
+		{Name: "ROLE_ARN", Required: true, MockValue: "arn:aws:iam::123456789012:role/TargetRoleName"},
+		{Name: "REGION", Required: false, Default: "us-east-1"},
+	}
+	steps := buildCLISteps("glue-001", opts, nil, nil)
+
+	if steps[0] != "pathrunner use glue-001" {
+		t.Errorf("first step should be 'use', got %q", steps[0])
+	}
+	if steps[len(steps)-1] != "pathrunner exploit" {
+		t.Errorf("last step should be 'exploit', got %q", steps[len(steps)-1])
+	}
+	// show payloads should not appear with no payloads
+	for _, s := range steps {
+		if strings.Contains(s, "show payloads") {
+			t.Errorf("unexpected 'show payloads' step with no payloads: %v", steps)
+		}
+	}
+	// required option should appear
+	found := false
+	for _, s := range steps {
+		if s == "pathrunner set ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected ROLE_ARN set step, steps: %v", steps)
+	}
+}
+
+func TestBuildCLIStepsPicksPreferredPayload(t *testing.T) {
+	payloads := []PayloadRef{
+		{Name: "revshell/tls"},
+		{Name: "exfil/response"},
+		{Name: "exfil/https"},
+	}
+	steps := buildCLISteps("lambda-001", nil, payloads, nil)
+
+	// Should pick exfil/response (first in preferred list).
+	found := false
+	for _, s := range steps {
+		if s == "pathrunner set PAYLOAD exfil/response" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected exfil/response to be preferred payload, steps: %v", steps)
+	}
+}
+
+func TestBuildCLIStepsIncludesPayloadOptions(t *testing.T) {
+	payloadRefs := []PayloadRef{{Name: "exfil/https"}}
+	index := map[string]Payload{
+		"exfil/https": {
+			Name: "exfil/https",
+			Options: []Option{
+				{Name: "HTTPS_URL", Required: true, MockValue: "https://1.2.3.4:8443/collect"},
+			},
+		},
+	}
+	steps := buildCLISteps("lambda-001", nil, payloadRefs, index)
+
+	found := false
+	for _, s := range steps {
+		if s == "pathrunner set HTTPS_URL https://1.2.3.4:8443/collect" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected HTTPS_URL payload option in steps: %v", steps)
+	}
+}
+
 func TestRenderCommandMarkdownContainsUsageFlagsAndSubcommands(t *testing.T) {
 	c := Command{
 		Name:  "modules",

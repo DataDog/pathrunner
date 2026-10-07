@@ -7,6 +7,7 @@ package docs
 import (
 	"os"
 	"sort"
+	"strings"
 
 	"github.com/DataDog/pathrunner/pkg/modules"
 	"github.com/DataDog/pathrunner/pkg/payloads"
@@ -15,6 +16,171 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
+
+// preferredPayloads is the priority order for selecting a default payload in
+// CLI examples. Payloads requiring fewer extra options are preferred so examples
+// stay minimal. The first match found in a module's payload list wins.
+var preferredPayloads = []string{
+	"exfil/response",        // no extra required options
+	"backdoor/attach-policy", // no extra required options
+	"exfil/https",            // requires HTTPS_URL
+	"revshell/tls",           // requires LISTENER_IP
+}
+
+// mockValueForOption returns a realistic-looking placeholder value for
+// documentation examples. Returns "" for options handled specially elsewhere
+// (PAYLOAD is chosen separately in buildCLISteps).
+func mockValueForOption(name string) string {
+	switch name {
+	case "PAYLOAD":
+		return "" // chosen separately per module in buildCLISteps
+	case "ROLE_ARN", "EXECUTION_ROLE_ARN", "ADMIN_ROLE_ARN":
+		return "arn:aws:iam::123456789012:role/TargetRoleName"
+	case "SERVICE_ROLE":
+		return "arn:aws:iam::123456789012:role/TargetServiceRole"
+	case "TARGET_ARN":
+		return "arn:aws:iam::123456789012:role/TargetRoleName"
+	case "TARGET_ROLE":
+		return "TargetRoleName"
+	case "TRUST_PRINCIPAL":
+		return "arn:aws:iam::123456789012:root"
+	case "TARGET_USER":
+		return "target-iam-user"
+	case "POLICY_ARN":
+		return "arn:aws:iam::123456789012:policy/TargetPolicy"
+	case "GROUP_NAME":
+		return "target-iam-group"
+	case "EXECUTION_ROLE_NAME":
+		return "TargetExecutionRoleName"
+	case "INSTANCE_PROFILE":
+		return "arn:aws:iam::123456789012:instance-profile/TargetInstanceProfile"
+	case "INSTANCE_ID":
+		return "i-0123456789abcdef0"
+	case "LAUNCH_TEMPLATE_NAME":
+		return "target-launch-template"
+	case "ASG_NAME":
+		return "target-auto-scaling-group"
+	case "SUBNET_ID":
+		return "subnet-0123456789abcdef0"
+	case "SECURITY_GROUP_ID":
+		return "sg-0123456789abcdef0"
+	case "CLUSTER_NAME":
+		return "target-ecs-cluster"
+	case "CLUSTER_ARN":
+		return "arn:aws:ecs::123456789012:cluster/target-ecs-cluster"
+	case "CONTAINER_INSTANCE_ARN":
+		return "arn:aws:ecs::123456789012:container-instance/target-ecs-cluster/abc1234567890"
+	case "TASK_DEFINITION":
+		return "target-task-def:1"
+	case "CONTAINER_NAME":
+		return "target-container"
+	case "CONTAINER_URI":
+		return "123456789012.dkr.ecr.us-east-1.amazonaws.com/target-image:latest"
+	case "FUNCTION_NAME":
+		return "target-lambda-function"
+	case "JOB_NAME":
+		return "target-glue-job"
+	case "JOB_QUEUE":
+		return "target-batch-job-queue"
+	case "JOB_DEFINITION":
+		return "target-job-definition:1"
+	case "PROJECT_NAME":
+		return "target-codebuild-project"
+	case "STACK_NAME":
+		return "target-cloudformation-stack"
+	case "STACKSET_NAME":
+		return "target-stackset"
+	case "APP_NAME":
+		return "target-app"
+	case "DEPLOYMENT_GROUP":
+		return "target-deployment-group"
+	case "BUCKET", "EXFIL_BUCKET":
+		return "target-s3-bucket-123456789012"
+	case "TABLE_NAME":
+		return "target-dynamodb-table"
+	case "EVENT_SOURCE_ARN":
+		return "arn:aws:dynamodb::123456789012:table/target-table/stream/2026-01-01T00:00:00.000"
+	case "IDENTITY_POOL_ID":
+		return "us-east-1:12345678-1234-1234-1234-123456789012"
+	case "TARGET_RUNTIME_ARN":
+		return "arn:aws:bedrock::123456789012:provisioned-model/target-model"
+	case "INTERPRETER_ID":
+		return "target-interpreter-id"
+	case "BROWSER_ID":
+		return "target-browser-id"
+	case "LISTENER_IP":
+		return "1.2.3.4"
+	case "HTTPS_URL":
+		return "https://1.2.3.4:8443/collect"
+	}
+	// Fallback: pattern-match on suffix.
+	switch {
+	case strings.HasSuffix(name, "_ARN"):
+		return "arn:aws:iam::123456789012:resource/target-resource"
+	case strings.HasSuffix(name, "_URL"):
+		return "https://1.2.3.4:8443"
+	case strings.HasSuffix(name, "_BUCKET"):
+		return "target-bucket-123456789012"
+	case strings.HasSuffix(name, "_ID"):
+		return "target-resource-id"
+	case strings.HasSuffix(name, "_NAME"):
+		return "target-resource-name"
+	}
+	return ""
+}
+
+// buildCLISteps returns the ordered sequence of CLI commands to run a module
+// end-to-end. It picks the simplest available payload (fewest extra required
+// options) and emits "pathrunner set …" for each required option with a mock
+// value. The final entry is always "pathrunner exploit".
+func buildCLISteps(moduleID string, opts []Option, payloadRefs []PayloadRef, payloadIndex map[string]Payload) []string {
+	var steps []string
+	steps = append(steps, "pathrunner use "+moduleID)
+
+	// Choose and announce the payload if the module has any.
+	selectedPayload := ""
+	if len(payloadRefs) > 0 {
+		steps = append(steps, "pathrunner show payloads")
+		// Pick the preferred payload from the priority list.
+		for _, pref := range preferredPayloads {
+			for _, ref := range payloadRefs {
+				if ref.Name == pref {
+					selectedPayload = pref
+					break
+				}
+			}
+			if selectedPayload != "" {
+				break
+			}
+		}
+		if selectedPayload == "" {
+			selectedPayload = payloadRefs[0].Name
+		}
+		steps = append(steps, "pathrunner set PAYLOAD "+selectedPayload)
+	}
+
+	// Set required module options (PAYLOAD is handled above).
+	for _, opt := range opts {
+		if !opt.Required || opt.Name == "PAYLOAD" || opt.MockValue == "" {
+			continue
+		}
+		steps = append(steps, "pathrunner set "+opt.Name+" "+opt.MockValue)
+	}
+
+	// Set required options for the selected payload.
+	if selectedPayload != "" {
+		if pl, ok := payloadIndex[selectedPayload]; ok {
+			for _, opt := range pl.Options {
+				if opt.Required && opt.MockValue != "" {
+					steps = append(steps, "pathrunner set "+opt.Name+" "+opt.MockValue)
+				}
+			}
+		}
+	}
+
+	steps = append(steps, "pathrunner exploit")
+	return steps
+}
 
 // generatedAtEnv optionally stamps the artifact with a build date. It is left
 // UNSET in normal generation so pathrunner-reference.json is byte-for-byte
@@ -42,8 +208,17 @@ var serviceTagSet = map[string]struct{}{
 // cmd/gendocs does so via the same blank imports as cmd/pathrunner.
 func BuildReference(root *cobra.Command) Reference {
 	commands := buildCommands(root)
-	modulesOut := buildModules()
 	payloadsOut := buildPayloads()
+
+	// Build a name-keyed index of payloads so buildModules can look up payload
+	// options when constructing CLISteps. Keyed by short name ("exfil/response")
+	// because that is what PayloadRef.Name and ListPayloads() return.
+	payloadIndex := make(map[string]Payload, len(payloadsOut))
+	for _, p := range payloadsOut {
+		payloadIndex[p.Name] = p
+	}
+
+	modulesOut := buildModules(payloadIndex)
 
 	return Reference{
 		Generator: Generator{
@@ -136,8 +311,10 @@ func buildFlags(cmd *cobra.Command) []Flag {
 // buildModules converts every registered exploit module into a documentation
 // Module, pulling static metadata from PathInfo and runtime metadata (options,
 // compatible payloads) from a freshly-constructed module instance. Constructing
-// a module is a plain struct literal and makes no AWS calls.
-func buildModules() []Module {
+// a module is a plain struct literal and makes no AWS calls. payloadIndex is
+// keyed by short payload name and is used to look up payload option mock values
+// when building CLISteps.
+func buildModules(payloadIndex map[string]Payload) []Module {
 	infos := modules.ListPathInfos()
 	out := make([]Module, 0, len(infos))
 	for _, info := range infos {
@@ -156,8 +333,15 @@ func buildModules() []Module {
 			RelatedPaths:        info.RelatedPaths,
 			MITRE:               convertMITRE(info.MITRE),
 		}
-		if len(info.Services) > 0 {
-			m.PrimaryService = info.Services[0]
+		// Group by the compute service, not Services[0]. Services[0] is almost
+		// always "iam" on PassRole modules (iam:PassRole + ec2:RunInstances), which
+		// would dump every PassRole module into the iam group. The module ID prefix
+		// already encodes the compute service per the pathfinding.cloud convention
+		// (iam:PassRole + lambda:CreateFunction -> lambda-001), so derive from that.
+		// Pure-IAM modules (iam-001, ...) correctly stay in the iam group.
+		m.PrimaryService = info.ID
+		if dashIdx := strings.Index(info.ID, "-"); dashIdx != -1 {
+			m.PrimaryService = info.ID[:dashIdx]
 		}
 
 		// Options and payloads come from a constructed instance (no AWS calls).
@@ -166,6 +350,7 @@ func buildModules() []Module {
 			for _, p := range mod.ListPayloads() {
 				m.Payloads = append(m.Payloads, PayloadRef{Name: p.Name, Description: p.Description})
 			}
+			m.CLISteps = buildCLISteps(info.ID, m.Options, m.Payloads, payloadIndex)
 		}
 		out = append(out, m)
 	}
@@ -252,7 +437,13 @@ func convertOptions(in []modules.Option) []Option {
 	}
 	out := make([]Option, 0, len(in))
 	for _, o := range in {
-		out = append(out, Option{Name: o.Name, Description: o.Description, Required: o.Required, Default: o.Default})
+		out = append(out, Option{
+			Name:        o.Name,
+			Description: o.Description,
+			Required:    o.Required,
+			Default:     o.Default,
+			MockValue:   mockValueForOption(o.Name),
+		})
 	}
 	return out
 }

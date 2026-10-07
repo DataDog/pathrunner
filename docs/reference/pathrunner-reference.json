@@ -1,8 +1,8 @@
 {
   "generator": {
-    "schemaVersion": "1.0.0",
-    "pathrunnerVersion": "v0.2.3-5-g1567e4d-dirty",
-    "gitCommit": "1567e4d",
+    "schemaVersion": "1.1.0",
+    "pathrunnerVersion": "v0.2.3-11-gc6673bb-dirty",
+    "gitCommit": "c6673bb",
     "generatedAt": ""
   },
   "counts": {
@@ -984,7 +984,7 @@
         "iam",
         "apprunner"
       ],
-      "primaryService": "iam",
+      "primaryService": "apprunner",
       "aliases": [
         "apprunner-passrole",
         "exploit/apprunner_passrole"
@@ -1062,7 +1062,8 @@
         {
           "name": "ROLE_ARN",
           "description": "Target IAM role ARN to pass to App Runner as the instance role (must trust tasks.apprunner.amazonaws.com)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "PAYLOAD",
@@ -1078,7 +1079,8 @@
         {
           "name": "SERVICE_NAME",
           "description": "App Runner service name (auto-generated if not specified)",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "CONTAINER_IMAGE",
@@ -1098,6 +1100,14 @@
           "name": "backdoor/attach-policy",
           "description": "Attach AdministratorAccess policy to an IAM user or role via App Runner service StartCommand"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use apprunner-001",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -1109,7 +1119,7 @@
         "iam",
         "apprunner"
       ],
-      "primaryService": "iam",
+      "primaryService": "apprunner",
       "aliases": [
         "apprunner-updateservice",
         "exploit/apprunner_updateservice"
@@ -1172,7 +1182,8 @@
         {
           "name": "SERVICE_ARN",
           "description": "ARN of the existing App Runner service to update (must have a privileged role attached); auto-discovered when not set and a single service with a 'pl-' prefix exists in the region",
-          "required": false
+          "required": false,
+          "mockValue": "arn:aws:iam::123456789012:resource/target-resource"
         },
         {
           "name": "PAYLOAD",
@@ -1182,7 +1193,8 @@
         {
           "name": "TARGET_ARN",
           "description": "IAM user or role ARN to target (auto-resolved from caller identity if not set)",
-          "required": false
+          "required": false,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "REGION",
@@ -1208,6 +1220,13 @@
           "name": "backdoor/attach-policy",
           "description": "Attach AdministratorAccess policy to an IAM user or role via App Runner service StartCommand"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use apprunner-002",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -1219,7 +1238,7 @@
         "iam",
         "batch"
       ],
-      "primaryService": "iam",
+      "primaryService": "batch",
       "aliases": [
         "batch-passrole",
         "batch-passrole-registerjobdefinition",
@@ -1312,17 +1331,20 @@
         {
           "name": "ADMIN_ROLE_ARN",
           "description": "ARN of the IAM role to pass as jobRoleArn — the container will run with this role's credentials",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "EXECUTION_ROLE_ARN",
           "description": "ARN of the Fargate execution role (must trust batch.amazonaws.com and have ecr/logs permissions)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "JOB_QUEUE",
           "description": "Name or ARN of the Batch job queue to submit the job to",
-          "required": true
+          "required": true,
+          "mockValue": "target-batch-job-queue"
         },
         {
           "name": "PAYLOAD",
@@ -1349,7 +1371,8 @@
         {
           "name": "JOB_DEF_NAME",
           "description": "Name for the new Batch job definition to register",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "REGION",
@@ -1389,6 +1412,16 @@
           "name": "exfil/https",
           "description": "Exfiltrate Batch task role credentials to an attacker HTTPS endpoint; detects curl/wget/python at runtime (requires CONTAINER_RUNTIME=generic)"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use batch-001",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set ADMIN_ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner set EXECUTION_ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner set JOB_QUEUE target-batch-job-queue",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -1400,7 +1433,7 @@
         "iam",
         "batch"
       ],
-      "primaryService": "iam",
+      "primaryService": "batch",
       "aliases": [
         "batch-submitjob",
         "exploit/batch_submitjob"
@@ -1475,12 +1508,14 @@
         {
           "name": "JOB_DEFINITION",
           "description": "Name or ARN of the existing Batch job definition with privileged jobRoleArn",
-          "required": true
+          "required": true,
+          "mockValue": "target-job-definition:1"
         },
         {
           "name": "JOB_QUEUE",
           "description": "Name or ARN of the Batch job queue to submit the job to",
-          "required": true
+          "required": true,
+          "mockValue": "target-batch-job-queue"
         },
         {
           "name": "PAYLOAD",
@@ -1537,6 +1572,15 @@
           "name": "exfil/https",
           "description": "Exfiltrate Batch task role credentials to an attacker HTTPS endpoint; detects curl/wget/python at runtime (requires CONTAINER_RUNTIME=generic)"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use batch-002",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set JOB_DEFINITION target-job-definition:1",
+        "pathrunner set JOB_QUEUE target-batch-job-queue",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -1548,7 +1592,7 @@
         "iam",
         "batch"
       ],
-      "primaryService": "iam",
+      "primaryService": "batch",
       "aliases": [
         "batch-full-pipeline",
         "batch-createcomputeenvironment",
@@ -1663,22 +1707,26 @@
         {
           "name": "ADMIN_ROLE_ARN",
           "description": "ARN of the IAM role to pass as jobRoleArn — the container will run with this role's credentials",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "EXECUTION_ROLE_ARN",
           "description": "ARN of the Fargate execution role (must trust ecs-tasks.amazonaws.com and have AmazonECSTaskExecutionRolePolicy)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "SUBNET_ID",
           "description": "VPC subnet ID for the Fargate compute environment (must have internet access for image pulls and API calls)",
-          "required": true
+          "required": true,
+          "mockValue": "subnet-0123456789abcdef0"
         },
         {
           "name": "SECURITY_GROUP_ID",
           "description": "Security group ID for the Fargate compute environment (must allow outbound traffic)",
-          "required": true
+          "required": true,
+          "mockValue": "sg-0123456789abcdef0"
         },
         {
           "name": "PAYLOAD",
@@ -1705,17 +1753,20 @@
         {
           "name": "COMPUTE_ENV_NAME",
           "description": "Name for the new Batch compute environment to create",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "JOB_QUEUE_NAME",
           "description": "Name for the new Batch job queue to create",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "JOB_DEF_NAME",
           "description": "Name for the new Batch job definition to register",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "REGION",
@@ -1755,6 +1806,17 @@
           "name": "exfil/https",
           "description": "Exfiltrate Batch task role credentials to an attacker HTTPS endpoint; detects curl/wget/python at runtime (requires CONTAINER_RUNTIME=generic)"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use batch-003",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set ADMIN_ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner set EXECUTION_ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner set SUBNET_ID subnet-0123456789abcdef0",
+        "pathrunner set SECURITY_GROUP_ID sg-0123456789abcdef0",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -1766,7 +1828,7 @@
         "iam",
         "bedrock-agentcore"
       ],
-      "primaryService": "iam",
+      "primaryService": "bedrock",
       "aliases": [
         "bedrock-passrole",
         "exploit/bedrock_passrole_codeinterpreter"
@@ -1847,7 +1909,8 @@
         {
           "name": "ROLE_ARN",
           "description": "ARN of the IAM role to pass to the code interpreter (must trust bedrock-agentcore.amazonaws.com)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "PAYLOAD",
@@ -1859,7 +1922,8 @@
           "name": "INTERPRETER_NAME",
           "description": "Name for the code interpreter resource",
           "required": false,
-          "default": "pathrunner"
+          "default": "pathrunner",
+          "mockValue": "target-resource-name"
         },
         {
           "name": "REGION",
@@ -1889,6 +1953,14 @@
           "name": "exfil/mmds",
           "description": "Extract execution-role credentials from the MicroVM Metadata Service (MMDS) at 169.254.169.254"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use bedrock-001",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -1900,7 +1972,7 @@
         "iam",
         "bedrock-agentcore"
       ],
-      "primaryService": "iam",
+      "primaryService": "bedrock",
       "aliases": [
         "bedrock-startsession-invoke",
         "exploit/bedrock_startsession_invoke"
@@ -1980,7 +2052,8 @@
         {
           "name": "INTERPRETER_ID",
           "description": "ID of the existing Bedrock AgentCore code interpreter to target",
-          "required": true
+          "required": true,
+          "mockValue": "target-interpreter-id"
         },
         {
           "name": "PAYLOAD",
@@ -2004,6 +2077,14 @@
           "name": "exfil/mmds",
           "description": "Extract execution-role credentials from the MicroVM Metadata Service (MMDS) at 169.254.169.254"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use bedrock-002",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set INTERPRETER_ID target-interpreter-id",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -2015,7 +2096,7 @@
         "iam",
         "bedrock-agentcore"
       ],
-      "primaryService": "iam",
+      "primaryService": "bedrock",
       "aliases": [
         "bedrock-passrole-createagentruntime",
         "exploit/bedrock_passrole_createagentruntime"
@@ -2110,12 +2191,14 @@
         {
           "name": "EXECUTION_ROLE_ARN",
           "description": "ARN of the IAM role to pass to the new runtime as its execution role; must trust bedrock-agentcore.amazonaws.com",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "CONTAINER_URI",
           "description": "ECR image URI for the runtime (e.g., \u003caccount\u003e.dkr.ecr.\u003cregion\u003e.amazonaws.com/\u003crepo\u003e:\u003ctag\u003e); the image is always built and pushed by pathrunner — set this to control which ECR repo is used, or leave empty to auto-find/create the attacker ECR repo",
-          "required": false
+          "required": false,
+          "mockValue": "123456789012.dkr.ecr.us-east-1.amazonaws.com/target-image:latest"
         },
         {
           "name": "REGION",
@@ -2126,7 +2209,8 @@
         {
           "name": "RUNTIME_NAME",
           "description": "Name for the new AgentCore Runtime (auto-generated if not set)",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "PAYLOAD",
@@ -2150,6 +2234,14 @@
           "name": "exfil/mmds",
           "description": "Extract execution-role credentials from the MicroVM Metadata Service (MMDS) at 169.254.169.254"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use bedrock-003",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set EXECUTION_ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -2161,7 +2253,7 @@
         "iam",
         "bedrock-agentcore"
       ],
-      "primaryService": "iam",
+      "primaryService": "bedrock",
       "aliases": [
         "bedrock-invokeagentruntime",
         "exploit/bedrock_invokeagentruntime"
@@ -2242,7 +2334,8 @@
         {
           "name": "TARGET_RUNTIME_ARN",
           "description": "ARN of the existing AgentCore Runtime or Harness to target",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:bedrock::123456789012:provisioned-model/target-model"
         },
         {
           "name": "PAYLOAD",
@@ -2266,6 +2359,14 @@
           "name": "exfil/mmds",
           "description": "Extract execution-role credentials from the MicroVM Metadata Service (MMDS) at 169.254.169.254"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use bedrock-004",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set TARGET_RUNTIME_ARN arn:aws:bedrock::123456789012:provisioned-model/target-model",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -2277,7 +2378,7 @@
         "iam",
         "bedrock-agentcore"
       ],
-      "primaryService": "iam",
+      "primaryService": "bedrock",
       "aliases": [
         "bedrock-passrole-createharness",
         "exploit/bedrock_passrole_createharness"
@@ -2375,7 +2476,8 @@
         {
           "name": "ROLE_ARN",
           "description": "ARN of the IAM role to pass to the new harness as its execution role; must trust bedrock-agentcore.amazonaws.com",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "REGION",
@@ -2387,12 +2489,14 @@
           "name": "MODEL_ID",
           "description": "Bedrock foundation model ID to associate with the harness (required by CreateHarness; never invoked by the attack)",
           "required": false,
-          "default": "amazon.nova-micro-v1:0"
+          "default": "amazon.nova-micro-v1:0",
+          "mockValue": "target-resource-id"
         },
         {
           "name": "HARNESS_NAME",
           "description": "Name for the new AgentCore Harness (auto-generated if not set; must start with a letter and use only alphanumeric characters and underscores)",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "PAYLOAD",
@@ -2416,6 +2520,14 @@
           "name": "exfil/mmds",
           "description": "Extract execution-role credentials from the MicroVM Metadata Service (MMDS) at 169.254.169.254"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use bedrock-005",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -2427,7 +2539,7 @@
         "iam",
         "bedrock-agentcore"
       ],
-      "primaryService": "iam",
+      "primaryService": "bedrock",
       "aliases": [
         "bedrock-createbrowser-cdp",
         "exploit/bedrock_createbrowser_cdp"
@@ -2519,7 +2631,8 @@
         {
           "name": "ROLE_ARN",
           "description": "ARN of the IAM role to pass to the new browser as its execution role (must trust bedrock-agentcore.amazonaws.com)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "REGION",
@@ -2530,7 +2643,8 @@
         {
           "name": "BROWSER_NAME",
           "description": "Name for the new Custom Browser resource (auto-generated if empty)",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "WAIT_TIMEOUT",
@@ -2544,6 +2658,11 @@
           "required": false,
           "default": "false"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use bedrock-006",
+        "pathrunner set ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -2554,7 +2673,7 @@
       "services": [
         "bedrock-agentcore"
       ],
-      "primaryService": "bedrock-agentcore",
+      "primaryService": "bedrock",
       "aliases": [
         "bedrock-startbrowsersession-cdp",
         "exploit/bedrock_startbrowsersession_cdp"
@@ -2620,7 +2739,8 @@
         {
           "name": "BROWSER_ID",
           "description": "Target AgentCore Custom Browser ID (use 'discover' to enumerate existing browsers)",
-          "required": true
+          "required": true,
+          "mockValue": "target-browser-id"
         },
         {
           "name": "REGION",
@@ -2631,7 +2751,8 @@
         {
           "name": "IDENTITY_NAME",
           "description": "Name for the stolen execution role identity (auto-generated if empty)",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "AUTO_SWITCH",
@@ -2639,6 +2760,11 @@
           "required": false,
           "default": "true"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use bedrock-007",
+        "pathrunner set BROWSER_ID target-browser-id",
+        "pathrunner exploit"
       ]
     },
     {
@@ -2650,7 +2776,7 @@
         "iam",
         "braket"
       ],
-      "primaryService": "iam",
+      "primaryService": "braket",
       "aliases": [
         "braket-passrole",
         "exploit/braket_passrole"
@@ -2724,7 +2850,8 @@
         {
           "name": "ROLE_ARN",
           "description": "Target IAM role ARN to pass to the Braket job as jobExecutionRoleArn",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "PAYLOAD",
@@ -2750,7 +2877,8 @@
         {
           "name": "JOB_NAME",
           "description": "Braket job name",
-          "required": false
+          "required": false,
+          "mockValue": "target-glue-job"
         },
         {
           "name": "CLEANUP",
@@ -2764,6 +2892,14 @@
           "name": "backdoor/attach-policy",
           "description": "Attach AdministratorAccess policy to an existing IAM user or role via Braket Hybrid Job"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use braket-001",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -2775,7 +2911,7 @@
         "iam",
         "cloudformation"
       ],
-      "primaryService": "iam",
+      "primaryService": "cloudformation",
       "aliases": [
         "cloudformation-passrole",
         "cfn-001",
@@ -2857,7 +2993,8 @@
         {
           "name": "ROLE_ARN",
           "description": "ARN of the IAM role to pass to CloudFormation (must trust cloudformation.amazonaws.com)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "PAYLOAD",
@@ -2868,7 +3005,8 @@
         {
           "name": "STACK_NAME",
           "description": "Name for the CloudFormation stack to create. Auto-generated if not set",
-          "required": false
+          "required": false,
+          "mockValue": "target-cloudformation-stack"
         },
         {
           "name": "REGION",
@@ -2885,12 +3023,14 @@
         {
           "name": "ESCALATED_ROLE_NAME",
           "description": "Name for the escalated IAM role to create (auto-generated if empty)",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "TRUST_PRINCIPAL",
           "description": "ARN to trust in the escalated role's trust policy (defaults to caller ARN)",
-          "required": false
+          "required": false,
+          "mockValue": "arn:aws:iam::123456789012:root"
         },
         {
           "name": "CLEANUP",
@@ -2904,6 +3044,14 @@
           "name": "backdoor/attach-policy",
           "description": "Create an IAM role with AdministratorAccess trusted by the attacker's principal via CloudFormation template"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use cloudformation-001",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -2999,7 +3147,8 @@
         {
           "name": "STACK_NAME",
           "description": "Name of the existing CloudFormation stack with an admin service role",
-          "required": true
+          "required": true,
+          "mockValue": "target-cloudformation-stack"
         },
         {
           "name": "PAYLOAD",
@@ -3022,17 +3171,20 @@
         {
           "name": "ROLE_ARN",
           "description": "ARN of the CloudFormation stack's service role. When provided, used to derive the stack name during discovery if cloudformation:ListStacks is unavailable",
-          "required": false
+          "required": false,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "ESCALATED_ROLE_NAME",
           "description": "Name for the escalated IAM role to create (auto-generated if empty)",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "TRUST_PRINCIPAL",
           "description": "ARN to trust in the escalated role's trust policy (defaults to caller ARN)",
-          "required": false
+          "required": false,
+          "mockValue": "arn:aws:iam::123456789012:root"
         },
         {
           "name": "CLEANUP",
@@ -3046,6 +3198,14 @@
           "name": "backdoor/attach-policy",
           "description": "Create an IAM role with AdministratorAccess trusted by the attacker's principal via CloudFormation template"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use cloudformation-002",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set STACK_NAME target-cloudformation-stack",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -3057,7 +3217,7 @@
         "iam",
         "cloudformation"
       ],
-      "primaryService": "iam",
+      "primaryService": "cloudformation",
       "aliases": [
         "cloudformation-createstackset",
         "cfn-003",
@@ -3155,7 +3315,8 @@
         {
           "name": "EXECUTION_ROLE_NAME",
           "description": "Name of the IAM execution role to pass to CloudFormation StackSets (must have elevated permissions; CloudFormation assumes this role in each target account to create resources)",
-          "required": true
+          "required": true,
+          "mockValue": "TargetExecutionRoleName"
         },
         {
           "name": "PAYLOAD",
@@ -3166,12 +3327,14 @@
         {
           "name": "ROLE_ARN",
           "description": "ARN of the IAM administration role to pass via iam:PassRole (must trust cloudformation.amazonaws.com and be able to assume the execution role). Leave blank to auto-construct from account ID using the lab's default naming convention",
-          "required": false
+          "required": false,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "STACKSET_NAME",
           "description": "Name for the new CloudFormation StackSet to create. Defaults to a timestamped pathrunner name",
-          "required": false
+          "required": false,
+          "mockValue": "target-stackset"
         },
         {
           "name": "REGION",
@@ -3188,12 +3351,14 @@
         {
           "name": "ESCALATED_ROLE_NAME",
           "description": "Name for the escalated IAM role to create (auto-generated if empty)",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "TRUST_PRINCIPAL",
           "description": "ARN to trust in the escalated role's trust policy (defaults to caller ARN)",
-          "required": false
+          "required": false,
+          "mockValue": "arn:aws:iam::123456789012:root"
         },
         {
           "name": "CLEANUP",
@@ -3207,6 +3372,14 @@
           "name": "backdoor/attach-policy",
           "description": "Create an IAM role with AdministratorAccess trusted by the attacker's principal via CloudFormation template"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use cloudformation-003",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set EXECUTION_ROLE_NAME TargetExecutionRoleName",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -3218,7 +3391,7 @@
         "iam",
         "cloudformation"
       ],
-      "primaryService": "iam",
+      "primaryService": "cloudformation",
       "aliases": [
         "cloudformation-updatestackset",
         "cfn-004",
@@ -3306,17 +3479,20 @@
         {
           "name": "STACKSET_NAME",
           "description": "Name of the existing CloudFormation StackSet with an admin execution role",
-          "required": true
+          "required": true,
+          "mockValue": "target-stackset"
         },
         {
           "name": "ADMIN_ROLE_ARN",
           "description": "ARN of the administration role to pass to CloudFormation StackSets (requires iam:PassRole). Leave blank to auto-construct from account ID using the lab's default role name",
-          "required": false
+          "required": false,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "EXECUTION_ROLE_NAME",
           "description": "Name of the execution role used by the StackSet in target accounts",
-          "required": false
+          "required": false,
+          "mockValue": "TargetExecutionRoleName"
         },
         {
           "name": "REGION",
@@ -3339,12 +3515,14 @@
         {
           "name": "ESCALATED_ROLE_NAME",
           "description": "Name for the escalated IAM role to create (auto-generated if empty)",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "TRUST_PRINCIPAL",
           "description": "ARN to trust in the escalated role's trust policy (defaults to caller ARN)",
-          "required": false
+          "required": false,
+          "mockValue": "arn:aws:iam::123456789012:root"
         },
         {
           "name": "CLEANUP",
@@ -3358,6 +3536,14 @@
           "name": "backdoor/attach-policy",
           "description": "Create an IAM role with AdministratorAccess trusted by the attacker's principal via CloudFormation template"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use cloudformation-004",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set STACKSET_NAME target-stackset",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -3449,12 +3635,14 @@
         {
           "name": "STACK_NAME",
           "description": "Name of the existing CloudFormation stack with an admin service role",
-          "required": true
+          "required": true,
+          "mockValue": "target-cloudformation-stack"
         },
         {
           "name": "CHANGESET_NAME",
           "description": "Name for the change set to create",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "REGION",
@@ -3477,12 +3665,14 @@
         {
           "name": "ESCALATED_ROLE_NAME",
           "description": "Name for the escalated IAM role to create (auto-generated if empty)",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "TRUST_PRINCIPAL",
           "description": "ARN to trust in the escalated role's trust policy (defaults to caller ARN)",
-          "required": false
+          "required": false,
+          "mockValue": "arn:aws:iam::123456789012:root"
         },
         {
           "name": "CLEANUP",
@@ -3496,6 +3686,14 @@
           "name": "backdoor/attach-policy",
           "description": "Create an IAM role with AdministratorAccess trusted by the attacker's principal via CloudFormation template"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use cloudformation-005",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set STACK_NAME target-cloudformation-stack",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -3507,7 +3705,7 @@
         "iam",
         "codebuild"
       ],
-      "primaryService": "iam",
+      "primaryService": "codebuild",
       "aliases": [
         "codebuild-passrole",
         "exploit/codebuild_passrole"
@@ -3579,7 +3777,8 @@
         {
           "name": "ROLE_ARN",
           "description": "Target IAM role ARN to pass to the CodeBuild project (must trust codebuild.amazonaws.com)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "PAYLOAD",
@@ -3589,7 +3788,8 @@
         {
           "name": "TARGET_ARN",
           "description": "IAM user or role name/ARN to attach AdministratorAccess to (auto-resolved from caller identity if not set)",
-          "required": false
+          "required": false,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "REGION",
@@ -3600,7 +3800,8 @@
         {
           "name": "PROJECT_NAME",
           "description": "Name of the CodeBuild project to create",
-          "required": false
+          "required": false,
+          "mockValue": "target-codebuild-project"
         },
         {
           "name": "CLEANUP",
@@ -3614,6 +3815,14 @@
           "name": "backdoor/attach-policy",
           "description": "Attach AdministratorAccess (or any managed policy) to an IAM user or role via CodeBuild buildspec"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use codebuild-001",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -3699,7 +3908,8 @@
         {
           "name": "PROJECT_NAME",
           "description": "Name of the existing CodeBuild project to exploit",
-          "required": true
+          "required": true,
+          "mockValue": "target-codebuild-project"
         },
         {
           "name": "PAYLOAD",
@@ -3709,7 +3919,8 @@
         {
           "name": "TARGET_ARN",
           "description": "IAM user or role name/ARN to attach AdministratorAccess to (auto-resolved from caller identity if not set)",
-          "required": false
+          "required": false,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "REGION",
@@ -3729,6 +3940,14 @@
           "name": "backdoor/attach-policy",
           "description": "Attach AdministratorAccess (or any managed policy) to an IAM user or role via CodeBuild buildspec"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use codebuild-002",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set PROJECT_NAME target-codebuild-project",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -3815,7 +4034,8 @@
         {
           "name": "PROJECT_NAME",
           "description": "Name of the existing CodeBuild project to exploit (must be configured for batch builds)",
-          "required": true
+          "required": true,
+          "mockValue": "target-codebuild-project"
         },
         {
           "name": "PAYLOAD",
@@ -3825,7 +4045,8 @@
         {
           "name": "TARGET_ARN",
           "description": "IAM user or role name/ARN to attach AdministratorAccess to (auto-resolved from caller identity if not set)",
-          "required": false
+          "required": false,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "REGION",
@@ -3845,6 +4066,14 @@
           "name": "backdoor/attach-policy",
           "description": "Attach AdministratorAccess (or any managed policy) to an IAM user or role via CodeBuild buildspec"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use codebuild-003",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set PROJECT_NAME target-codebuild-project",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -3856,7 +4085,7 @@
         "iam",
         "codebuild"
       ],
-      "primaryService": "iam",
+      "primaryService": "codebuild",
       "aliases": [
         "codebuild-passrole-startbuildbatch",
         "exploit/codebuild_passrole_startbuildbatch"
@@ -3931,7 +4160,8 @@
         {
           "name": "ROLE_ARN",
           "description": "Target IAM role ARN to pass to the CodeBuild project (must trust codebuild.amazonaws.com) [auto]",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "PAYLOAD",
@@ -3941,7 +4171,8 @@
         {
           "name": "TARGET_ARN",
           "description": "IAM user or role name/ARN to attach AdministratorAccess to (auto-resolved from caller identity if not set)",
-          "required": false
+          "required": false,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "REGION",
@@ -3952,7 +4183,8 @@
         {
           "name": "PROJECT_NAME",
           "description": "Name of the CodeBuild project to create",
-          "required": false
+          "required": false,
+          "mockValue": "target-codebuild-project"
         },
         {
           "name": "CLEANUP",
@@ -3966,6 +4198,14 @@
           "name": "backdoor/attach-policy",
           "description": "Attach AdministratorAccess (or any managed policy) to an IAM user or role via CodeBuild buildspec"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use codebuild-004",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -3978,7 +4218,7 @@
         "codedeploy",
         "ec2"
       ],
-      "primaryService": "iam",
+      "primaryService": "codedeploy",
       "aliases": [
         "codedeploy-createdeployment",
         "exploit/codedeploy_createdeployment"
@@ -4071,17 +4311,20 @@
         {
           "name": "APP_NAME",
           "description": "Name of the existing CodeDeploy application to target",
-          "required": true
+          "required": true,
+          "mockValue": "target-app"
         },
         {
           "name": "DEPLOYMENT_GROUP",
           "description": "Name of the existing CodeDeploy deployment group to target",
-          "required": true
+          "required": true,
+          "mockValue": "target-deployment-group"
         },
         {
           "name": "BUCKET",
           "description": "S3 bucket containing the pre-staged malicious revision ZIP",
-          "required": true
+          "required": true,
+          "mockValue": "target-s3-bucket-123456789012"
         },
         {
           "name": "REVISION_KEY",
@@ -4092,7 +4335,8 @@
         {
           "name": "TARGET_ARN",
           "description": "IAM user or role name/ARN to attach AdministratorAccess to (auto-resolved from caller identity if not set)",
-          "required": false
+          "required": false,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "REGION",
@@ -4106,6 +4350,13 @@
           "required": false,
           "default": "false"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use codedeploy-001",
+        "pathrunner set APP_NAME target-app",
+        "pathrunner set DEPLOYMENT_GROUP target-deployment-group",
+        "pathrunner set BUCKET target-s3-bucket-123456789012",
+        "pathrunner exploit"
       ]
     },
     {
@@ -4117,7 +4368,7 @@
         "iam",
         "cognitoidentity"
       ],
-      "primaryService": "iam",
+      "primaryService": "cognitoidentity",
       "aliases": [
         "cognitoidentity-passrole",
         "exploit/cognitoidentity_passrole"
@@ -4199,12 +4450,14 @@
         {
           "name": "ROLE_ARN",
           "description": "ARN of the IAM role to bind to the pool's unauthenticated slot (must trust cognito-identity.amazonaws.com) [auto]",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "IDENTITY_POOL_ID",
           "description": "Cognito Identity Pool ID in format region:GUID (must have AllowUnauthenticatedIdentities=true) [auto]",
-          "required": true
+          "required": true,
+          "mockValue": "us-east-1:12345678-1234-1234-1234-123456789012"
         },
         {
           "name": "REGION",
@@ -4216,7 +4469,8 @@
           "name": "SESSION_NAME",
           "description": "RoleSessionName for the AssumeRoleWithWebIdentity call",
           "required": false,
-          "default": "cognito-escalation"
+          "default": "cognito-escalation",
+          "mockValue": "target-resource-name"
         },
         {
           "name": "AUTO_SWITCH",
@@ -4230,6 +4484,12 @@
           "required": false,
           "default": "false"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use cognitoidentity-001",
+        "pathrunner set ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner set IDENTITY_POOL_ID us-east-1:12345678-1234-1234-1234-123456789012",
+        "pathrunner exploit"
       ]
     },
     {
@@ -4241,7 +4501,7 @@
         "iam",
         "ec2"
       ],
-      "primaryService": "iam",
+      "primaryService": "ec2",
       "aliases": [
         "ec2-passrole",
         "exploit/ec2_passrole"
@@ -4300,7 +4560,8 @@
         {
           "name": "INSTANCE_PROFILE",
           "description": "Target IAM instance profile name or ARN to pass to EC2 instance",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:instance-profile/TargetInstanceProfile"
         },
         {
           "name": "PAYLOAD",
@@ -4316,7 +4577,8 @@
         {
           "name": "AMI_ID",
           "description": "AMI ID for EC2 instance (will auto-detect Amazon Linux 2023 if not specified)",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-id"
         },
         {
           "name": "INSTANCE_TYPE",
@@ -4327,17 +4589,20 @@
         {
           "name": "SUBNET_ID",
           "description": "Subnet ID for instance placement (will use default VPC if not specified)",
-          "required": false
+          "required": false,
+          "mockValue": "subnet-0123456789abcdef0"
         },
         {
           "name": "SECURITY_GROUP_ID",
           "description": "Security group ID to attach (optional)",
-          "required": false
+          "required": false,
+          "mockValue": "sg-0123456789abcdef0"
         },
         {
           "name": "INSTANCE_NAME",
           "description": "Name tag for the EC2 instance",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "WAIT_FOR_READY",
@@ -4385,6 +4650,14 @@
           "name": "revshell/tls",
           "description": "Establish a TLS-encrypted reverse shell via EC2 user-data"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use ec2-001",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set INSTANCE_PROFILE arn:aws:iam::123456789012:instance-profile/TargetInstanceProfile",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -4396,7 +4669,7 @@
         "iam",
         "ec2"
       ],
-      "primaryService": "iam",
+      "primaryService": "ec2",
       "aliases": [
         "ec2-modifyinstanceattribute",
         "exploit/ec2_modifyinstanceattribute"
@@ -4469,7 +4742,8 @@
         {
           "name": "INSTANCE_ID",
           "description": "Target EC2 instance ID (e.g. i-0abc1234567890def)",
-          "required": true
+          "required": true,
+          "mockValue": "i-0123456789abcdef0"
         },
         {
           "name": "PAYLOAD",
@@ -4528,6 +4802,14 @@
           "name": "revshell/tls",
           "description": "Establish a TLS-encrypted reverse shell via EC2 user-data"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use ec2-002",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set INSTANCE_ID i-0123456789abcdef0",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -4539,7 +4821,7 @@
         "iam",
         "ec2"
       ],
-      "primaryService": "iam",
+      "primaryService": "ec2",
       "aliases": [
         "ec2-instanceconnect",
         "exploit/ec2_instanceconnect"
@@ -4609,7 +4891,8 @@
         {
           "name": "INSTANCE_ID",
           "description": "Target EC2 instance ID (must have a public IP and EC2 Instance Connect enabled)",
-          "required": true
+          "required": true,
+          "mockValue": "i-0123456789abcdef0"
         },
         {
           "name": "REGION",
@@ -4626,7 +4909,8 @@
         {
           "name": "TARGET_USER",
           "description": "IAM user name to attach AdministratorAccess to using the stolen instance role credentials (optional)",
-          "required": false
+          "required": false,
+          "mockValue": "target-iam-user"
         },
         {
           "name": "SSH_TIMEOUT",
@@ -4634,6 +4918,11 @@
           "required": false,
           "default": "10"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use ec2-003",
+        "pathrunner set INSTANCE_ID i-0123456789abcdef0",
+        "pathrunner exploit"
       ]
     },
     {
@@ -4645,7 +4934,7 @@
         "iam",
         "ec2"
       ],
-      "primaryService": "iam",
+      "primaryService": "ec2",
       "aliases": [
         "ec2-passrole-spot",
         "exploit/ec2_passrole_requestspotinstances"
@@ -4719,7 +5008,8 @@
         {
           "name": "INSTANCE_PROFILE",
           "description": "Target IAM instance profile name to pass to the spot instance",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:instance-profile/TargetInstanceProfile"
         },
         {
           "name": "PAYLOAD",
@@ -4735,7 +5025,8 @@
         {
           "name": "AMI_ID",
           "description": "AMI ID for the spot instance (auto-detects Amazon Linux 2023 if not specified)",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-id"
         },
         {
           "name": "INSTANCE_TYPE",
@@ -4752,7 +5043,8 @@
         {
           "name": "SUBNET_ID",
           "description": "Subnet ID for instance placement (uses default VPC if not specified)",
-          "required": false
+          "required": false,
+          "mockValue": "subnet-0123456789abcdef0"
         },
         {
           "name": "SPOT_WAIT_TIMEOUT",
@@ -4800,6 +5092,14 @@
           "name": "revshell/tls",
           "description": "Establish a TLS-encrypted reverse shell via EC2 user-data"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use ec2-004",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set INSTANCE_PROFILE arn:aws:iam::123456789012:instance-profile/TargetInstanceProfile",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -4811,7 +5111,7 @@
         "iam",
         "ec2"
       ],
-      "primaryService": "iam",
+      "primaryService": "ec2",
       "aliases": [
         "ec2-launch-template-version",
         "exploit/ec2_launch_template_version"
@@ -4896,17 +5196,20 @@
         {
           "name": "LAUNCH_TEMPLATE_NAME",
           "description": "Name of the existing target launch template",
-          "required": true
+          "required": true,
+          "mockValue": "target-launch-template"
         },
         {
           "name": "ASG_NAME",
           "description": "Name of the Auto Scaling Group to trigger for instance launch (avoids iam:PassRole requirement) [auto]",
-          "required": true
+          "required": true,
+          "mockValue": "target-auto-scaling-group"
         },
         {
           "name": "INSTANCE_PROFILE",
           "description": "ARN or name of the privileged IAM instance profile to embed in the new template version [auto]",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:instance-profile/TargetInstanceProfile"
         },
         {
           "name": "PAYLOAD",
@@ -4916,7 +5219,8 @@
         {
           "name": "TARGET_ARN",
           "description": "IAM user or role ARN/name to receive elevated permissions (used by backdoor/attach-policy payload)",
-          "required": false
+          "required": false,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "REGION",
@@ -4970,6 +5274,16 @@
           "name": "revshell/tls",
           "description": "Establish a TLS-encrypted reverse shell via EC2 user-data"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use ec2-005",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set LAUNCH_TEMPLATE_NAME target-launch-template",
+        "pathrunner set ASG_NAME target-auto-scaling-group",
+        "pathrunner set INSTANCE_PROFILE arn:aws:iam::123456789012:instance-profile/TargetInstanceProfile",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -4981,7 +5295,7 @@
         "iam",
         "ecs"
       ],
-      "primaryService": "iam",
+      "primaryService": "ecs",
       "aliases": [
         "ecs-passrole-createcluster-createservice",
         "exploit/ecs_passrole_createcluster_createservice"
@@ -5059,7 +5373,8 @@
         {
           "name": "ROLE_ARN",
           "description": "Target IAM role ARN to pass to the ECS task (must trust ecs-tasks.amazonaws.com)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "PAYLOAD",
@@ -5075,12 +5390,14 @@
         {
           "name": "CLUSTER_NAME",
           "description": "Name for the new ECS cluster to create",
-          "required": false
+          "required": false,
+          "mockValue": "target-ecs-cluster"
         },
         {
           "name": "SUBNET_ID",
           "description": "Subnet ID for Fargate task networking (auto-detects default VPC if not set)",
-          "required": false
+          "required": false,
+          "mockValue": "subnet-0123456789abcdef0"
         },
         {
           "name": "TASK_FAMILY",
@@ -5090,7 +5407,8 @@
         {
           "name": "SERVICE_NAME",
           "description": "ECS service name",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "CONTAINER_IMAGE",
@@ -5110,6 +5428,14 @@
           "name": "backdoor/attach-policy",
           "description": "Attach AdministratorAccess policy to an IAM user or role via ECS task container command"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use ecs-001",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -5121,7 +5447,7 @@
         "iam",
         "ecs"
       ],
-      "primaryService": "iam",
+      "primaryService": "ecs",
       "aliases": [
         "ecs-passrole-createcluster",
         "exploit/ecs_passrole_createcluster"
@@ -5198,7 +5524,8 @@
         {
           "name": "ROLE_ARN",
           "description": "Target IAM role ARN to pass to the ECS task (must trust ecs-tasks.amazonaws.com)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "PAYLOAD",
@@ -5214,12 +5541,14 @@
         {
           "name": "CLUSTER_NAME",
           "description": "Name for the new ECS cluster to create",
-          "required": false
+          "required": false,
+          "mockValue": "target-ecs-cluster"
         },
         {
           "name": "SUBNET_ID",
           "description": "Subnet ID for Fargate network configuration (will auto-detect from default VPC if not specified)",
-          "required": false
+          "required": false,
+          "mockValue": "subnet-0123456789abcdef0"
         },
         {
           "name": "TASK_FAMILY",
@@ -5244,6 +5573,14 @@
           "name": "backdoor/attach-policy",
           "description": "Attach AdministratorAccess policy to an IAM user or role via ECS task container command"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use ecs-002",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -5255,7 +5592,7 @@
         "iam",
         "ecs"
       ],
-      "primaryService": "iam",
+      "primaryService": "ecs",
       "aliases": [
         "ecs-passrole-createservice",
         "exploit/ecs_passrole_createservice"
@@ -5335,12 +5672,14 @@
         {
           "name": "ROLE_ARN",
           "description": "Target IAM role ARN to pass to the ECS task (must trust ecs-tasks.amazonaws.com)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "CLUSTER_ARN",
           "description": "ECS cluster ARN or name to create the service on",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:ecs::123456789012:cluster/target-ecs-cluster"
         },
         {
           "name": "PAYLOAD",
@@ -5356,7 +5695,8 @@
         {
           "name": "SUBNET_ID",
           "description": "Subnet ID for Fargate task networking (auto-detects default VPC if not set)",
-          "required": false
+          "required": false,
+          "mockValue": "subnet-0123456789abcdef0"
         },
         {
           "name": "TASK_FAMILY",
@@ -5366,7 +5706,8 @@
         {
           "name": "SERVICE_NAME",
           "description": "ECS service name",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "CONTAINER_IMAGE",
@@ -5386,6 +5727,15 @@
           "name": "backdoor/attach-policy",
           "description": "Attach AdministratorAccess policy to an IAM user or role via ECS task container command"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use ecs-003",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner set CLUSTER_ARN arn:aws:ecs::123456789012:cluster/target-ecs-cluster",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -5397,7 +5747,7 @@
         "iam",
         "ecs"
       ],
-      "primaryService": "iam",
+      "primaryService": "ecs",
       "aliases": [
         "ecs-passrole",
         "exploit/ecs_passrole"
@@ -5478,7 +5828,8 @@
         {
           "name": "ROLE_ARN",
           "description": "Target IAM role ARN to pass to the ECS task (must trust ecs-tasks.amazonaws.com) [auto]",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "PAYLOAD",
@@ -5494,12 +5845,14 @@
         {
           "name": "CLUSTER_NAME",
           "description": "Name of an existing ECS cluster to run the task on (defaults to 'default' cluster)",
-          "required": false
+          "required": false,
+          "mockValue": "target-ecs-cluster"
         },
         {
           "name": "SUBNET_ID",
           "description": "Subnet ID for Fargate network configuration (will auto-detect from default VPC if not specified)",
-          "required": false
+          "required": false,
+          "mockValue": "subnet-0123456789abcdef0"
         },
         {
           "name": "TASK_FAMILY",
@@ -5524,6 +5877,14 @@
           "name": "backdoor/attach-policy",
           "description": "Attach AdministratorAccess policy to an IAM user or role via ECS task container command"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use ecs-004",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -5535,7 +5896,7 @@
         "iam",
         "ecs"
       ],
-      "primaryService": "iam",
+      "primaryService": "ecs",
       "aliases": [
         "ecs-passrole-registertaskdefinition-starttask",
         "exploit/ecs_registertaskdefinition_starttask"
@@ -5610,17 +5971,20 @@
         {
           "name": "ROLE_ARN",
           "description": "Target IAM role ARN to pass to the ECS task (must trust ecs-tasks.amazonaws.com)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "CLUSTER_NAME",
           "description": "ECS cluster name or ARN containing the EC2 container instance",
-          "required": true
+          "required": true,
+          "mockValue": "target-ecs-cluster"
         },
         {
           "name": "CONTAINER_INSTANCE_ARN",
           "description": "ARN of the EC2 container instance to start the task on",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:ecs::123456789012:container-instance/target-ecs-cluster/abc1234567890"
         },
         {
           "name": "PAYLOAD",
@@ -5656,6 +6020,16 @@
           "name": "backdoor/attach-policy",
           "description": "Attach AdministratorAccess policy to an IAM user or role via ECS task container command"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use ecs-005",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner set CLUSTER_NAME target-ecs-cluster",
+        "pathrunner set CONTAINER_INSTANCE_ARN arn:aws:ecs::123456789012:container-instance/target-ecs-cluster/abc1234567890",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -5667,7 +6041,7 @@
         "iam",
         "ecs"
       ],
-      "primaryService": "iam",
+      "primaryService": "ecs",
       "aliases": [
         "ecs-executecommand",
         "exploit/ecs_executecommand"
@@ -5749,17 +6123,20 @@
         {
           "name": "CLUSTER_NAME",
           "description": "ECS cluster name or ARN containing the target task",
-          "required": true
+          "required": true,
+          "mockValue": "target-ecs-cluster"
         },
         {
           "name": "TASK_ARN",
           "description": "Target ECS task ARN to execute command on (auto-discovered if not set)",
-          "required": false
+          "required": false,
+          "mockValue": "arn:aws:iam::123456789012:resource/target-resource"
         },
         {
           "name": "CONTAINER_NAME",
           "description": "Container name within the task (auto-detected from task definition if not set)",
-          "required": false
+          "required": false,
+          "mockValue": "target-container"
         },
         {
           "name": "REGION",
@@ -5767,6 +6144,11 @@
           "required": false,
           "default": "us-east-1"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use ecs-006",
+        "pathrunner set CLUSTER_NAME target-ecs-cluster",
+        "pathrunner exploit"
       ]
     },
     {
@@ -5778,7 +6160,7 @@
         "iam",
         "ecs"
       ],
-      "primaryService": "iam",
+      "primaryService": "ecs",
       "aliases": [
         "ecs-starttask-registercontainerinstance",
         "exploit/ecs_starttask_registercontainerinstance"
@@ -5870,27 +6252,32 @@
         {
           "name": "ROLE_ARN",
           "description": "Target IAM role ARN to pass as taskRoleArn override (must trust ecs-tasks.amazonaws.com)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "CLUSTER_NAME",
           "description": "ECS cluster name or ARN where the container instance is registered",
-          "required": true
+          "required": true,
+          "mockValue": "target-ecs-cluster"
         },
         {
           "name": "TASK_DEFINITION",
           "description": "Existing ECS task definition family or ARN to exploit via --overrides",
-          "required": true
+          "required": true,
+          "mockValue": "target-task-def:1"
         },
         {
           "name": "CONTAINER_INSTANCE_ARN",
           "description": "ARN of the container instance registered to the cluster (from ecs:RegisterContainerInstance)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:ecs::123456789012:container-instance/target-ecs-cluster/abc1234567890"
         },
         {
           "name": "CONTAINER_NAME",
           "description": "Name of the container in the existing task definition to override",
-          "required": true
+          "required": true,
+          "mockValue": "target-container"
         },
         {
           "name": "PAYLOAD",
@@ -5909,6 +6296,18 @@
           "name": "backdoor/attach-policy",
           "description": "Attach AdministratorAccess policy to an IAM user or role via ECS task container command"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use ecs-007",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner set CLUSTER_NAME target-ecs-cluster",
+        "pathrunner set TASK_DEFINITION target-task-def:1",
+        "pathrunner set CONTAINER_INSTANCE_ARN arn:aws:ecs::123456789012:container-instance/target-ecs-cluster/abc1234567890",
+        "pathrunner set CONTAINER_NAME target-container",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -5920,7 +6319,7 @@
         "iam",
         "ecs"
       ],
-      "primaryService": "iam",
+      "primaryService": "ecs",
       "aliases": [
         "ecs-passrole-runtask",
         "exploit/ecs_passrole_runtask"
@@ -6007,23 +6406,27 @@
         {
           "name": "ROLE_ARN",
           "description": "Target IAM role ARN to pass as taskRoleArn override (must trust ecs-tasks.amazonaws.com)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "CLUSTER_NAME",
           "description": "ECS cluster name or ARN to run the task on",
-          "required": true
+          "required": true,
+          "mockValue": "target-ecs-cluster"
         },
         {
           "name": "TASK_DEFINITION",
           "description": "Existing ECS task definition family or ARN to exploit via --overrides",
-          "required": true
+          "required": true,
+          "mockValue": "target-task-def:1"
         },
         {
           "name": "CONTAINER_NAME",
           "description": "Name of the container in the existing task definition to override (default: first container)",
           "required": false,
-          "default": "app"
+          "default": "app",
+          "mockValue": "target-container"
         },
         {
           "name": "PAYLOAD",
@@ -6039,7 +6442,8 @@
         {
           "name": "SUBNET_ID",
           "description": "Subnet ID for Fargate network configuration (will auto-detect from default VPC if not specified)",
-          "required": false
+          "required": false,
+          "mockValue": "subnet-0123456789abcdef0"
         }
       ],
       "payloads": [
@@ -6047,6 +6451,16 @@
           "name": "backdoor/attach-policy",
           "description": "Attach AdministratorAccess policy to an IAM user or role via ECS task container command"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use ecs-008",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner set CLUSTER_NAME target-ecs-cluster",
+        "pathrunner set TASK_DEFINITION target-task-def:1",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -6058,7 +6472,7 @@
         "iam",
         "ecs"
       ],
-      "primaryService": "iam",
+      "primaryService": "ecs",
       "aliases": [
         "ecs-passrole-starttask",
         "exploit/ecs_passrole_starttask"
@@ -6135,27 +6549,32 @@
         {
           "name": "ROLE_ARN",
           "description": "Target IAM role ARN to pass as the task role override (must trust ecs-tasks.amazonaws.com)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "CLUSTER_NAME",
           "description": "ECS cluster name or ARN containing the EC2 container instance",
-          "required": true
+          "required": true,
+          "mockValue": "target-ecs-cluster"
         },
         {
           "name": "CONTAINER_INSTANCE_ARN",
           "description": "ARN of the EC2 container instance to start the task on",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:ecs::123456789012:container-instance/target-ecs-cluster/abc1234567890"
         },
         {
           "name": "TASK_DEFINITION",
           "description": "Existing task definition family name or ARN to override (no ecs:RegisterTaskDefinition needed)",
-          "required": true
+          "required": true,
+          "mockValue": "target-task-def:1"
         },
         {
           "name": "CONTAINER_NAME",
           "description": "Name of the container in the task definition whose command will be overridden (auto-discovered from task definition if not set)",
-          "required": false
+          "required": false,
+          "mockValue": "target-container"
         },
         {
           "name": "PAYLOAD",
@@ -6174,6 +6593,17 @@
           "name": "backdoor/attach-policy",
           "description": "Attach AdministratorAccess policy to an IAM user or role via ECS task container command"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use ecs-009",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner set CLUSTER_NAME target-ecs-cluster",
+        "pathrunner set CONTAINER_INSTANCE_ARN arn:aws:ecs::123456789012:container-instance/target-ecs-cluster/abc1234567890",
+        "pathrunner set TASK_DEFINITION target-task-def:1",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -6185,7 +6615,7 @@
         "iam",
         "emr"
       ],
-      "primaryService": "iam",
+      "primaryService": "emr",
       "aliases": [
         "emr-passrole",
         "exploit/emr_passrole"
@@ -6252,12 +6682,14 @@
         {
           "name": "INSTANCE_PROFILE",
           "description": "Admin IAM instance profile name to pass as the EMR JobFlowRole (the EC2 master node assumes this role)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:instance-profile/TargetInstanceProfile"
         },
         {
           "name": "SERVICE_ROLE",
           "description": "EMR service role name to pass as the ServiceRole (trusts elasticmapreduce.amazonaws.com)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetServiceRole"
         },
         {
           "name": "PAYLOAD",
@@ -6267,7 +6699,8 @@
         {
           "name": "TARGET_ARN",
           "description": "IAM user or role name/ARN to escalate (auto-detected from current identity if not set)",
-          "required": false
+          "required": false,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "REGION",
@@ -6290,7 +6723,8 @@
         {
           "name": "CLUSTER_NAME",
           "description": "Name for the EMR cluster",
-          "required": false
+          "required": false,
+          "mockValue": "target-ecs-cluster"
         },
         {
           "name": "CLEANUP",
@@ -6304,6 +6738,15 @@
           "name": "backdoor/attach-policy",
           "description": "Attach AdministratorAccess policy to an IAM user or role via an EMR step command"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use emr-001",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set INSTANCE_PROFILE arn:aws:iam::123456789012:instance-profile/TargetInstanceProfile",
+        "pathrunner set SERVICE_ROLE arn:aws:iam::123456789012:role/TargetServiceRole",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -6315,7 +6758,7 @@
         "iam",
         "emrserverless"
       ],
-      "primaryService": "iam",
+      "primaryService": "emrserverless",
       "aliases": [
         "emrserverless-passrole",
         "exploit/emrserverless_passrole"
@@ -6393,12 +6836,14 @@
         {
           "name": "EXECUTION_ROLE_ARN",
           "description": "IAM role ARN to pass as the EMR Serverless job execution role (must trust emr-serverless.amazonaws.com)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "BUCKET",
           "description": "S3 bucket for hosting the exploit script and receiving exfiltrated credentials. Must be readable and writable by the execution role. If not set, uses attacker code bucket for script and attacker exfil bucket for credentials.",
-          "required": false
+          "required": false,
+          "mockValue": "target-s3-bucket-123456789012"
         },
         {
           "name": "BUCKET_REGION",
@@ -6408,7 +6853,8 @@
         {
           "name": "TARGET_ARN",
           "description": "IAM user or role name/ARN to attach AdministratorAccess to (auto-resolved from caller identity if not set)",
-          "required": false
+          "required": false,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "REGION",
@@ -6419,7 +6865,8 @@
         {
           "name": "APP_NAME",
           "description": "Name for the EMR Serverless application (auto-generated if not set)",
-          "required": false
+          "required": false,
+          "mockValue": "target-app"
         },
         {
           "name": "CLEANUP",
@@ -6427,6 +6874,11 @@
           "required": false,
           "default": "false"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use emrserverless-001",
+        "pathrunner set EXECUTION_ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -6438,7 +6890,7 @@
         "iam",
         "gamelift"
       ],
-      "primaryService": "iam",
+      "primaryService": "gamelift",
       "aliases": [
         "gamelift-passrole",
         "exploit/gamelift_passrole"
@@ -6521,7 +6973,8 @@
         {
           "name": "ROLE_ARN",
           "description": "Target IAM role ARN to pass as the GameLift fleet instance role (must trust ec2.amazonaws.com)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "PAYLOAD",
@@ -6531,7 +6984,8 @@
         {
           "name": "TARGET_ARN",
           "description": "IAM user or role name/ARN to attach AdministratorAccess to (auto-resolved from caller identity if not set)",
-          "required": false
+          "required": false,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "REGION",
@@ -6542,12 +6996,14 @@
         {
           "name": "BUILD_NAME",
           "description": "Name tag for the GameLift build",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "FLEET_NAME",
           "description": "Name tag for the GameLift fleet",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "INSTANCE_TYPE",
@@ -6567,6 +7023,14 @@
           "name": "backdoor/attach-policy",
           "description": "Attach an IAM policy to a user or role via a GameLift game server process that reads SHARED_CREDENTIAL_FILE instance role credentials"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use gamelift-001",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -6578,7 +7042,7 @@
         "iam",
         "glue"
       ],
-      "primaryService": "iam",
+      "primaryService": "glue",
       "aliases": [
         "glue-passrole-devendpoint",
         "exploit/glue_passrole_devendpoint"
@@ -6646,7 +7110,8 @@
         {
           "name": "ROLE_ARN",
           "description": "IAM role ARN to pass to the Glue dev endpoint (must trust glue.amazonaws.com)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "SSH_PUBLIC_KEY",
@@ -6656,7 +7121,8 @@
         {
           "name": "ENDPOINT_NAME",
           "description": "Name for the Glue dev endpoint",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "GLUE_VERSION",
@@ -6682,6 +7148,11 @@
           "required": false,
           "default": "false"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use glue-001",
+        "pathrunner set ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -6693,7 +7164,7 @@
         "iam",
         "glue"
       ],
-      "primaryService": "iam",
+      "primaryService": "glue",
       "aliases": [
         "glue-passrole-job",
         "exploit/glue_passrole_job"
@@ -6751,7 +7222,8 @@
         {
           "name": "ROLE_ARN",
           "description": "Target IAM role ARN to pass to the Glue job",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "PAYLOAD",
@@ -6772,7 +7244,8 @@
         {
           "name": "JOB_NAME",
           "description": "Glue job name",
-          "required": false
+          "required": false,
+          "mockValue": "target-glue-job"
         },
         {
           "name": "CLEANUP",
@@ -6818,6 +7291,14 @@
           "name": "revshell/tls",
           "description": "Establish a TLS-encrypted reverse shell to the attacker listener's shell port via Glue job"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use glue-003",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -6829,7 +7310,7 @@
         "iam",
         "glue"
       ],
-      "primaryService": "iam",
+      "primaryService": "glue",
       "aliases": [
         "glue-passrole-job-createtrigger",
         "exploit/glue_passrole_job_createtrigger"
@@ -6906,7 +7387,8 @@
         {
           "name": "ROLE_ARN",
           "description": "Target IAM role ARN to pass to the Glue job (must trust glue.amazonaws.com)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "PAYLOAD",
@@ -6927,12 +7409,14 @@
         {
           "name": "JOB_NAME",
           "description": "Glue job name (auto-generated if empty)",
-          "required": false
+          "required": false,
+          "mockValue": "target-glue-job"
         },
         {
           "name": "TRIGGER_NAME",
           "description": "Glue trigger name (auto-generated if empty)",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "CLEANUP",
@@ -6978,6 +7462,14 @@
           "name": "revshell/tls",
           "description": "Establish a TLS-encrypted reverse shell to the attacker listener's shell port via Glue job"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use glue-004",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -6989,7 +7481,7 @@
         "iam",
         "glue"
       ],
-      "primaryService": "iam",
+      "primaryService": "glue",
       "aliases": [
         "glue-updatejob-startjobrun",
         "exploit/glue_updatejob_startjobrun"
@@ -7074,12 +7566,14 @@
         {
           "name": "JOB_NAME",
           "description": "Name of the existing Glue job to modify",
-          "required": true
+          "required": true,
+          "mockValue": "target-glue-job"
         },
         {
           "name": "ROLE_ARN",
           "description": "Target IAM role ARN to pass to the Glue job (must trust glue.amazonaws.com)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "PAYLOAD",
@@ -7141,6 +7635,15 @@
           "name": "revshell/tls",
           "description": "Establish a TLS-encrypted reverse shell to the attacker listener's shell port via Glue job"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use glue-005",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set JOB_NAME target-glue-job",
+        "pathrunner set ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -7152,7 +7655,7 @@
         "iam",
         "glue"
       ],
-      "primaryService": "iam",
+      "primaryService": "glue",
       "aliases": [
         "glue-updatejob-createtrigger",
         "exploit/glue_updatejob_createtrigger"
@@ -7241,12 +7744,14 @@
         {
           "name": "ROLE_ARN",
           "description": "Target IAM role ARN to pass to the Glue job (must trust glue.amazonaws.com)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "JOB_NAME",
           "description": "Name of the existing Glue job to update (required; use 'discover JOB_NAME' to list available jobs)",
-          "required": true
+          "required": true,
+          "mockValue": "target-glue-job"
         },
         {
           "name": "PAYLOAD",
@@ -7267,7 +7772,8 @@
         {
           "name": "TRIGGER_NAME",
           "description": "Glue trigger name (auto-generated if empty)",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "CLEANUP",
@@ -7313,6 +7819,15 @@
           "name": "revshell/tls",
           "description": "Establish a TLS-encrypted reverse shell to the attacker listener's shell port via Glue job"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use glue-006",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner set JOB_NAME target-glue-job",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -7324,7 +7839,7 @@
         "iam",
         "glue"
       ],
-      "primaryService": "iam",
+      "primaryService": "glue",
       "aliases": [
         "glue-passrole-createsession",
         "exploit/glue_passrole_createsession"
@@ -7403,7 +7918,8 @@
         {
           "name": "ROLE_ARN",
           "description": "IAM role ARN to pass to the Glue Interactive Session (must trust glue.amazonaws.com)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "PAYLOAD",
@@ -7419,7 +7935,8 @@
         {
           "name": "SESSION_ID",
           "description": "Glue Interactive Session ID (auto-generated if not set)",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-id"
         },
         {
           "name": "CLEANUP",
@@ -7465,6 +7982,14 @@
           "name": "revshell/tls",
           "description": "Establish a TLS-encrypted reverse shell to the attacker listener's shell port via Glue job"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use glue-007",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -7549,12 +8074,14 @@
         {
           "name": "POLICY_ARN",
           "description": "ARN of the IAM policy to create a new version of (must be attached to caller)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:policy/TargetPolicy"
         },
         {
           "name": "ROLE_ARN",
           "description": "ARN of the role to escalate (auto-detected from caller if caller is a role; required when caller is a user)",
-          "required": false
+          "required": false,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "REGION",
@@ -7579,6 +8106,11 @@
           "required": false,
           "default": "true"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use iam-001",
+        "pathrunner set POLICY_ARN arn:aws:iam::123456789012:policy/TargetPolicy",
+        "pathrunner exploit"
       ]
     },
     {
@@ -7663,7 +8195,8 @@
         {
           "name": "TARGET_USER",
           "description": "Username of the target IAM user to create access keys for",
-          "required": true
+          "required": true,
+          "mockValue": "target-iam-user"
         },
         {
           "name": "REGION",
@@ -7677,6 +8210,11 @@
           "required": false,
           "default": "true"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use iam-002",
+        "pathrunner set TARGET_USER target-iam-user",
+        "pathrunner exploit"
       ]
     },
     {
@@ -7759,12 +8297,14 @@
         {
           "name": "TARGET_USER",
           "description": "Target IAM username to create access keys for",
-          "required": true
+          "required": true,
+          "mockValue": "target-iam-user"
         },
         {
           "name": "DELETE_KEY_ID",
           "description": "Specific access key ID to delete (auto-detected if not set)",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-id"
         },
         {
           "name": "REGION",
@@ -7778,6 +8318,11 @@
           "required": false,
           "default": "true"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use iam-003",
+        "pathrunner set TARGET_USER target-iam-user",
+        "pathrunner exploit"
       ]
     },
     {
@@ -7861,7 +8406,8 @@
         {
           "name": "TARGET_USER",
           "description": "Target IAM user name to create login profile for",
-          "required": true
+          "required": true,
+          "mockValue": "target-iam-user"
         },
         {
           "name": "PASSWORD",
@@ -7883,8 +8429,14 @@
         {
           "name": "ADMIN_ROLE_ARN",
           "description": "ARN of a role to assume before calling iam:CreateLoginProfile (required when starting as a user without direct CreateLoginProfile permission)",
-          "required": false
+          "required": false,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use iam-004",
+        "pathrunner set TARGET_USER target-iam-user",
+        "pathrunner exploit"
       ]
     },
     {
@@ -7970,13 +8522,15 @@
         {
           "name": "ROLE_ARN",
           "description": "ARN of the role to escalate (auto-detected from caller if caller is a role; required when caller is a user)",
-          "required": false
+          "required": false,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "POLICY_NAME",
           "description": "Name for the inline policy to add",
           "required": false,
-          "default": "pathrunner-admin"
+          "default": "pathrunner-admin",
+          "mockValue": "target-resource-name"
         },
         {
           "name": "REGION",
@@ -7996,6 +8550,10 @@
           "required": false,
           "default": "true"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use iam-005",
+        "pathrunner exploit"
       ]
     },
     {
@@ -8075,7 +8633,8 @@
         {
           "name": "TARGET_USER",
           "description": "Target IAM user name to update login profile for",
-          "required": true
+          "required": true,
+          "mockValue": "target-iam-user"
         },
         {
           "name": "PASSWORD",
@@ -8094,6 +8653,11 @@
           "required": false,
           "default": "us-east-1"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use iam-006",
+        "pathrunner set TARGET_USER target-iam-user",
+        "pathrunner exploit"
       ]
     },
     {
@@ -8167,7 +8731,8 @@
           "name": "POLICY_NAME",
           "description": "Name for the inline policy to add",
           "required": false,
-          "default": "pathrunner-admin"
+          "default": "pathrunner-admin",
+          "mockValue": "target-resource-name"
         },
         {
           "name": "REGION",
@@ -8181,6 +8746,10 @@
           "required": false,
           "default": "true"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use iam-007",
+        "pathrunner exploit"
       ]
     },
     {
@@ -8254,7 +8823,8 @@
           "name": "POLICY_ARN",
           "description": "ARN of the managed policy to attach (defaults to AdministratorAccess)",
           "required": false,
-          "default": "arn:aws:iam::aws:policy/AdministratorAccess"
+          "default": "arn:aws:iam::aws:policy/AdministratorAccess",
+          "mockValue": "arn:aws:iam::123456789012:policy/TargetPolicy"
         },
         {
           "name": "REGION",
@@ -8268,6 +8838,10 @@
           "required": false,
           "default": "true"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use iam-008",
+        "pathrunner exploit"
       ]
     },
     {
@@ -8349,13 +8923,15 @@
         {
           "name": "ROLE_ARN",
           "description": "ARN of the role to escalate (auto-detected from caller if caller is a role; required when caller is a user)",
-          "required": false
+          "required": false,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "ADMIN_POLICY_ARN",
           "description": "ARN of the managed admin policy to attach (defaults to AdministratorAccess)",
           "required": false,
-          "default": "arn:aws:iam::aws:policy/AdministratorAccess"
+          "default": "arn:aws:iam::aws:policy/AdministratorAccess",
+          "mockValue": "arn:aws:iam::123456789012:resource/target-resource"
         },
         {
           "name": "REGION",
@@ -8375,6 +8951,10 @@
           "required": false,
           "default": "true"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use iam-009",
+        "pathrunner exploit"
       ]
     },
     {
@@ -8446,13 +9026,15 @@
         {
           "name": "GROUP_NAME",
           "description": "IAM group name to attach the policy to (must be a group the caller belongs to)",
-          "required": true
+          "required": true,
+          "mockValue": "target-iam-group"
         },
         {
           "name": "POLICY_ARN",
           "description": "ARN of the managed policy to attach (defaults to AdministratorAccess)",
           "required": false,
-          "default": "arn:aws:iam::aws:policy/AdministratorAccess"
+          "default": "arn:aws:iam::aws:policy/AdministratorAccess",
+          "mockValue": "arn:aws:iam::123456789012:policy/TargetPolicy"
         },
         {
           "name": "REGION",
@@ -8466,6 +9048,11 @@
           "required": false,
           "default": "true"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use iam-010",
+        "pathrunner set GROUP_NAME target-iam-group",
+        "pathrunner exploit"
       ]
     },
     {
@@ -8537,13 +9124,15 @@
         {
           "name": "GROUP_NAME",
           "description": "IAM group name to add the inline policy to (must be a group the caller belongs to)",
-          "required": true
+          "required": true,
+          "mockValue": "target-iam-group"
         },
         {
           "name": "POLICY_NAME",
           "description": "Name for the inline policy to add",
           "required": false,
-          "default": "pathrunner-admin"
+          "default": "pathrunner-admin",
+          "mockValue": "target-resource-name"
         },
         {
           "name": "REGION",
@@ -8557,6 +9146,11 @@
           "required": false,
           "default": "true"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use iam-011",
+        "pathrunner set GROUP_NAME target-iam-group",
+        "pathrunner exploit"
       ]
     },
     {
@@ -8628,12 +9222,14 @@
         {
           "name": "TARGET_ROLE",
           "description": "Name of the IAM role to modify trust policy for",
-          "required": true
+          "required": true,
+          "mockValue": "TargetRoleName"
         },
         {
           "name": "TRUST_PRINCIPAL",
           "description": "Principal to trust (role/user ARN, account root ARN, service name). Defaults to current caller",
-          "required": false
+          "required": false,
+          "mockValue": "arn:aws:iam::123456789012:root"
         },
         {
           "name": "ASSUME_ROLE",
@@ -8653,6 +9249,11 @@
           "required": false,
           "default": "true"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use iam-012",
+        "pathrunner set TARGET_ROLE TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -8731,7 +9332,8 @@
         {
           "name": "GROUP_NAME",
           "description": "IAM group to add the caller to (should have elevated permissions)",
-          "required": true
+          "required": true,
+          "mockValue": "target-iam-group"
         },
         {
           "name": "REGION",
@@ -8745,6 +9347,11 @@
           "required": false,
           "default": "true"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use iam-013",
+        "pathrunner set GROUP_NAME target-iam-group",
+        "pathrunner exploit"
       ]
     },
     {
@@ -8825,13 +9432,15 @@
         {
           "name": "TARGET_ROLE",
           "description": "ARN of the IAM role to escalate and assume",
-          "required": true
+          "required": true,
+          "mockValue": "TargetRoleName"
         },
         {
           "name": "POLICY_ARN",
           "description": "ARN of the managed policy to attach (defaults to AdministratorAccess)",
           "required": false,
-          "default": "arn:aws:iam::aws:policy/AdministratorAccess"
+          "default": "arn:aws:iam::aws:policy/AdministratorAccess",
+          "mockValue": "arn:aws:iam::123456789012:policy/TargetPolicy"
         },
         {
           "name": "REGION",
@@ -8845,6 +9454,11 @@
           "required": false,
           "default": "true"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use iam-014",
+        "pathrunner set TARGET_ROLE TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -8926,13 +9540,15 @@
         {
           "name": "TARGET_USER",
           "description": "Target IAM username",
-          "required": true
+          "required": true,
+          "mockValue": "target-iam-user"
         },
         {
           "name": "POLICY_ARN",
           "description": "ARN of the managed policy to attach (defaults to AdministratorAccess)",
           "required": false,
-          "default": "arn:aws:iam::aws:policy/AdministratorAccess"
+          "default": "arn:aws:iam::aws:policy/AdministratorAccess",
+          "mockValue": "arn:aws:iam::123456789012:policy/TargetPolicy"
         },
         {
           "name": "REGION",
@@ -8946,6 +9562,11 @@
           "required": false,
           "default": "true"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use iam-015",
+        "pathrunner set TARGET_USER target-iam-user",
+        "pathrunner exploit"
       ]
     },
     {
@@ -9029,12 +9650,14 @@
         {
           "name": "POLICY_ARN",
           "description": "ARN of the customer-managed policy to create a new version of",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:policy/TargetPolicy"
         },
         {
           "name": "TARGET_ROLE",
           "description": "ARN of the IAM role to assume (must have the policy attached)",
-          "required": true
+          "required": true,
+          "mockValue": "TargetRoleName"
         },
         {
           "name": "REGION",
@@ -9048,6 +9671,12 @@
           "required": false,
           "default": "true"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use iam-016",
+        "pathrunner set POLICY_ARN arn:aws:iam::123456789012:policy/TargetPolicy",
+        "pathrunner set TARGET_ROLE TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -9131,13 +9760,15 @@
         {
           "name": "TARGET_ROLE",
           "description": "ARN of the IAM role to escalate and assume",
-          "required": true
+          "required": true,
+          "mockValue": "TargetRoleName"
         },
         {
           "name": "POLICY_NAME",
           "description": "Name for the inline policy to add",
           "required": false,
-          "default": "pathrunner-admin"
+          "default": "pathrunner-admin",
+          "mockValue": "target-resource-name"
         },
         {
           "name": "REGION",
@@ -9151,6 +9782,11 @@
           "required": false,
           "default": "true"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use iam-017",
+        "pathrunner set TARGET_ROLE TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -9232,13 +9868,15 @@
         {
           "name": "TARGET_USER",
           "description": "Target IAM username",
-          "required": true
+          "required": true,
+          "mockValue": "target-iam-user"
         },
         {
           "name": "POLICY_NAME",
           "description": "Name for the inline policy to add",
           "required": false,
-          "default": "pathrunner-admin"
+          "default": "pathrunner-admin",
+          "mockValue": "target-resource-name"
         },
         {
           "name": "REGION",
@@ -9252,6 +9890,11 @@
           "required": false,
           "default": "true"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use iam-018",
+        "pathrunner set TARGET_USER target-iam-user",
+        "pathrunner exploit"
       ]
     },
     {
@@ -9319,13 +9962,15 @@
         {
           "name": "TARGET_ROLE",
           "description": "Name of the IAM role to escalate and assume",
-          "required": true
+          "required": true,
+          "mockValue": "TargetRoleName"
         },
         {
           "name": "POLICY_ARN",
           "description": "ARN of the managed policy to attach (defaults to AdministratorAccess)",
           "required": false,
-          "default": "arn:aws:iam::aws:policy/AdministratorAccess"
+          "default": "arn:aws:iam::aws:policy/AdministratorAccess",
+          "mockValue": "arn:aws:iam::123456789012:policy/TargetPolicy"
         },
         {
           "name": "REGION",
@@ -9339,6 +9984,11 @@
           "required": false,
           "default": "true"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use iam-019",
+        "pathrunner set TARGET_ROLE TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -9416,12 +10066,14 @@
         {
           "name": "POLICY_ARN",
           "description": "ARN of the customer-managed policy to create a new version of",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:policy/TargetPolicy"
         },
         {
           "name": "TARGET_ROLE",
           "description": "Name of the IAM role to update trust policy for and assume",
-          "required": true
+          "required": true,
+          "mockValue": "TargetRoleName"
         },
         {
           "name": "REGION",
@@ -9435,6 +10087,12 @@
           "required": false,
           "default": "true"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use iam-020",
+        "pathrunner set POLICY_ARN arn:aws:iam::123456789012:policy/TargetPolicy",
+        "pathrunner set TARGET_ROLE TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -9504,13 +10162,15 @@
         {
           "name": "TARGET_ROLE",
           "description": "Name of the IAM role to escalate and assume",
-          "required": true
+          "required": true,
+          "mockValue": "TargetRoleName"
         },
         {
           "name": "POLICY_NAME",
           "description": "Name for the inline policy to add",
           "required": false,
-          "default": "pathrunner-admin"
+          "default": "pathrunner-admin",
+          "mockValue": "target-resource-name"
         },
         {
           "name": "REGION",
@@ -9524,6 +10184,11 @@
           "required": false,
           "default": "true"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use iam-021",
+        "pathrunner set TARGET_ROLE TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -9536,7 +10201,7 @@
         "imagebuilder",
         "ec2"
       ],
-      "primaryService": "iam",
+      "primaryService": "imagebuilder",
       "aliases": [
         "imagebuilder-passrole",
         "exploit/imagebuilder_passrole"
@@ -9636,7 +10301,8 @@
         {
           "name": "INSTANCE_PROFILE",
           "description": "Admin IAM instance profile NAME to pass to the Image Builder build EC2 instance (not ARN — the API requires the profile name)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:instance-profile/TargetInstanceProfile"
         },
         {
           "name": "PAYLOAD",
@@ -9646,7 +10312,8 @@
         {
           "name": "TARGET_ARN",
           "description": "IAM user or role name/ARN to attach AdministratorAccess to (auto-resolved from caller identity if not set)",
-          "required": false
+          "required": false,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "REGION",
@@ -9657,23 +10324,27 @@
         {
           "name": "SUBNET_ID",
           "description": "Subnet ID for the Image Builder build EC2 instance (uses default VPC subnet if omitted)",
-          "required": false
+          "required": false,
+          "mockValue": "subnet-0123456789abcdef0"
         },
         {
           "name": "SECURITY_GROUP_ID",
           "description": "Security group ID for the build EC2 instance (optional; Image Builder uses the default SG if omitted)",
-          "required": false
+          "required": false,
+          "mockValue": "sg-0123456789abcdef0"
         },
         {
           "name": "POLICY_ARN",
           "description": "Policy ARN to attach to TARGET_ARN via the build component",
           "required": false,
-          "default": "arn:aws:iam::aws:policy/AdministratorAccess"
+          "default": "arn:aws:iam::aws:policy/AdministratorAccess",
+          "mockValue": "arn:aws:iam::123456789012:policy/TargetPolicy"
         },
         {
           "name": "COMPONENT_NAME",
           "description": "Name prefix for the Image Builder component (auto-generated if omitted)",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "CLEANUP",
@@ -9687,6 +10358,14 @@
           "name": "backdoor/attach-policy",
           "description": "Attach AdministratorAccess to an IAM user or role via EC2 Image Builder component using IMDS credentials"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use imagebuilder-001",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set INSTANCE_PROFILE arn:aws:iam::123456789012:instance-profile/TargetInstanceProfile",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -9698,7 +10377,7 @@
         "iam",
         "kinesisanalytics"
       ],
-      "primaryService": "iam",
+      "primaryService": "kinesisanalytics",
       "aliases": [
         "kinesisanalytics-passrole",
         "exploit/kinesisanalytics_passrole"
@@ -9763,7 +10442,8 @@
         {
           "name": "ROLE_ARN",
           "description": "IAM role ARN to pass as the Flink application service execution role (must trust kinesisanalytics.amazonaws.com)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "PAYLOAD",
@@ -9773,7 +10453,8 @@
         {
           "name": "CODE_BUCKET",
           "description": "S3 bucket containing the payload JAR. Auto-resolved from the attacker code bucket if unset.",
-          "required": false
+          "required": false,
+          "mockValue": "target-bucket-123456789012"
         },
         {
           "name": "CODE_KEY",
@@ -9788,7 +10469,8 @@
         {
           "name": "APP_NAME",
           "description": "Managed Apache Flink application name (auto-generated if unset)",
-          "required": false
+          "required": false,
+          "mockValue": "target-app"
         },
         {
           "name": "REGION",
@@ -9816,6 +10498,14 @@
           "name": "exfil/s3",
           "description": "Exfiltrate execution role credentials to an attacker-controlled S3 bucket via a Managed Apache Flink application"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use kinesisanalytics-001",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -9827,7 +10517,7 @@
         "iam",
         "lambda"
       ],
-      "primaryService": "iam",
+      "primaryService": "lambda",
       "aliases": [
         "lambda-passrole",
         "exploit/lambda_passrole"
@@ -9874,7 +10564,8 @@
         {
           "name": "ROLE_ARN",
           "description": "Target IAM role ARN to assume",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "PAYLOAD",
@@ -9890,7 +10581,8 @@
         {
           "name": "FUNCTION_NAME",
           "description": "Lambda function name",
-          "required": false
+          "required": false,
+          "mockValue": "target-lambda-function"
         },
         {
           "name": "RUNTIME",
@@ -9954,6 +10646,13 @@
           "name": "revshell/tls",
           "description": "Establish a TLS-encrypted reverse shell from inside a Lambda function. Only works with new-passrole modules where the function timeout can be set to 900s"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use lambda-001",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD exfil/response",
+        "pathrunner set ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -9965,7 +10664,7 @@
         "iam",
         "lambda"
       ],
-      "primaryService": "iam",
+      "primaryService": "lambda",
       "aliases": [
         "lambda-passrole-esm",
         "exploit/lambda_passrole_esm"
@@ -10053,7 +10752,8 @@
         {
           "name": "ROLE_ARN",
           "description": "Target IAM role ARN to pass to Lambda",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "PAYLOAD",
@@ -10063,12 +10763,14 @@
         {
           "name": "EVENT_SOURCE_ARN",
           "description": "DynamoDB stream ARN to use as event source",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:dynamodb::123456789012:table/target-table/stream/2026-01-01T00:00:00.000"
         },
         {
           "name": "TABLE_NAME",
           "description": "DynamoDB table name for inserting trigger records",
-          "required": true
+          "required": true,
+          "mockValue": "target-dynamodb-table"
         },
         {
           "name": "REGION",
@@ -10079,7 +10781,8 @@
         {
           "name": "FUNCTION_NAME",
           "description": "Lambda function name",
-          "required": false
+          "required": false,
+          "mockValue": "target-lambda-function"
         },
         {
           "name": "RUNTIME",
@@ -10149,6 +10852,15 @@
           "name": "revshell/tls",
           "description": "Establish a TLS-encrypted reverse shell from inside a Lambda function. Only works with new-passrole modules where the function timeout can be set to 900s"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use lambda-002",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD exfil/response",
+        "pathrunner set ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner set EVENT_SOURCE_ARN arn:aws:dynamodb::123456789012:table/target-table/stream/2026-01-01T00:00:00.000",
+        "pathrunner set TABLE_NAME target-dynamodb-table",
+        "pathrunner exploit"
       ]
     },
     {
@@ -10239,7 +10951,8 @@
         {
           "name": "FUNCTION_NAME",
           "description": "Target Lambda function name to update",
-          "required": true
+          "required": true,
+          "mockValue": "target-lambda-function"
         },
         {
           "name": "PAYLOAD",
@@ -10301,6 +11014,13 @@
           "name": "revshell/tls",
           "description": "Establish a TLS-encrypted reverse shell from inside a Lambda function. Only works with new-passrole modules where the function timeout can be set to 900s"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use lambda-003",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD exfil/response",
+        "pathrunner set FUNCTION_NAME target-lambda-function",
+        "pathrunner exploit"
       ]
     },
     {
@@ -10395,7 +11115,8 @@
         {
           "name": "FUNCTION_NAME",
           "description": "Target Lambda function name to update and invoke",
-          "required": true
+          "required": true,
+          "mockValue": "target-lambda-function"
         },
         {
           "name": "PAYLOAD",
@@ -10457,6 +11178,13 @@
           "name": "revshell/tls",
           "description": "Establish a TLS-encrypted reverse shell from inside a Lambda function. Only works with new-passrole modules where the function timeout can be set to 900s"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use lambda-004",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD exfil/response",
+        "pathrunner set FUNCTION_NAME target-lambda-function",
+        "pathrunner exploit"
       ]
     },
     {
@@ -10554,7 +11282,8 @@
         {
           "name": "FUNCTION_NAME",
           "description": "Target Lambda function name to update",
-          "required": true
+          "required": true,
+          "mockValue": "target-lambda-function"
         },
         {
           "name": "PAYLOAD",
@@ -10616,6 +11345,13 @@
           "name": "revshell/tls",
           "description": "Establish a TLS-encrypted reverse shell from inside a Lambda function. Only works with new-passrole modules where the function timeout can be set to 900s"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use lambda-005",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD exfil/response",
+        "pathrunner set FUNCTION_NAME target-lambda-function",
+        "pathrunner exploit"
       ]
     },
     {
@@ -10627,7 +11363,7 @@
         "iam",
         "lambda"
       ],
-      "primaryService": "iam",
+      "primaryService": "lambda",
       "aliases": [
         "lambda-createfunction-addpermission",
         "exploit/lambda_createfunction_addpermission"
@@ -10717,7 +11453,8 @@
         {
           "name": "ROLE_ARN",
           "description": "Target IAM role ARN to pass to the Lambda function",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "PAYLOAD",
@@ -10733,7 +11470,8 @@
         {
           "name": "FUNCTION_NAME",
           "description": "Lambda function name (auto-generated if empty)",
-          "required": false
+          "required": false,
+          "mockValue": "target-lambda-function"
         },
         {
           "name": "RUNTIME",
@@ -10797,6 +11535,13 @@
           "name": "revshell/tls",
           "description": "Establish a TLS-encrypted reverse shell from inside a Lambda function. Only works with new-passrole modules where the function timeout can be set to 900s"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use lambda-006",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD exfil/response",
+        "pathrunner set ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -10809,7 +11554,7 @@
         "omics",
         "s3"
       ],
-      "primaryService": "iam",
+      "primaryService": "omics",
       "aliases": [
         "omics-passrole",
         "exploit/omics_passrole"
@@ -10891,17 +11636,20 @@
         {
           "name": "ROLE_ARN",
           "description": "Target IAM role ARN to pass to the HealthOmics workflow run as the execution role",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "CONTAINER_URI",
           "description": "Private ECR image URI for the WDL task container (e.g., 123456789012.dkr.ecr.us-east-1.amazonaws.com/aws-cli:latest). HealthOmics does not support public Docker Hub images.",
-          "required": true
+          "required": true,
+          "mockValue": "123456789012.dkr.ecr.us-east-1.amazonaws.com/target-image:latest"
         },
         {
           "name": "EXFIL_BUCKET",
           "description": "Attacker-controlled S3 bucket for credential exfiltration. Auto-populated from attacker infra if not set. The execution role must have s3:PutObject on this bucket.",
-          "required": false
+          "required": false,
+          "mockValue": "target-s3-bucket-123456789012"
         },
         {
           "name": "EXFIL_KEY",
@@ -10912,7 +11660,8 @@
         {
           "name": "TARGET_ARN",
           "description": "IAM user or role name/ARN to attach AdministratorAccess to (auto-resolved from caller identity if not set)",
-          "required": false
+          "required": false,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "REGION",
@@ -10923,7 +11672,8 @@
         {
           "name": "WORKFLOW_NAME",
           "description": "Name for the HealthOmics workflow",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "CLEANUP",
@@ -10931,6 +11681,12 @@
           "required": false,
           "default": "true"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use omics-001",
+        "pathrunner set ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner set CONTAINER_URI 123456789012.dkr.ecr.us-east-1.amazonaws.com/target-image:latest",
+        "pathrunner exploit"
       ]
     },
     {
@@ -10942,7 +11698,7 @@
         "iam",
         "ssm"
       ],
-      "primaryService": "iam",
+      "primaryService": "ssm",
       "aliases": [
         "ssm-startsession",
         "exploit/ssm_startsession"
@@ -11024,7 +11780,8 @@
         {
           "name": "INSTANCE_ID",
           "description": "Target EC2 instance ID (must have SSM agent running and a privileged IAM role attached via instance profile)",
-          "required": true
+          "required": true,
+          "mockValue": "i-0123456789abcdef0"
         },
         {
           "name": "PAYLOAD",
@@ -11075,6 +11832,14 @@
           "name": "shell/interactive",
           "description": "Open a live interactive shell via the SSM session (no reverse connection required)"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use ssm-001",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set INSTANCE_ID i-0123456789abcdef0",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -11086,7 +11851,7 @@
         "iam",
         "ssm"
       ],
-      "primaryService": "iam",
+      "primaryService": "ssm",
       "aliases": [
         "ssm-sendcommand",
         "exploit/ssm_sendcommand"
@@ -11169,7 +11934,8 @@
         {
           "name": "INSTANCE_ID",
           "description": "Target EC2 instance ID (must have SSM agent running and a privileged instance profile)",
-          "required": true
+          "required": true,
+          "mockValue": "i-0123456789abcdef0"
         },
         {
           "name": "PAYLOAD",
@@ -11220,6 +11986,14 @@
           "name": "shell/interactive",
           "description": "Open a live interactive shell via the SSM session (no reverse connection required)"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use ssm-002",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set INSTANCE_ID i-0123456789abcdef0",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -11231,7 +12005,7 @@
         "iam",
         "ssm"
       ],
-      "primaryService": "iam",
+      "primaryService": "ssm",
       "aliases": [
         "ssm-passrole-automation",
         "exploit/ssm_passrole_automation"
@@ -11313,7 +12087,8 @@
         {
           "name": "ROLE_ARN",
           "description": "ARN of the IAM role to pass as AutomationAssumeRole (must trust ssm.amazonaws.com and have the permissions needed by the selected payload)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "PAYLOAD",
@@ -11323,7 +12098,8 @@
         {
           "name": "DOCUMENT_NAME",
           "description": "Name for the SSM Automation document to create",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "REGION",
@@ -11359,6 +12135,14 @@
           "name": "backdoor/update-role-trust",
           "description": "Append a trust policy statement to an IAM role via SSM Automation Python step"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use ssm-003",
+        "pathrunner show payloads",
+        "pathrunner set PAYLOAD backdoor/attach-policy",
+        "pathrunner set ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner set TARGET_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     },
     {
@@ -11411,18 +12195,21 @@
         {
           "name": "ROLE_ARN",
           "description": "Target IAM role ARN to assume",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "SESSION_NAME",
           "description": "Session name for the assumed role",
           "required": false,
-          "default": "pathrunner-session"
+          "default": "pathrunner-session",
+          "mockValue": "target-resource-name"
         },
         {
           "name": "EXTERNAL_ID",
           "description": "External ID if required by the role's trust policy",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-id"
         },
         {
           "name": "DURATION",
@@ -11439,7 +12226,8 @@
         {
           "name": "IDENTITY_NAME",
           "description": "Name for the new identity (auto-generated if not provided)",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "AUTO_SWITCH",
@@ -11447,6 +12235,11 @@
           "required": false,
           "default": "true"
         }
+      ],
+      "cliSteps": [
+        "pathrunner use sts-001",
+        "pathrunner set ROLE_ARN arn:aws:iam::123456789012:role/TargetRoleName",
+        "pathrunner exploit"
       ]
     }
   ],
@@ -11465,13 +12258,15 @@
         {
           "name": "TARGET_ARN",
           "description": "IAM user or role name/ARN to attach the policy to (auto-detects type from ARN; plain name is treated as a user)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "POLICY_ARN",
           "description": "ARN of the managed policy to attach (default: AdministratorAccess)",
           "required": false,
-          "default": "arn:aws:iam::aws:policy/AdministratorAccess"
+          "default": "arn:aws:iam::aws:policy/AdministratorAccess",
+          "mockValue": "arn:aws:iam::123456789012:policy/TargetPolicy"
         }
       ]
     },
@@ -11501,7 +12296,8 @@
           "name": "POLICY_ARN",
           "description": "Managed policy ARN to attach",
           "required": false,
-          "default": "arn:aws:iam::aws:policy/AdministratorAccess"
+          "default": "arn:aws:iam::aws:policy/AdministratorAccess",
+          "mockValue": "arn:aws:iam::123456789012:policy/TargetPolicy"
         }
       ]
     },
@@ -11519,7 +12315,8 @@
         {
           "name": "TARGET_USER",
           "description": "IAM username to create access keys for (auto-resolved from caller identity if not set; must be set explicitly if the caller is a role)",
-          "required": false
+          "required": false,
+          "mockValue": "target-iam-user"
         }
       ]
     },
@@ -11537,17 +12334,20 @@
         {
           "name": "TRUST_PRINCIPAL",
           "description": "Trusted principal ARN (e.g. arn:aws:iam::123456789012:user/name) or service (e.g. lambda.amazonaws.com)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:root"
         },
         {
           "name": "ROLE_NAME",
           "description": "Name for the backdoor role (auto-generated if empty)",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "EXTERNAL_ID",
           "description": "External ID condition for the trust policy",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-id"
         }
       ]
     },
@@ -11565,7 +12365,8 @@
         {
           "name": "USER_NAME",
           "description": "Name for the backdoor IAM user (auto-generated if empty)",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "CONSOLE_ACCESS",
@@ -11595,12 +12396,14 @@
         {
           "name": "TARGET_ROLE",
           "description": "Name of the IAM role whose trust policy to modify",
-          "required": true
+          "required": true,
+          "mockValue": "TargetRoleName"
         },
         {
           "name": "TRUST_PRINCIPAL",
           "description": "Principal to add to the trust policy (ARN or service like lambda.amazonaws.com)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:root"
         }
       ]
     },
@@ -11619,7 +12422,8 @@
         {
           "name": "HTTPS_URL",
           "description": "Attacker-controlled HTTPS endpoint for credential collection (auto-populated by 'attacker listener start')",
-          "required": true
+          "required": true,
+          "mockValue": "https://1.2.3.4:8443/collect"
         }
       ]
     },
@@ -11637,13 +12441,15 @@
         {
           "name": "TARGET_ARN",
           "description": "IAM user or role name/ARN to attach the policy to",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "POLICY_ARN",
           "description": "Policy ARN to attach (defaults to AdministratorAccess)",
           "required": false,
-          "default": "arn:aws:iam::aws:policy/AdministratorAccess"
+          "default": "arn:aws:iam::aws:policy/AdministratorAccess",
+          "mockValue": "arn:aws:iam::123456789012:policy/TargetPolicy"
         }
       ]
     },
@@ -11673,13 +12479,15 @@
         {
           "name": "TARGET_ARN",
           "description": "IAM user or role name/ARN to attach the policy to (auto-resolved from caller identity if unset)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "POLICY_ARN",
           "description": "Policy ARN to attach (defaults to AdministratorAccess)",
           "required": false,
-          "default": "arn:aws:iam::aws:policy/AdministratorAccess"
+          "default": "arn:aws:iam::aws:policy/AdministratorAccess",
+          "mockValue": "arn:aws:iam::123456789012:policy/TargetPolicy"
         }
       ]
     },
@@ -11697,12 +12505,14 @@
         {
           "name": "ESCALATED_ROLE_NAME",
           "description": "Name for the new IAM role to create in the template. Auto-generated if not set",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "TRUST_PRINCIPAL",
           "description": "IAM principal ARN to trust in the escalated role's trust policy. Defaults to current caller ARN",
-          "required": false
+          "required": false,
+          "mockValue": "arn:aws:iam::123456789012:root"
         }
       ]
     },
@@ -11720,13 +12530,15 @@
         {
           "name": "TARGET_ARN",
           "description": "IAM user or role name/ARN to attach the policy to (auto-resolved from caller identity if not set)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "POLICY_ARN",
           "description": "Managed policy ARN to attach",
           "required": false,
-          "default": "arn:aws:iam::aws:policy/AdministratorAccess"
+          "default": "arn:aws:iam::aws:policy/AdministratorAccess",
+          "mockValue": "arn:aws:iam::123456789012:policy/TargetPolicy"
         }
       ]
     },
@@ -11744,13 +12556,15 @@
         {
           "name": "TARGET_ARN",
           "description": "IAM user or role name/ARN to attach policy to (auto-detects type from ARN, tries both if plain name)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "POLICY_ARN",
           "description": "ARN of policy to attach (default: AdministratorAccess)",
           "required": false,
-          "default": "arn:aws:iam::aws:policy/AdministratorAccess"
+          "default": "arn:aws:iam::aws:policy/AdministratorAccess",
+          "mockValue": "arn:aws:iam::123456789012:policy/TargetPolicy"
         }
       ]
     },
@@ -11768,7 +12582,8 @@
         {
           "name": "TARGET_ARN",
           "description": "IAM user name or ARN to create access keys for (auto-detects from ARN)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         }
       ]
     },
@@ -11786,17 +12601,20 @@
         {
           "name": "TRUST_PRINCIPAL",
           "description": "Trusted principal ARN (e.g. arn:aws:iam::123456789012:user/name) or service (e.g. lambda.amazonaws.com)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:root"
         },
         {
           "name": "ROLE_NAME",
           "description": "Name for the backdoor role (auto-generated if empty)",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "EXTERNAL_ID",
           "description": "External ID condition for the trust policy",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-id"
         },
         {
           "name": "ROLE_PATH",
@@ -11820,7 +12638,8 @@
         {
           "name": "USER_NAME",
           "description": "Name for the backdoor user (auto-generated if empty)",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "CONSOLE_ACCESS",
@@ -11850,12 +12669,14 @@
         {
           "name": "TARGET_ROLE",
           "description": "Name of the IAM role whose trust policy to modify",
-          "required": true
+          "required": true,
+          "mockValue": "TargetRoleName"
         },
         {
           "name": "TRUST_PRINCIPAL",
           "description": "Principal to add to the trust policy (ARN or service like lambda.amazonaws.com)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:root"
         }
       ]
     },
@@ -11874,7 +12695,8 @@
         {
           "name": "HTTPS_URL",
           "description": "Target HTTPS URL for credential exfiltration",
-          "required": true
+          "required": true,
+          "mockValue": "https://1.2.3.4:8443/collect"
         },
         {
           "name": "INCLUDE_METADATA",
@@ -11905,7 +12727,8 @@
         {
           "name": "EXFIL_BUCKET",
           "description": "Attacker-controlled S3 bucket name for credential exfiltration",
-          "required": true
+          "required": true,
+          "mockValue": "target-s3-bucket-123456789012"
         },
         {
           "name": "EXFIL_PREFIX",
@@ -11936,7 +12759,8 @@
         {
           "name": "LISTENER_IP",
           "description": "IP address of attacker's reverse shell listener",
-          "required": true
+          "required": true,
+          "mockValue": "1.2.3.4"
         },
         {
           "name": "LISTENER_PORT",
@@ -11972,13 +12796,15 @@
         {
           "name": "TARGET_ARN",
           "description": "IAM user or role name/ARN to attach policy to (auto-detects type from ARN, tries both if plain name)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "POLICY_ARN",
           "description": "ARN of policy to attach (default: AdministratorAccess)",
           "required": false,
-          "default": "arn:aws:iam::aws:policy/AdministratorAccess"
+          "default": "arn:aws:iam::aws:policy/AdministratorAccess",
+          "mockValue": "arn:aws:iam::123456789012:policy/TargetPolicy"
         }
       ]
     },
@@ -11996,13 +12822,15 @@
         {
           "name": "TARGET_ARN",
           "description": "IAM user or role name/ARN to attach policy to (auto-detects type from ARN, tries both if plain name)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "POLICY_ARN",
           "description": "Policy ARN to attach (defaults to AdministratorAccess)",
           "required": false,
-          "default": "arn:aws:iam::aws:policy/AdministratorAccess"
+          "default": "arn:aws:iam::aws:policy/AdministratorAccess",
+          "mockValue": "arn:aws:iam::123456789012:policy/TargetPolicy"
         }
       ]
     },
@@ -12020,13 +12848,15 @@
         {
           "name": "TARGET_ARN",
           "description": "IAM user or role name/ARN to attach policy to (auto-resolved from caller identity if not set)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "POLICY_ARN",
           "description": "ARN of the policy to attach (default: AdministratorAccess)",
           "required": false,
-          "default": "arn:aws:iam::aws:policy/AdministratorAccess"
+          "default": "arn:aws:iam::aws:policy/AdministratorAccess",
+          "mockValue": "arn:aws:iam::123456789012:policy/TargetPolicy"
         }
       ]
     },
@@ -12044,13 +12874,15 @@
         {
           "name": "TARGET_ARN",
           "description": "IAM user or role name/ARN to attach policy to (auto-detects type from ARN, tries both if plain name)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "POLICY_ARN",
           "description": "Policy ARN to attach (defaults to AdministratorAccess)",
           "required": false,
-          "default": "arn:aws:iam::aws:policy/AdministratorAccess"
+          "default": "arn:aws:iam::aws:policy/AdministratorAccess",
+          "mockValue": "arn:aws:iam::123456789012:policy/TargetPolicy"
         }
       ]
     },
@@ -12068,7 +12900,8 @@
         {
           "name": "TARGET_USER",
           "description": "IAM username to create access keys for",
-          "required": true
+          "required": true,
+          "mockValue": "target-iam-user"
         }
       ]
     },
@@ -12086,17 +12919,20 @@
         {
           "name": "TRUST_PRINCIPAL",
           "description": "Trusted principal ARN (e.g. arn:aws:iam::123456789012:root) or service (e.g. lambda.amazonaws.com)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:root"
         },
         {
           "name": "ROLE_NAME",
           "description": "Name for the backdoor role (auto-generated if empty)",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "EXTERNAL_ID",
           "description": "External ID condition for the trust policy (optional)",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-id"
         },
         {
           "name": "ROLE_PATH",
@@ -12120,7 +12956,8 @@
         {
           "name": "USER_NAME",
           "description": "Name for the backdoor user (auto-generated if empty)",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "CONSOLE_ACCESS",
@@ -12150,12 +12987,14 @@
         {
           "name": "TARGET_ROLE",
           "description": "Name of the IAM role to modify",
-          "required": true
+          "required": true,
+          "mockValue": "TargetRoleName"
         },
         {
           "name": "TRUST_PRINCIPAL",
           "description": "Principal to trust (ARN, account ID, or service name e.g. lambda.amazonaws.com)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:root"
         }
       ]
     },
@@ -12193,7 +13032,8 @@
         {
           "name": "HTTPS_URL",
           "description": "Target HTTPS URL for credential exfiltration",
-          "required": true
+          "required": true,
+          "mockValue": "https://1.2.3.4:8443/collect"
         },
         {
           "name": "USER_AGENT",
@@ -12230,7 +13070,8 @@
         {
           "name": "EXFIL_BUCKET",
           "description": "Attacker-controlled S3 bucket name for credential exfiltration",
-          "required": true
+          "required": true,
+          "mockValue": "target-s3-bucket-123456789012"
         },
         {
           "name": "EXFIL_PREFIX",
@@ -12261,7 +13102,8 @@
         {
           "name": "LISTENER_IP",
           "description": "Attacker listener host (IP or hostname)",
-          "required": true
+          "required": true,
+          "mockValue": "1.2.3.4"
         },
         {
           "name": "LISTENER_PORT",
@@ -12303,13 +13145,15 @@
         {
           "name": "TARGET_ARN",
           "description": "IAM user or role name/ARN to attach policy to (auto-populated from current identity)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "POLICY_ARN",
           "description": "ARN of the policy to attach (default: AdministratorAccess)",
           "required": false,
-          "default": "arn:aws:iam::aws:policy/AdministratorAccess"
+          "default": "arn:aws:iam::aws:policy/AdministratorAccess",
+          "mockValue": "arn:aws:iam::123456789012:policy/TargetPolicy"
         }
       ]
     },
@@ -12327,13 +13171,15 @@
         {
           "name": "TARGET_ARN",
           "description": "IAM user or role ARN to attach the policy to (auto-resolved from caller identity if unset)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "POLICY_ARN",
           "description": "ARN of the policy to attach",
           "required": false,
-          "default": "arn:aws:iam::aws:policy/AdministratorAccess"
+          "default": "arn:aws:iam::aws:policy/AdministratorAccess",
+          "mockValue": "arn:aws:iam::123456789012:policy/TargetPolicy"
         }
       ]
     },
@@ -12352,7 +13198,8 @@
         {
           "name": "HTTPS_URL",
           "description": "Attacker-controlled HTTPS endpoint for credential collection (auto-populated by 'attacker listener start')",
-          "required": true
+          "required": true,
+          "mockValue": "https://1.2.3.4:8443/collect"
         }
       ]
     },
@@ -12371,7 +13218,8 @@
         {
           "name": "EXFIL_BUCKET",
           "description": "Attacker-controlled S3 bucket name (auto-populated from 'attacker infra bucket create')",
-          "required": true
+          "required": true,
+          "mockValue": "target-s3-bucket-123456789012"
         },
         {
           "name": "EXFIL_PREFIX",
@@ -12395,13 +13243,15 @@
         {
           "name": "TARGET_ARN",
           "description": "IAM user or role name/ARN to attach policy to (auto-detects type from ARN, tries both if plain name)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "POLICY_ARN",
           "description": "Policy ARN to attach (defaults to AdministratorAccess)",
           "required": false,
-          "default": "arn:aws:iam::aws:policy/AdministratorAccess"
+          "default": "arn:aws:iam::aws:policy/AdministratorAccess",
+          "mockValue": "arn:aws:iam::123456789012:policy/TargetPolicy"
         }
       ]
     },
@@ -12419,13 +13269,15 @@
         {
           "name": "TARGET_ARN",
           "description": "IAM user or role name/ARN to attach policy to (auto-detects type from ARN)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "POLICY_ARN",
           "description": "Policy ARN to attach (defaults to AdministratorAccess)",
           "required": false,
-          "default": "arn:aws:iam::aws:policy/AdministratorAccess"
+          "default": "arn:aws:iam::aws:policy/AdministratorAccess",
+          "mockValue": "arn:aws:iam::123456789012:policy/TargetPolicy"
         }
       ]
     },
@@ -12444,7 +13296,8 @@
         {
           "name": "TARGET_ARN",
           "description": "IAM user name or ARN to create access keys for (CreateAccessKey only works on IAM users)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         }
       ]
     },
@@ -12463,7 +13316,8 @@
         {
           "name": "TARGET_ARN",
           "description": "IAM user name or ARN to create access keys for (CreateAccessKey only works on IAM users)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         }
       ]
     },
@@ -12482,17 +13336,20 @@
         {
           "name": "TRUST_PRINCIPAL",
           "description": "Trusted principal ARN (e.g. arn:aws:iam::123456789012:user/name, arn:aws:iam::123456789012:root, or a service like lambda.amazonaws.com)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:root"
         },
         {
           "name": "ROLE_NAME",
           "description": "Name for the backdoor role",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "EXTERNAL_ID",
           "description": "External ID for added security (optional)",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-id"
         },
         {
           "name": "ROLE_PATH",
@@ -12517,7 +13374,8 @@
         {
           "name": "USER_NAME",
           "description": "Name for the backdoor user",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "CONSOLE_ACCESS",
@@ -12554,12 +13412,14 @@
         {
           "name": "TARGET_ROLE",
           "description": "IAM role name or ARN whose trust policy will be modified",
-          "required": true
+          "required": true,
+          "mockValue": "TargetRoleName"
         },
         {
           "name": "TRUST_PRINCIPAL",
           "description": "Principal to add to the trust policy (ARN, account ID, or service like lambda.amazonaws.com)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:root"
         }
       ]
     },
@@ -12578,12 +13438,14 @@
         {
           "name": "TARGET_ROLE",
           "description": "IAM role name or ARN whose trust policy will be modified",
-          "required": true
+          "required": true,
+          "mockValue": "TargetRoleName"
         },
         {
           "name": "TRUST_PRINCIPAL",
           "description": "Principal to add to the trust policy (ARN, account ID, or service like lambda.amazonaws.com)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:root"
         }
       ]
     },
@@ -12602,7 +13464,8 @@
         {
           "name": "HTTPS_URL",
           "description": "Target HTTPS URL for credential exfiltration",
-          "required": true
+          "required": true,
+          "mockValue": "https://1.2.3.4:8443/collect"
         },
         {
           "name": "USER_AGENT",
@@ -12639,7 +13502,8 @@
         {
           "name": "HTTPS_URL",
           "description": "Attacker-controlled HTTPS endpoint to receive credentials",
-          "required": true
+          "required": true,
+          "mockValue": "https://1.2.3.4:8443/collect"
         },
         {
           "name": "USER_AGENT",
@@ -12716,7 +13580,8 @@
         {
           "name": "EXFIL_BUCKET",
           "description": "Attacker-controlled S3 bucket name for credential exfiltration",
-          "required": true
+          "required": true,
+          "mockValue": "target-s3-bucket-123456789012"
         },
         {
           "name": "EXFIL_PREFIX",
@@ -12747,7 +13612,8 @@
         {
           "name": "LISTENER_IP",
           "description": "Attacker listener host (IP or hostname)",
-          "required": true
+          "required": true,
+          "mockValue": "1.2.3.4"
         },
         {
           "name": "LISTENER_PORT",
@@ -12778,7 +13644,8 @@
         {
           "name": "LISTENER_IP",
           "description": "Attacker IP address running the TLS listener",
-          "required": true
+          "required": true,
+          "mockValue": "1.2.3.4"
         },
         {
           "name": "LISTENER_PORT",
@@ -12802,13 +13669,15 @@
         {
           "name": "TARGET_ARN",
           "description": "IAM user or role name/ARN to attach policy to (auto-detects type from ARN, tries both if plain name)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "POLICY_ARN",
           "description": "ARN of policy to attach",
           "required": false,
-          "default": "arn:aws:iam::aws:policy/AdministratorAccess"
+          "default": "arn:aws:iam::aws:policy/AdministratorAccess",
+          "mockValue": "arn:aws:iam::123456789012:policy/TargetPolicy"
         }
       ]
     },
@@ -12826,7 +13695,8 @@
         {
           "name": "TARGET_ARN",
           "description": "IAM user name or ARN to create access keys for",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         }
       ]
     },
@@ -12844,17 +13714,20 @@
         {
           "name": "TRUST_PRINCIPAL",
           "description": "Trusted principal ARN (e.g. arn:aws:iam::123456789012:user/name) or service (e.g. lambda.amazonaws.com)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:root"
         },
         {
           "name": "ROLE_NAME",
           "description": "Name for the backdoor role (auto-generated if empty)",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "EXTERNAL_ID",
           "description": "External ID condition for the trust policy",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-id"
         },
         {
           "name": "ROLE_PATH",
@@ -12878,7 +13751,8 @@
         {
           "name": "USER_NAME",
           "description": "Name for the backdoor user (auto-generated if empty)",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "CONSOLE_ACCESS",
@@ -12908,12 +13782,14 @@
         {
           "name": "TARGET_ROLE",
           "description": "Name of the IAM role whose trust policy to modify",
-          "required": true
+          "required": true,
+          "mockValue": "TargetRoleName"
         },
         {
           "name": "TRUST_PRINCIPAL",
           "description": "Principal to add to the trust policy (ARN or service like lambda.amazonaws.com)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:root"
         }
       ]
     },
@@ -12932,7 +13808,8 @@
         {
           "name": "HTTPS_URL",
           "description": "Target HTTPS URL for credential exfiltration",
-          "required": true
+          "required": true,
+          "mockValue": "https://1.2.3.4:8443/collect"
         },
         {
           "name": "INCLUDE_METADATA",
@@ -12963,7 +13840,8 @@
         {
           "name": "EXFIL_BUCKET",
           "description": "Attacker-controlled S3 bucket name for credential exfiltration",
-          "required": true
+          "required": true,
+          "mockValue": "target-s3-bucket-123456789012"
         },
         {
           "name": "EXFIL_PREFIX",
@@ -12994,7 +13872,8 @@
         {
           "name": "LISTENER_IP",
           "description": "IP address of attacker's reverse shell listener",
-          "required": true
+          "required": true,
+          "mockValue": "1.2.3.4"
         },
         {
           "name": "LISTENER_PORT",
@@ -13041,13 +13920,15 @@
         {
           "name": "TARGET_ARN",
           "description": "IAM user or role name/ARN to attach policy to (auto-detects type from ARN, tries both if plain name)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         },
         {
           "name": "POLICY_ARN",
           "description": "Policy ARN to attach",
           "required": false,
-          "default": "arn:aws:iam::aws:policy/AdministratorAccess"
+          "default": "arn:aws:iam::aws:policy/AdministratorAccess",
+          "mockValue": "arn:aws:iam::123456789012:policy/TargetPolicy"
         }
       ]
     },
@@ -13065,7 +13946,8 @@
         {
           "name": "TARGET_ARN",
           "description": "IAM user name or ARN to create access keys for",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:role/TargetRoleName"
         }
       ]
     },
@@ -13083,17 +13965,20 @@
         {
           "name": "TRUST_PRINCIPAL",
           "description": "Trusted principal ARN (e.g. arn:aws:iam::123456789012:user/name) or service (e.g. lambda.amazonaws.com)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:root"
         },
         {
           "name": "ROLE_NAME",
           "description": "Name for the backdoor role (auto-generated if empty)",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "EXTERNAL_ID",
           "description": "External ID condition for the trust policy",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-id"
         },
         {
           "name": "ROLE_PATH",
@@ -13117,7 +14002,8 @@
         {
           "name": "USER_NAME",
           "description": "Name for the backdoor user (auto-generated if empty)",
-          "required": false
+          "required": false,
+          "mockValue": "target-resource-name"
         },
         {
           "name": "ACCESS_KEY",
@@ -13141,12 +14027,14 @@
         {
           "name": "TARGET_ROLE",
           "description": "Name of the IAM role whose trust policy to modify",
-          "required": true
+          "required": true,
+          "mockValue": "TargetRoleName"
         },
         {
           "name": "TRUST_PRINCIPAL",
           "description": "Principal to add to the trust policy (ARN or service like lambda.amazonaws.com)",
-          "required": true
+          "required": true,
+          "mockValue": "arn:aws:iam::123456789012:root"
         }
       ]
     }

@@ -15,7 +15,9 @@ package docs
 // SchemaVersion is the version of the pathrunner-reference.json contract.
 // Bump it whenever the shape consumed by pathfinding.cloud changes so the
 // frontend can detect and handle incompatibilities.
-const SchemaVersion = "1.0.0"
+//
+// 1.1.0 — added Option.MockValue and Module.CLISteps.
+const SchemaVersion = "1.1.0"
 
 // Reference is the top-level artifact written to pathrunner-reference.json.
 // It is the single file pathfinding.cloud pulls to render the /pathrunner site.
@@ -77,7 +79,7 @@ type Module struct {
 	Description         string        `json:"description,omitempty"`
 	Category            string        `json:"category,omitempty"`
 	Services            []string      `json:"services,omitempty"`
-	PrimaryService      string        `json:"primaryService,omitempty"` // Services[0]; used for sidebar grouping
+	PrimaryService      string        `json:"primaryService,omitempty"` // compute-service prefix of ID; used for sidebar grouping
 	Aliases             []string      `json:"aliases,omitempty"`
 	Author              string        `json:"author,omitempty"`
 	PathfindingCloudURL string        `json:"pathfindingCloudUrl,omitempty"`
@@ -88,6 +90,11 @@ type Module struct {
 	MITRE               *MITRE        `json:"mitre,omitempty"`
 	Options             []Option      `json:"options,omitempty"`
 	Payloads            []PayloadRef  `json:"payloads,omitempty"`
+	// CLISteps is the ordered sequence of CLI commands to run this module
+	// end-to-end, with placeholder mock values for required options. Rendered
+	// as a copy-pastable code block by the frontend. Includes "pathrunner exploit"
+	// as the final step. Also drives the VHS tape generator for module GIFs.
+	CLISteps []string `json:"cliSteps,omitempty"`
 }
 
 // Permissions groups the IAM permissions a module requires.
@@ -126,6 +133,10 @@ type Option struct {
 	Description string `json:"description,omitempty"`
 	Required    bool   `json:"required"`
 	Default     string `json:"default,omitempty"`
+	// MockValue is a realistic-looking placeholder used in documentation code
+	// examples and VHS tape generation. Empty for options that are context-
+	// dependent (e.g. PAYLOAD, which is selected separately in CLISteps).
+	MockValue string `json:"mockValue,omitempty"`
 }
 
 // PayloadRef is a payload surfaced by a module (name + description only).

@@ -114,6 +114,33 @@ while IFS= read -r module_id; do
     # are not supported — VHS splits on / and misparses them as tokens).
     gif_relative="docs/reference/gifs/modules/${module_id}.gif"
 
+    # Read cliSteps from the reference JSON and convert to tape commands.
+    # We stop before "pathrunner exploit" — the sandbox has no real AWS credentials
+    # so the exploit would fail. The code block on the site (from cliSteps JSON)
+    # already documents the full workflow including exploit.
+    cli_steps=$(jq -r --arg id "$module_id" \
+        '.modules[] | select(.id == $id) | .cliSteps[] | select(. != "pathrunner exploit")' \
+        "$REFERENCE_JSON")
+
+    # Each cliStep is "pathrunner <command> [args]". Strip the "pathrunner " prefix
+    # so it becomes a bare REPL command typed into the sandbox REPL session.
+    tape_commands=""
+    while IFS= read -r step; do
+        [[ -z "$step" ]] && continue
+        repl_cmd="${step#pathrunner }"
+        tape_commands+="Type \"${repl_cmd}\""$'\n'
+        tape_commands+="Enter"$'\n'
+        tape_commands+="Sleep 2s"$'\n'
+        tape_commands+=""$'\n'
+    done <<< "$cli_steps"
+
+    # Estimate a reasonable terminal height: 280px base + 40px per REPL command.
+    step_count=$(echo "$cli_steps" | grep -c . || true)
+    height=$(( 280 + step_count * 40 ))
+    # Clamp to a sensible range (400–760).
+    [[ $height -lt 400 ]] && height=400
+    [[ $height -gt 760 ]] && height=760
+
     # Generate the tape for this module.
     cat > "$tape_file" <<TAPE
 Output ${gif_relative}
@@ -121,7 +148,7 @@ Output ${gif_relative}
 Set Shell "bash"
 Set FontSize 16
 Set Width 1200
-Set Height 560
+Set Height ${height}
 Set Padding 20
 Set Theme "Dracula"
 
@@ -129,15 +156,7 @@ Type "./scripts/docs-sandbox.sh"
 Enter
 Sleep 2s
 
-Type "use ${module_id}"
-Enter
-Sleep 2s
-
-Type "show payloads"
-Enter
-Sleep 3s
-
-Type "exit"
+${tape_commands}Type "exit"
 Enter
 Sleep 1s
 TAPE
