@@ -12,6 +12,11 @@ Set Height 760
 Set Padding 20
 Set Theme "Dracula"
 
-Type "./pathrunner modules info lambda-001"
+Hide
+Type "alias pathrunner='./pathrunner'"
+Enter
+Show
+
+Type "pathrunner modules info lambda-001"
 Enter
 Sleep 4s

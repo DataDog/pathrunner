@@ -13,6 +13,11 @@ Set Height 420
 Set Padding 20
 Set Theme "Dracula"
 
-Type "./scripts/docs-sandbox.sh identity show"
+Hide
+Type "alias pathrunner='./scripts/docs-sandbox.sh'"
+Enter
+Show
+
+Type "pathrunner identity show"
 Enter
 Sleep 4s

@@ -142,6 +142,8 @@ while IFS= read -r module_id; do
     [[ $height -gt 760 ]] && height=760
 
     # Generate the tape for this module.
+    # Hide/Show sets up a pathrunner alias invisibly so the GIF shows "pathrunner"
+    # being typed rather than the underlying sandbox script.
     cat > "$tape_file" <<TAPE
 Output ${gif_relative}
 
@@ -152,13 +154,18 @@ Set Height ${height}
 Set Padding 20
 Set Theme "Dracula"
 
-Type "./scripts/docs-sandbox.sh"
+Hide
+Type "alias pathrunner='./scripts/docs-sandbox.sh'"
+Enter
+Show
+
+Type "pathrunner"
 Enter
 Sleep 2s
 
-${tape_commands}Type "exit"
+${tape_commands}Type "exploit"
 Enter
-Sleep 1s
+Sleep 5s
 TAPE
 
     printf "  [%3d/%d] %s ... " "$count" "$total" "$module_id"

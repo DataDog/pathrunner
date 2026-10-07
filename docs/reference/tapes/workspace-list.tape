@@ -13,6 +13,11 @@ Set Height 300
 Set Padding 20
 Set Theme "Dracula"
 
-Type "./scripts/docs-sandbox.sh workspace list"
+Hide
+Type "alias pathrunner='./scripts/docs-sandbox.sh'"
+Enter
+Show
+
+Type "pathrunner workspace list"
 Enter
 Sleep 4s

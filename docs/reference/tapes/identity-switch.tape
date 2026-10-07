@@ -14,6 +14,11 @@ Set Height 400
 Set Padding 20
 Set Theme "Dracula"
 
-Type "./scripts/docs-sandbox.sh identity switch second-identity"
+Hide
+Type "alias pathrunner='./scripts/docs-sandbox.sh'"
+Enter
+Show
+
+Type "pathrunner identity switch second-identity"
 Enter
 Sleep 4s

@@ -13,8 +13,13 @@ Set Height 620
 Set Padding 20
 Set Theme "Dracula"
 
+Hide
+Type "alias pathrunner='./scripts/docs-sandbox.sh'"
+Enter
+Show
+
 # Start the REPL in the sandbox.
-Type "./scripts/docs-sandbox.sh"
+Type "pathrunner"
 Enter
 Sleep 2s
 

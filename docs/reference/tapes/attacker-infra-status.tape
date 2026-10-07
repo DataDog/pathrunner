@@ -14,6 +14,11 @@ Set Height 320
 Set Padding 20
 Set Theme "Dracula"
 
-Type "./scripts/docs-sandbox.sh attacker infra status"
+Hide
+Type "alias pathrunner='./scripts/docs-sandbox.sh'"
+Enter
+Show
+
+Type "pathrunner attacker infra status"
 Enter
 Sleep 4s

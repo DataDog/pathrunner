@@ -12,6 +12,11 @@ Set Height 220
 Set Padding 20
 Set Theme "Dracula"
 
-Type "./pathrunner version"
+Hide
+Type "alias pathrunner='./pathrunner'"
+Enter
+Show
+
+Type "pathrunner version"
 Enter
 Sleep 4s
