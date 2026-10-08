@@ -745,9 +745,9 @@ func (r *REPL) buildContextData() (workspace, identityStr, moduleStr, payloadStr
 	} else if identity.IsExpired() {
 		status = "❌ Identity expired"
 	} else if r.currentModule == nil {
-		status = "⚠️  No module selected"
+		status = "🟡 No module selected"
 	} else if err := r.validateOptionsForContext(); err != nil {
-		status = "⚠️  " + err.Error()
+		status = "🟡 " + err.Error()
 	} else {
 		status = "✅ Ready for exploitation"
 	}

@@ -1,0 +1,9 @@
+{
+  "name": "attacker-account",
+  "type": "keys",
+  "access_key_id": "AKIAEXAMPLE0000000003",
+  "secret_key": "wExampleSecretKeyDoNotUseExampleSecret03",
+  "region": "us-east-1",
+  "caller_arn": "arn:aws:iam::222222222222:user/attacker-account",
+  "is_admin": false
+}

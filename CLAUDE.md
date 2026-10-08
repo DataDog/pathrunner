@@ -27,6 +27,8 @@ make generate                                    # Regenerate pkg/exploits/regis
 make dev                                         # Dev mode with version info (no regenerate)
 make test                                        # Run all tests
 make clean                                       # Remove built binary
+make docs                                        # Regenerate docs/reference/pathrunner-reference.json + .md files
+make docs-check                                  # Same as docs but fails if output differs (used by CI)
 go build -o pathrunner cmd/pathrunner/main.go     # Build (no version injection, no regenerate)
 go run cmd/pathrunner/main.go                     # Dev mode (no version injection)
 ./pathrunner [command] [subcommand] [flags]       # CLI mode
@@ -35,6 +37,12 @@ go test ./tests/unit/                             # Unit tests
 go test ./tests/integration/                      # Integration tests
 go test ./tests/...                               # All tests
 go test -v ./tests/... -run TestName              # Specific test
+./scripts/render-docs-tapes.sh                   # Render all CI-safe GIFs (needs vhs + built binary)
+./scripts/render-docs-tapes.sh <name>.tape       # Render a single tape
+./scripts/render-module-tapes.sh                 # Render use+show-payloads GIF for every module (~15 min)
+./scripts/render-module-tapes.sh lambda          # Render GIFs for all lambda-* modules
+./scripts/render-module-tapes.sh lambda-001      # Render GIF for one module
+./scripts/docs-sandbox.sh [command]              # Run a command against synthetic fixtures (no real AWS)
 ```
 
 `make build` runs `go generate ./pkg/exploits/` before compiling, so newly added exploit module directories are picked up automatically. `scripts/test-module.sh` provides a heavier smoke-test harness for individual modules against deployed labs.
@@ -180,6 +188,47 @@ The canonical checklist — CLI and REPL share handlers, so every entry point ne
 - [ ] Tab completion in `pkg/core/repl/completion.go`, including alias completers
 - [ ] Unit tests in `tests/unit/` and integration tests in `tests/integration/`
 - [ ] Manually verify tab completion in a running REPL
+- [ ] Run `make docs` and commit the updated `docs/reference/pathrunner-reference.json`
+- [ ] If the command's invocation syntax changed (renamed flags, new subcommands, removed options): update the affected tapes in `docs/reference/tapes/` and re-render (see **Documentation update workflow** below)
+
+### Documentation update workflow
+
+**After any change to commands, flags, modules, or payloads — run one command:**
+
+```bash
+make update-docs
+```
+
+This script (`scripts/update-docs.sh`) does everything in sequence:
+1. Runs `make docs` to regenerate `docs/reference/pathrunner-reference.json`.
+2. Prints a focused diff of what changed in the JSON (which commands/flags), then
+   pauses so you can edit affected tapes before rendering (see below).
+3. Renders all GIFs via VHS (or specific tapes: `make update-docs TAPES="identity-switch"`).
+4. Stages all updated files under `docs/reference/`.
+5. Prints the reminder to run `make generate-pathrunner` from pathfinding.cloud after merging.
+
+**If CLI invocation syntax changed** (renamed a command, flag, or subcommand), you need
+to edit the affected tapes before the script renders them. The script pauses and shows
+the JSON diff so you know what changed — at that point:
+
+1. Open the matching tape in `docs/reference/tapes/`. Tape filenames map directly to
+   the command they demo: `attacker-identity-show.tape` → `attacker identity show`,
+   `identity-switch.tape` → `identity switch`, etc.
+2. Update the `Type` line(s) to match the new syntax.
+3. Press Enter in the script to proceed with rendering.
+
+Always commit the updated tape + rendered GIF in the **same PR** as the code change.
+The GIF in `docs/reference/gifs/` is what pathfinding.cloud pulls.
+
+**After merging to main — pull the update into pathfinding.cloud:**
+
+```bash
+# From pathfinding.cloud/:
+make generate-pathrunner   # or: python scripts/generate-pathrunner-json.py --source-dir ../pathrunner
+```
+
+This fetches the updated JSON and GIFs, emits the split per-entry files under
+`docs/pathrunner/`, and copies the GIFs. Commit the result and deploy.
 
 ### Adding a New Module or Payload
 
