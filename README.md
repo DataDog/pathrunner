@@ -9,13 +9,13 @@
 
 # Pathrunner
 
-**A modular AWS privilege escalation exploitation framework — with a Metasploit-style REPL, a scriptable CLI, 80+ exploit modules, and interchangeable payloads.**
+**A modular AWS privilege escalation exploitation framework with a Metasploit-style REPL, a scriptable CLI, 80+ exploit modules, and interchangeable payloads.**
 
 ![Modules](https://img.shields.io/badge/Modules-80%2B-9D4EDD?style=for-the-badge)
 ![AWS](https://img.shields.io/badge/Cloud-AWS-232F3E?style=for-the-badge)
 ![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge)
 
-[Quick Start](#quick-start) • [Install](#installation) • [Command Reference ↗](https://pathfinding.cloud/pathrunner) • [Ecosystem](#overview) • [Contributing](#contributing)
+[Quick Start](#quick-start) • [Install](#installation) • [Command Reference ↗](https://pathfinding.cloud/pathrunner) • [Contributing](#contributing)
 
 <!--
   DEMO GIF: the image below is the existing demo. Replace the URL with the GIF
@@ -23,33 +23,23 @@
 -->
 ![pathrunner - demo](https://github.com/user-attachments/assets/1cac76ca-9347-4aa7-b961-0a59bf400b43)
 
-</div>
-
 ---
 
-> **Full documentation and command reference:** **[pathfinding.cloud/pathrunner](https://pathfinding.cloud/pathrunner)**
+**Full documentation and command reference:** **[pathfinding.cloud/pathrunner](https://pathfinding.cloud/pathrunner)**
 
-## Overview
+<a href="https://pathfinding.cloud/pathrunner">
+  <img width="1133" height="587" alt="pathfinding-cloud-pathrunner2" src="https://github.com/user-attachments/assets/087fb7e6-d410-4911-9c05-891f3eec8905" />
+</a>
+</div>
 
-Pathrunner automates exploitation of AWS IAM privilege escalation paths. It's the execution layer of a three-project ecosystem:
-
-```
-pathfinding.cloud (path definitions) → pathfinding-labs (deployable labs) → pathrunner (automated exploitation)
-```
-
-- **[pathfinding.cloud](https://pathfinding.cloud)** documents each privilege escalation path (prerequisites, permissions, manual exploitation steps)
-- **[pathfinding-labs](https://github.com/DataDog/pathfinding-labs)** deploys the vulnerable AWS infrastructure to practice against
-- **pathrunner** (this project) automates the exploitation itself, chaining modules and payloads to escalate from an initial identity to elevated access
-
-Modules reference a pathfinding.cloud path ID when they implement a documented path, and are validated against deployed pathfinding-labs scenarios.
 
 ## Why pathrunner
 
-Defenders have more misconfigurations than time to fix them. Unlike software CVEs, IAM misconfigurations are hard to triage — what's actually exploitable versus merely a missing best practice? Pathrunner answers that by *demonstrating* the escalation, so teams can prioritize the paths that are genuinely exploitable and impactful, and build detections for each step along the way.
+Defenders have more misconfigurations than time to fix them. Unlike software CVEs, IAM misconfigurations are hard to triage. How do we know what's actually exploitable versus merely a missing best practice? Pathrunner answers that by *demonstrating* the escalation, so teams can prioritize the paths that are genuinely exploitable and impactful, and build detections for each step along the way.
 
 ### Coverage
 
-Pathrunner ships 80+ exploit modules across 20+ AWS services (IAM, EC2, Lambda, STS, ECS, Glue, CloudFormation, SSM, Bedrock, and more) with dozens of interchangeable payloads (credential and HTTPS exfiltration, backdoor role/user/policy creation, reverse shells). The authoritative, always-current counts and the full catalog live at **[pathfinding.cloud/pathrunner](https://pathfinding.cloud/pathrunner)** (generated directly from the source).
+Pathrunner has 80+ exploit modules across 20+ AWS services (IAM, EC2, Lambda, STS, ECS, Glue, CloudFormation, SSM, Bedrock, and more) with dozens of interchangeable payloads (credential and HTTPS exfiltration, backdoor role/user/policy creation, reverse shells). The authoritative, always-current counts and the full catalog live at **[pathfinding.cloud/pathrunner](https://pathfinding.cloud/pathrunner)**.
 
 ## Installation
 
