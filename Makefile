@@ -33,9 +33,16 @@ render-module-tapes: build
 	@./scripts/render-module-tapes.sh $(MODULE)
 
 # Fail if the committed docs artifacts are stale (used in CI, like register.go).
+# Volatile generator fields (pathrunnerVersion, gitCommit) are excluded from the
+# diff because CI shallow-clones lack tags, producing a different git describe
+# output than the locally committed value. Real content changes still fail.
 docs-check: docs
-	@git diff --exit-code -- "$(DOCS_OUT)" \
-		|| (echo "ERROR: docs/reference is out of date. Run 'make docs' and commit." && exit 1)
+	@CONTENT_DIFF=$$(git diff -- "$(DOCS_OUT)" | grep '^[+-][^+-]' | grep -Ev '"pathrunnerVersion":|"gitCommit":'); \
+	if [ -n "$$CONTENT_DIFF" ]; then \
+		echo "ERROR: docs/reference is out of date. Run 'make docs' and commit."; \
+		git diff -- "$(DOCS_OUT)"; \
+		exit 1; \
+	fi
 
 dev:
 	go run -ldflags "$(LDFLAGS)" cmd/pathrunner/main.go
