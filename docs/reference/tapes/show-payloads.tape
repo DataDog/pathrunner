@@ -15,24 +15,29 @@ Set Theme "Dracula"
 
 Hide
 Type "alias pathrunner='./scripts/docs-sandbox.sh'"
+Sleep 1500ms
 Enter
 Show
 
 # Start the REPL in the sandbox.
 Type "pathrunner"
+Sleep 1500ms
 Enter
 Sleep 2s
 
 # Select a module with multiple payloads.
 Type "use lambda-001"
+Sleep 1500ms
 Enter
 Sleep 2s
 
 # List compatible payloads.
 Type "show payloads"
+Sleep 1500ms
 Enter
 Sleep 3s
 
 Type "exit"
+Sleep 1500ms
 Enter
 Sleep 1s

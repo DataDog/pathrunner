@@ -16,9 +16,11 @@ Set Theme "Dracula"
 
 Hide
 Type "alias pathrunner='./scripts/docs-sandbox.sh'"
+Sleep 1500ms
 Enter
 Show
 
 Type "pathrunner identity switch second-identity"
+Sleep 1500ms
 Enter
 Sleep 4s

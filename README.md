@@ -28,7 +28,6 @@
 ---
 
 > **Full documentation and command reference:** **[pathfinding.cloud/pathrunner](https://pathfinding.cloud/pathrunner)**
-> — every command, module, and payload, with examples. This README is the quick tour; the reference site is the manual.
 
 ## Overview
 
@@ -47,16 +46,6 @@ Modules reference a pathfinding.cloud path ID when they implement a documented p
 ## Why pathrunner
 
 Defenders have more misconfigurations than time to fix them. Unlike software CVEs, IAM misconfigurations are hard to triage — what's actually exploitable versus merely a missing best practice? Pathrunner answers that by *demonstrating* the escalation, so teams can prioritize the paths that are genuinely exploitable and impactful, and build detections for each step along the way.
-
-## Highlights
-
-- **Identities are the sessions of the cloud.** Attacks hop from one identity to another by capturing credentials. Pathrunner is built around that: import an identity from almost any text format (`identity add --from-clipboard`) and switch between them instantly (`identity switch`).
-- **Modular exploits (80+).** A single interface over 80+ AWS privilege escalation modules, influenced by Metasploit, NetExec, and Pacu. Browse exact counts and coverage on the [reference site](https://pathfinding.cloud/pathrunner).
-- **Modular payloads → better detections.** Each module supports multiple interchangeable payloads, so you can pick one that works around network/SCP restrictions — and walk every payload to build a detection for each variant.
-- **Attacker infrastructure, built in.** Configure an attacker identity and stand up a remote listener in your own account (`attacker infra ec2 create`, `attacker listener start`) to catch credentials and shells — a few commands instead of manual setup.
-- **Be a team player — hand the blue team an audit log.** `workspace report --output pathrunner.html` produces a handoff report of the resources created/modified and the CloudTrail events your activity generated, with timestamps.
-- **Dual interface.** A Metasploit-style REPL for interactive use and a 1:1 CLI for automation.
-- **Workspace isolation, auto-discovery, and credential auto-import** round it out — isolated per-workspace identities and resource tracking, modules that enumerate valid option values via AWS APIs, and automatic capture of credentials from exploit output into your identity store.
 
 ### Coverage
 
@@ -94,6 +83,7 @@ make build
 cp pathrunner /usr/local/bin/
 ```
 
+
 ## Quick Start
 
 ```bash
@@ -128,36 +118,14 @@ pathrunner> pmapper analyze        # See what's reachable from here
 
 See the [command reference](https://pathfinding.cloud/pathrunner) for every command, module, and payload in detail.
 
-## Integrations
 
-- **[PMapper](https://github.com/nccgroup/PMapper)** — `pmapper import` a graph, then `pmapper analyze` to see which escalation paths you can currently exploit with pathrunner, with suggested commands for each hop.
-- **[CloudFox](https://github.com/BishopFox/cloudfox)** — `cloudfox import` its output to browse discovered AWS resources (`resources list`) and auto-populate them as module option values.
 
-## Architecture
 
-```
-pkg/
-├── core/        # REPL shell, identity management, workspace persistence
-├── cli/         # Cobra CLI wrapper (1:1 with REPL commands)
-├── modules/     # Module system: interfaces, registry, search/filter
-├── payloads/    # Payload registry: tag-based filtering, service subdirectories
-├── exploits/    # Exploit modules, each embedding BaseModule
-├── attacker/    # Attacker infrastructure: listener, EC2 box, exfil bucket
-├── discovery/   # Reusable AWS enumeration (roles, subnets, streams, etc.)
-├── pmapper/     # PMapper graph import, querying, and module mapping
-├── resources/   # CloudFox output import, resource store, service-filtered display
-├── report/      # Cleanup + CloudTrail handoff reports
-├── utils/       # Credential extraction from env vars, JSON, Python dicts
-└── config/      # Application configuration
-```
-
-Key design patterns:
+## Key design patterns:
 - **Dual Interface** — CLI and REPL share identical command handlers via adapter pattern
 - **Decoupled Payloads** — Modules query payloads by tags at runtime; payloads self-register via `init()`
 - **Workspace Isolation** — Each workspace maintains isolated identities, history, and tracked resources
-- **Auto-Refresh** — SSO tokens and profile credentials are rebuilt on-demand
 
-> The per-command/per-module reference on [pathfinding.cloud/pathrunner](https://pathfinding.cloud/pathrunner) is generated directly from the binary (see `cmd/gendocs` and `docs/reference/`), so it never drifts from the code.
 
 ## Contributing
 
@@ -173,7 +141,6 @@ Users are responsible for:
 - Proper handling and disposal of any credentials or sensitive data accessed
 - Understanding that unauthorized access to computer systems is illegal
 
-The developers assume no liability for misuse of this tool.
 
 ## Related Projects
 

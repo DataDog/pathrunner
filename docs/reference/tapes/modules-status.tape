@@ -15,9 +15,11 @@ Set Theme "Dracula"
 
 Hide
 Type "alias pathrunner='./pathrunner'"
+Sleep 1500ms
 Enter
 Show
 
 Type "pathrunner modules status"
+Sleep 1500ms
 Enter
 Sleep 4s

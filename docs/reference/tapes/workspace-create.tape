@@ -16,6 +16,7 @@ Set Theme "Dracula"
 
 Hide
 Type "alias pathrunner='./scripts/docs-sandbox.sh'"
+Sleep 1500ms
 Enter
 Show
 
@@ -24,5 +25,6 @@ Show
 # HOME for the lifetime of the shell session, but each docs-sandbox.sh call gets
 # a fresh temp HOME. Use a single shell session via the REPL instead.
 Type "pathrunner workspace create pentest-acme"
+Sleep 1500ms
 Enter
 Sleep 4s

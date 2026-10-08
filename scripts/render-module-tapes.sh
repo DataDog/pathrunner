@@ -90,7 +90,9 @@ else
 fi
 
 total=$(echo "$module_ids" | grep -c .)
-echo -e "\n${BOLD}Rendering ${total} module WebM(s) → docs/reference/gifs/modules/${RESET}\n"
+# Default to 8 parallel renders; override with PARALLEL_JOBS env var.
+PARALLEL_JOBS="${PARALLEL_JOBS:-8}"
+echo -e "\n${BOLD}Rendering ${total} module WebM(s) → docs/reference/gifs/modules/ (parallel: ${PARALLEL_JOBS})${RESET}\n"
 
 # ---------------------------------------------------------------------------
 # Temp directory for generated tape files (cleaned up on exit)
@@ -100,14 +102,10 @@ cleanup() { rm -rf "$TAPE_TMP"; }
 trap cleanup EXIT
 
 # ---------------------------------------------------------------------------
-# Render each module
+# Phase 1: Generate all tape files
 # ---------------------------------------------------------------------------
-count=0
-failed=()
-
 while IFS= read -r module_id; do
     [[ -z "$module_id" ]] && continue
-    count=$((count + 1))
 
     tape_file="$TAPE_TMP/${module_id}.tape"
     # VHS Output directive requires a relative path (absolute paths with leading /
@@ -129,6 +127,7 @@ while IFS= read -r module_id; do
         [[ -z "$step" ]] && continue
         repl_cmd="${step#pathrunner }"
         tape_commands+="Type \"${repl_cmd}\""$'\n'
+        tape_commands+="Sleep 1500ms"$'\n'
         tape_commands+="Enter"$'\n'
         tape_commands+="Sleep 2s"$'\n'
         tape_commands+=""$'\n'
@@ -160,29 +159,53 @@ Enter
 Show
 
 Type "pathrunner"
+Sleep 1500ms
 Enter
 Sleep 2s
 
 ${tape_commands}Type "exploit"
-Enter
-Sleep 5s
+Sleep 2s
 TAPE
-
-    printf "  [%3d/%d] %s ... " "$count" "$total" "$module_id"
-    if vhs "$tape_file" >/dev/null 2>&1; then
-        echo -e "${GREEN}ok${RESET}"
-    else
-        echo -e "${YELLOW}FAILED${RESET}"
-        failed+=("$module_id")
-    fi
 
 done <<< "$module_ids"
 
 # ---------------------------------------------------------------------------
+# Phase 2: Render all tape files in parallel
+# ---------------------------------------------------------------------------
+RESULTS_DIR=$(mktemp -d)
+render_one() {
+    local module_id="$1"
+    local tape_file="$TAPE_TMP/${module_id}.tape"
+    if vhs "$tape_file" >/dev/null 2>&1; then
+        echo "ok:${module_id}"
+    else
+        echo "fail:${module_id}"
+    fi
+}
+export -f render_one
+export TAPE_TMP
+
+# xargs -P renders up to PARALLEL_JOBS tapes concurrently and streams results.
+mapfile -t results < <(echo "$module_ids" | grep -v '^$' | xargs -P "$PARALLEL_JOBS" -I{} bash -c 'render_one "$@"' _ {})
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
+failed=()
+succeeded=0
+for result in "${results[@]}"; do
+    status="${result%%:*}"
+    module_id="${result#*:}"
+    if [[ "$status" == "ok" ]]; then
+        succeeded=$((succeeded + 1))
+        echo -e "  ${GREEN}ok${RESET}  ${module_id}"
+    else
+        failed+=("$module_id")
+        echo -e "  ${YELLOW}FAILED${RESET}  ${module_id}"
+    fi
+done
+
 echo ""
-succeeded=$((total - ${#failed[@]}))
 echo -e "${BOLD}Done: ${succeeded}/${total} rendered to docs/reference/gifs/modules/${RESET}"
 
 if [[ ${#failed[@]} -gt 0 ]]; then
@@ -192,7 +215,7 @@ if [[ ${#failed[@]} -gt 0 ]]; then
     done
     echo ""
     warn "To debug a single module:"
-    echo "    vhs <(./scripts/gen-module-tape.sh <id>)"
+    echo "    vhs $TAPE_TMP/<id>.tape"
 fi
 
 echo ""

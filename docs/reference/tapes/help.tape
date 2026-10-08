@@ -14,9 +14,11 @@ Set Theme "Dracula"
 
 Hide
 Type "alias pathrunner='./pathrunner'"
+Sleep 1500ms
 Enter
 Show
 
 Type "pathrunner --help"
+Sleep 1500ms
 Enter
 Sleep 4s

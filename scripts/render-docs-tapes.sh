@@ -41,15 +41,31 @@ fi
 mkdir -p "$GIFS_DIR"
 cd "$PROJECT_DIR"
 
+# Default to 8 parallel renders; override with PARALLEL_JOBS env var.
+PARALLEL_JOBS="${PARALLEL_JOBS:-8}"
+
 if [[ $# -gt 0 ]]; then
     tapes=("$TAPES_DIR/$1")
 else
     tapes=("$TAPES_DIR"/*.tape)
 fi
 
-for tape in "${tapes[@]}"; do
-    echo "Rendering $(basename "$tape")..."
-    vhs "$tape"
-done
+if [[ ${#tapes[@]} -eq 1 ]]; then
+    # Single tape: run directly so vhs output is visible.
+    echo "Rendering $(basename "${tapes[0]}")..."
+    vhs "${tapes[0]}"
+else
+    echo "Rendering ${#tapes[@]} tape(s) in parallel (jobs: ${PARALLEL_JOBS})..."
+    render_tape() {
+        local tape="$1"
+        if vhs "$tape" >/dev/null 2>&1; then
+            echo "  ok  $(basename "$tape")"
+        else
+            echo "  FAILED  $(basename "$tape")" >&2
+        fi
+    }
+    export -f render_tape
+    printf '%s\n' "${tapes[@]}" | xargs -P "$PARALLEL_JOBS" -I{} bash -c 'render_tape "$@"' _ {}
+fi
 
 echo "Done. GIFs written to $GIFS_DIR"
