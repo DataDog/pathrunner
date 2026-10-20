@@ -40,6 +40,11 @@ type StatusManifest struct {
 // ValidStatuses are the allowed values for status fields.
 var ValidStatuses = []string{"tested", "untested", "failing", "needs-update"}
 
+// ManifestPathEnv is an optional environment variable that overrides the
+// location of the module status manifest. Tests set it to an isolated temp
+// copy so they never mutate the repo's checked-in testdata fixture.
+const ManifestPathEnv = "PATHRUNNER_STATUS_MANIFEST"
+
 // LoadManifest reads the module status manifest from testdata/module-status.json.
 // It searches relative to the source file location (for use from any working directory).
 func LoadManifest() (*StatusManifest, error) {
@@ -169,6 +174,12 @@ func (m *StatusManifest) SortedModuleIDs() []string {
 // findManifestPath locates testdata/module-status.json relative to this source file,
 // then walks up to find the project root.
 func findManifestPath() (string, error) {
+	// Explicit override wins (used by tests to isolate the fixture). The
+	// path need not exist yet — SaveManifest will create it.
+	if override := os.Getenv(ManifestPathEnv); override != "" {
+		return override, nil
+	}
+
 	// First try: relative to the source file (works in tests and dev)
 	_, filename, _, ok := runtime.Caller(0)
 	if ok {
