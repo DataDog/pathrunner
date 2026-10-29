@@ -419,6 +419,22 @@ func (r *REPL) cmdDiscover(repl *REPL, args []string) error {
 
 	// If specific option requested
 	if len(args) > 0 {
+		// 'discover all' is an explicit opt-in: discover every missing
+		// discoverable option without prompting (useful when the identity
+		// has broad permissions, e.g. in a lab).
+		if strings.EqualFold(args[0], "all") {
+			for _, optName := range discoverableOpts {
+				if existing := r.options[optName]; existing != "" {
+					fmt.Printf("%s already set to '%s', skipping.\n", optName, existing)
+					continue
+				}
+				if err := r.discoverAndSetOption(discoverable, optName, identity); err != nil {
+					fmt.Printf("Warning: %v\n", err)
+				}
+			}
+			return nil
+		}
+
 		optionName := strings.ToUpper(args[0])
 		found := false
 		for _, opt := range discoverableOpts {
@@ -431,14 +447,27 @@ func (r *REPL) cmdDiscover(repl *REPL, args []string) error {
 			return NewInvalidArgumentsError(fmt.Sprintf("option '%s' does not support auto-discovery. Discoverable options: %s", optionName, strings.Join(discoverableOpts, ", ")))
 		}
 
+		// Explicit single-option discovery is intentional: no y/N prompt.
 		return r.discoverAndSetOption(discoverable, optionName, identity)
 	}
 
-	// Discover all missing discoverable options
+	// Discover missing discoverable options. Required options (e.g.
+	// INSTANCE_PROFILE) are discovered automatically. Optional ones (e.g.
+	// SUBNET_ID, SECURITY_GROUP_ID) are offered via a y/N prompt, defaulting
+	// to No: leaving them blank often lets the service apply its own defaults
+	// (EC2's default VPC subnet and security group), which needs fewer
+	// permissions than enumerating networking resources.
 	for _, optName := range discoverableOpts {
 		if existing := r.options[optName]; existing != "" {
 			fmt.Printf("%s already set to '%s', skipping.\n", optName, existing)
 			continue
+		}
+
+		if opt, declared := r.findOption(optName); declared && !opt.Required {
+			if !r.promptOptionalDiscovery(optName) {
+				fmt.Printf("Skipping optional discovery for %s\n", optName)
+				continue
+			}
 		}
 
 		if err := r.discoverAndSetOption(discoverable, optName, identity); err != nil {
@@ -447,6 +476,37 @@ func (r *REPL) cmdDiscover(repl *REPL, args []string) error {
 	}
 
 	return nil
+}
+
+// findOption returns the current module's declared option metadata for
+// optionName, if it declares one.
+func (r *REPL) findOption(optionName string) (modules.Option, bool) {
+	for _, opt := range r.currentModule.Options() {
+		if opt.Name == optionName {
+			return opt, true
+		}
+	}
+	return modules.Option{}, false
+}
+
+// promptOptionalDiscovery asks the user whether to discover an optional
+// option. The prompt includes the option's description and, when the
+// resource store already holds values for it, a cached-value hint. Defaults
+// to No; non-interactive contexts (piped stdin, scripts) skip automatically.
+func (r *REPL) promptOptionalDiscovery(optionName string) bool {
+	message := fmt.Sprintf("Discover %s?", optionName)
+	if opt, declared := r.findOption(optionName); declared && opt.Description != "" {
+		message += " " + opt.Description
+	}
+
+	if accountID := r.getCurrentAccountID(); accountID != "" {
+		r.resourcesManager.TryAutoLoad(accountID)
+		if cached := r.resourcesManager.FindChoicesForOption(accountID, optionName); len(cached) > 0 {
+			message += fmt.Sprintf(" (%d cached values available)", len(cached))
+		}
+	}
+
+	return ui.ConfirmInteractive(message)
 }
 
 // discoverAndSetOption runs discovery for a single option and presents an interactive selection.

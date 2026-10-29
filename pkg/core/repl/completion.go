@@ -496,7 +496,10 @@ func (r *REPL) buildSearchCompleter() readline.PrefixCompleterInterface {
 
 // buildDiscoverCompleter builds completion for the discover command
 func (r *REPL) buildDiscoverCompleter() readline.PrefixCompleterInterface {
-	items := []readline.PrefixCompleterInterface{readline.PcItem("help")}
+	items := []readline.PrefixCompleterInterface{
+		readline.PcItem("help"),
+		readline.PcItem("all"),
+	}
 
 	if r.currentModule != nil {
 		if discoverable, ok := r.currentModule.(modules.Discoverable); ok {
