@@ -1,8 +1,8 @@
 {
   "generator": {
     "schemaVersion": "1.1.0",
-    "pathrunnerVersion": "v0.2.3-11-gc6673bb-dirty",
-    "gitCommit": "c6673bb",
+    "pathrunnerVersion": "v1.0.0-1-g8b40c61-dirty",
+    "gitCommit": "8b40c61",
     "generatedAt": ""
   },
   "counts": {
@@ -395,8 +395,8 @@
       "path": "pathrunner discover",
       "group": "module",
       "short": "Auto-discover values for module options using AWS API calls",
-      "long": "Uses the current identity's permissions to enumerate valid values for discoverable module options",
-      "usage": "pathrunner discover [OPTION]"
+      "long": "Discovers valid values for module options. Required options are discovered automatically; optional ones are offered via a y/N prompt. Use 'discover all' to discover everything without prompting",
+      "usage": "pathrunner discover [OPTION|all]"
     },
     {
       "name": "exploit",
@@ -4524,12 +4524,12 @@
             "description": "Auto-detect AMI"
           },
           {
-            "permission": "ec2:DescribeVpcs",
-            "description": "Auto-detect default VPC"
+            "permission": "ec2:DescribeSubnets",
+            "description": "Optional: discover SUBNET_ID values"
           },
           {
-            "permission": "ec2:DescribeSubnets",
-            "description": "Auto-detect subnet"
+            "permission": "ec2:DescribeSecurityGroups",
+            "description": "Optional: discover SECURITY_GROUP_ID values"
           }
         ]
       },
@@ -4588,13 +4588,13 @@
         },
         {
           "name": "SUBNET_ID",
-          "description": "Subnet ID for instance placement (will use default VPC if not specified)",
+          "description": "Subnet ID for instance placement (optional override; leave blank to launch into the default subnet)",
           "required": false,
           "mockValue": "subnet-0123456789abcdef0"
         },
         {
           "name": "SECURITY_GROUP_ID",
-          "description": "Security group ID to attach (optional)",
+          "description": "Security group ID to attach (optional override; leave blank to use the default security group)",
           "required": false,
           "mockValue": "sg-0123456789abcdef0"
         },
@@ -4958,12 +4958,8 @@
             "description": "Auto-detect current Amazon Linux 2023 AMI"
           },
           {
-            "permission": "ec2:DescribeVpcs",
-            "description": "Auto-detect default VPC"
-          },
-          {
             "permission": "ec2:DescribeSubnets",
-            "description": "Auto-detect subnet"
+            "description": "Optional: discover SUBNET_ID values"
           },
           {
             "permission": "ec2:DescribeSpotInstanceRequests",
@@ -5042,7 +5038,7 @@
         },
         {
           "name": "SUBNET_ID",
-          "description": "Subnet ID for instance placement (uses default VPC if not specified)",
+          "description": "Subnet ID for instance placement (optional override; leave blank to launch into the default subnet)",
           "required": false,
           "mockValue": "subnet-0123456789abcdef0"
         },
@@ -10251,6 +10247,14 @@
           {
             "permission": "ec2:DescribeImages",
             "description": "Find the base AMI for the image recipe"
+          },
+          {
+            "permission": "ec2:DescribeSubnets",
+            "description": "Optional: discover SUBNET_ID values"
+          },
+          {
+            "permission": "ec2:DescribeSecurityGroups",
+            "description": "Optional: discover SECURITY_GROUP_ID values"
           },
           {
             "permission": "imagebuilder:ListImages",

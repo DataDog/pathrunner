@@ -27,6 +27,8 @@ A principal with iam:PassRole and EC2 Image Builder creation permissions can esc
 - `imagebuilder:GetInfrastructureConfiguration` — Verify infrastructure configuration
 - `imagebuilder:TagResource` — Required in some regions or configurations
 - `ec2:DescribeImages` — Find the base AMI for the image recipe
+- `ec2:DescribeSubnets` — Optional: discover SUBNET_ID values
+- `ec2:DescribeSecurityGroups` — Optional: discover SECURITY_GROUP_ID values
 - `imagebuilder:ListImages` — Discover existing images and build status
 - `iam:ListAttachedUserPolicies` — Verify privilege escalation success
 
