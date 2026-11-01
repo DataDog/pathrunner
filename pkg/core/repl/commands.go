@@ -436,9 +436,17 @@ func (r *REPL) showPayloadsHelp() error {
 
 func (r *REPL) showDiscoverHelp() error {
 	fmt.Println("Discover Command:")
-	fmt.Println("  discover               - Auto-discover all missing discoverable options")
+	fmt.Println("  discover               - Discover missing required options; optional options are offered via a y/N prompt")
+	fmt.Println("  discover all           - Discover ALL missing discoverable options without prompting")
 	fmt.Println("  discover <OPTION>      - Auto-discover a specific option")
 	fmt.Println("  discover help          - Show this help message")
+	fmt.Println()
+	fmt.Println("Required options (e.g. INSTANCE_PROFILE) are discovered automatically.")
+	fmt.Println("Optional options (e.g. SUBNET_ID) are offered with a y/N prompt, defaulting")
+	fmt.Println("to No: leaving them blank often lets the service use its own defaults")
+	fmt.Println("(e.g. EC2's default VPC subnet and security group). If the identity lacks")
+	fmt.Println("the needed permission, you can still set values manually: set <OPTION> <value>")
+	fmt.Println("or reuse cached resources from previous discovery runs.")
 	fmt.Println()
 	fmt.Println("Uses AWS API calls to enumerate valid values for module options.")
 	fmt.Println("Requires an active identity with appropriate 'additional' permissions")
@@ -449,7 +457,8 @@ func (r *REPL) showDiscoverHelp() error {
 	fmt.Println("attempted automatically before failing.")
 	fmt.Println()
 	fmt.Println("Examples:")
-	fmt.Println("  discover               # Discover all missing options")
+	fmt.Println("  discover               # Discover required options, prompt for optional ones")
+	fmt.Println("  discover all           # Discover everything without prompting (broad permissions)")
 	fmt.Println("  discover ROLE_ARN      # Discover only ROLE_ARN")
 	return nil
 }

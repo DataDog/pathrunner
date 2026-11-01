@@ -573,9 +573,9 @@ func (c *CLI) createInfoCmd() *cobra.Command {
 // Discover command
 func (c *CLI) createDiscoverCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "discover [OPTION]",
+		Use:   "discover [OPTION|all]",
 		Short: "Auto-discover values for module options using AWS API calls",
-		Long:  "Uses the current identity's permissions to enumerate valid values for discoverable module options",
+		Long:  "Discovers valid values for module options. Required options are discovered automatically; optional ones are offered via a y/N prompt. Use 'discover all' to discover everything without prompting",
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) > 0 {
 				_ = c.executeREPLCommand("discover " + strings.Join(args, " "))

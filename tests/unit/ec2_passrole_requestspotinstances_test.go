@@ -141,6 +141,27 @@ func TestEc2PassroleRequestSpotInstancesDiscoverableOptions(t *testing.T) {
 	}
 }
 
+func TestEc2PassroleRequestSpotInstancesSubnetIdOptional(t *testing.T) {
+	mod := ec2_passrole_requestspotinstances.NewModule()
+
+	// The discover wizard auto-discovers required options but prompts y/N for
+	// optional ones. SUBNET_ID must stay optional with an empty default so
+	// the wizard defaults to leaving it blank (the spot request then launches
+	// into the default VPC subnet without any describe permissions).
+	for _, opt := range mod.Options() {
+		if opt.Name == "SUBNET_ID" {
+			if opt.Required {
+				t.Error("Expected SUBNET_ID to be optional")
+			}
+			if opt.Default != "" {
+				t.Errorf("Expected SUBNET_ID default to be empty, got %q", opt.Default)
+			}
+			return
+		}
+	}
+	t.Fatal("Expected module to declare a SUBNET_ID option")
+}
+
 func TestEc2PassroleRequestSpotInstancesRegistration(t *testing.T) {
 	mod, err := modules.LoadModule("ec2-004")
 	if err != nil {

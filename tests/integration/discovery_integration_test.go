@@ -11,12 +11,49 @@ import (
 
 	// Import modules and payloads to register them
 	_ "github.com/DataDog/pathrunner/pkg/exploits/ec2_passrole"
+	_ "github.com/DataDog/pathrunner/pkg/exploits/ec2_passrole_requestspotinstances"
 	_ "github.com/DataDog/pathrunner/pkg/exploits/lambda_passrole"
 	_ "github.com/DataDog/pathrunner/pkg/exploits/lambda_passrole_esm"
 	_ "github.com/DataDog/pathrunner/pkg/exploits/sts_assume_role"
 	_ "github.com/DataDog/pathrunner/pkg/payloads/ec2"
 	_ "github.com/DataDog/pathrunner/pkg/payloads/lambda"
 )
+
+func TestDiscoverOptionalOptionsSkippedInWizardEc2004(t *testing.T) {
+	r, _, im, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use ec2-004")
+	if err != nil {
+		t.Fatalf("Failed to use module: %v", err)
+	}
+
+	identity := &modules.Identity{
+		Name:        "test",
+		Type:        "keys",
+		AccessKeyID: "AKIAIOSFODNN7EXAMPLE",
+		SecretKey:   "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+		Region:      "us-east-1",
+	}
+	im.SetCurrent(identity)
+
+	// Set the required option so the wizard has nothing live to do; SUBNET_ID
+	// stays unset and must be skipped (non-interactive) rather than prompted,
+	// leaving it blank so the spot request uses the default VPC subnet.
+	err = r.ExecuteCommand("set INSTANCE_PROFILE pl-prod-ec2-004-to-admin-instance-profile")
+	if err != nil {
+		t.Fatalf("Failed to set option: %v", err)
+	}
+
+	err = r.ExecuteCommand("discover")
+	if err != nil {
+		t.Fatalf("Expected no error from discover wizard, got: %v", err)
+	}
+
+	if r.GetOptions()["SUBNET_ID"] != "" {
+		t.Errorf("Expected SUBNET_ID to remain blank, got %q", r.GetOptions()["SUBNET_ID"])
+	}
+}
 
 func TestDiscoverNoModule(t *testing.T) {
 	r, _, _, cleanup := setupTest(t)
@@ -275,5 +312,111 @@ func TestDiscoverSkipsAlreadySet(t *testing.T) {
 	err = r.ExecuteCommand("discover")
 	if err != nil {
 		t.Errorf("Expected no error when all discoverable options already set, got: %v", err)
+	}
+}
+
+func TestDiscoverOptionalOptionsSkippedInWizard(t *testing.T) {
+	r, _, im, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use ec2-001")
+	if err != nil {
+		t.Fatalf("Failed to use module: %v", err)
+	}
+
+	identity := &modules.Identity{
+		Name:        "test",
+		Type:        "keys",
+		AccessKeyID: "AKIAIOSFODNN7EXAMPLE",
+		SecretKey:   "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+		Region:      "us-east-1",
+	}
+	im.SetCurrent(identity)
+
+	// Set the required option so discovery has nothing live to do for it.
+	// SUBNET_ID and SECURITY_GROUP_ID stay unset: in the test environment
+	// (non-interactive stdin) the wizard must skip them instead of prompting,
+	// leaving them blank so the exploit uses EC2's defaults.
+	err = r.ExecuteCommand("set INSTANCE_PROFILE pl-prod-ec2-001-to-admin-instance-profile")
+	if err != nil {
+		t.Fatalf("Failed to set option: %v", err)
+	}
+
+	err = r.ExecuteCommand("discover")
+	if err != nil {
+		t.Fatalf("Expected no error from discover wizard, got: %v", err)
+	}
+
+	// Optional networking options must remain untouched (blank = default
+	// VPC subnet / default security group at exploit time).
+	if r.GetOptions()["SUBNET_ID"] != "" {
+		t.Errorf("Expected SUBNET_ID to remain blank, got %q", r.GetOptions()["SUBNET_ID"])
+	}
+	if r.GetOptions()["SECURITY_GROUP_ID"] != "" {
+		t.Errorf("Expected SECURITY_GROUP_ID to remain blank, got %q", r.GetOptions()["SECURITY_GROUP_ID"])
+	}
+}
+
+func TestDiscoverAllCommand(t *testing.T) {
+	r, _, im, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use ec2-001")
+	if err != nil {
+		t.Fatalf("Failed to use module: %v", err)
+	}
+
+	identity := &modules.Identity{
+		Name:        "test",
+		Type:        "keys",
+		AccessKeyID: "AKIAIOSFODNN7EXAMPLE",
+		SecretKey:   "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+		Region:      "us-east-1",
+	}
+	im.SetCurrent(identity)
+
+	// Pre-set every discoverable option so 'discover all' skips them all
+	// (avoiding live AWS calls with test credentials).
+	for _, opt := range []string{"INSTANCE_PROFILE", "SUBNET_ID", "SECURITY_GROUP_ID"} {
+		if err := r.ExecuteCommand("set " + opt + " value-" + opt); err != nil {
+			t.Fatalf("Failed to set %s: %v", opt, err)
+		}
+	}
+
+	// 'discover all' should run without error and skip everything
+	err = r.ExecuteCommand("discover all")
+	if err != nil {
+		t.Errorf("Expected no error from discover all, got: %v", err)
+	}
+}
+
+func TestDiscoverAllCaseInsensitive(t *testing.T) {
+	r, _, im, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("use ec2-001")
+	if err != nil {
+		t.Fatalf("Failed to use module: %v", err)
+	}
+
+	identity := &modules.Identity{
+		Name:        "test",
+		Type:        "keys",
+		AccessKeyID: "AKIAIOSFODNN7EXAMPLE",
+		SecretKey:   "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+		Region:      "us-east-1",
+	}
+	im.SetCurrent(identity)
+
+	for _, opt := range []string{"INSTANCE_PROFILE", "SUBNET_ID", "SECURITY_GROUP_ID"} {
+		if err := r.ExecuteCommand("set " + opt + " value-" + opt); err != nil {
+			t.Fatalf("Failed to set %s: %v", opt, err)
+		}
+	}
+
+	// Uppercase variant must also be treated as the 'all' keyword
+	err = r.ExecuteCommand("discover ALL")
+	if err != nil {
+		t.Errorf("Expected no error from discover ALL, got: %v", err)
 	}
 }

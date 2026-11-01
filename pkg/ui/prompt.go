@@ -6,8 +6,10 @@ package ui
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/charmbracelet/huh"
+	"golang.org/x/term"
 )
 
 // Select presents an interactive selection prompt and returns the selected index.
@@ -88,4 +90,27 @@ func Confirm(message string) (bool, error) {
 	}
 
 	return confirmed, nil
+}
+
+// IsInteractive reports whether stdin is attached to an interactive terminal
+// (i.e., a real TTY, not /dev/null, a pipe, or a file).
+func IsInteractive() bool {
+	return term.IsTerminal(int(os.Stdin.Fd()))
+}
+
+// ConfirmInteractive presents a yes/no confirmation prompt when stdin is an
+// interactive terminal. In non-interactive contexts (piped stdin, scripts,
+// tests) it returns false without prompting so callers can fall back to a
+// safe default instead of blocking on input that will never arrive.
+func ConfirmInteractive(message string) bool {
+	if !IsInteractive() {
+		return false
+	}
+
+	confirmed, err := Confirm(message)
+	if err != nil {
+		return false
+	}
+
+	return confirmed
 }
