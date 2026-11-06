@@ -25,7 +25,9 @@ pathrunner identity add [flags]
 | `--access` |  | string | — | Access key ID (requires --secret) |
 | `--check-admin` |  | bool | `false` | Auto-check admin privileges after adding |
 | `--from-clipboard` |  | bool | `false` | Read credentials from clipboard or stdin |
+| `--from-env-vars` |  | bool | `false` | Read credentials from AWS_* environment variables only |
 | `--from-file` |  | string | — | Read credentials from file |
+| `--from-imds` |  | bool | `false` | Use the EC2 instance role via the metadata service (IMDS) |
 | `--from-output` |  | bool | `false` | Extract credentials from last exploit output |
 | `--from-profile` |  | string | — | AWS profile name (alias for --profile) |
 | `--name` |  | string | — | Custom name for the identity |

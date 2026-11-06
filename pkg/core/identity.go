@@ -23,6 +23,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
 
@@ -153,6 +154,8 @@ func (im *IdentityManager) ListIdentities() error {
 			switch identity.Type {
 			case "env":
 				source = "environment"
+			case "imds":
+				source = "instance metadata"
 			case "keys":
 				source = "access keys"
 			case "assumed_role":
@@ -165,7 +168,7 @@ func (im *IdentityManager) ListIdentities() error {
 		expires := "never"
 		if identity.ExpiresAt != nil {
 			expires = identity.ExpiresAt.Format("15:04:05")
-		} else if identity.Type == "profile" {
+		} else if identity.Type == "profile" || identity.Type == "imds" {
 			expires = "auto-refresh"
 		}
 
@@ -342,6 +345,12 @@ func (im *IdentityManager) AddIdentity(args []string) error {
 		customName := im.extractFlag(args[1:], "--name")
 		region := im.extractFlag(args[1:], "--region")
 		return im.addFromKeys(args[1], secretKey, sessionToken, customName, region)
+	case "--from-env-vars":
+		customName := im.extractNameFlag(args[1:])
+		return im.addFromEnvVars(customName)
+	case "--from-imds":
+		customName := im.extractNameFlag(args[1:])
+		return im.addFromIMDS(customName)
 	default:
 		return fmt.Errorf("unknown add option: %s", args[0])
 	}
@@ -382,6 +391,171 @@ func (im *IdentityManager) promptForIdentityName(suggestedName string) string {
 	}
 
 	return customName
+}
+
+// buildEnvVarsIdentity reads AWS credentials strictly from environment variables
+// (never the shared profile chain or IMDS) and constructs an identity with
+// the values snapshotted as static keys so it survives session reloads.
+func buildEnvVarsIdentity(getenv func(string) string, customName string) (*modules.Identity, error) {
+	accessKeyID := strings.TrimSpace(getenv("AWS_ACCESS_KEY_ID"))
+	secretKey := getenv("AWS_SECRET_ACCESS_KEY")
+	sessionToken := getenv("AWS_SESSION_TOKEN")
+
+	if accessKeyID == "" || secretKey == "" {
+		return nil, fmt.Errorf("AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables are required for --from-env-vars")
+	}
+
+	region := getenv("AWS_REGION")
+	if region == "" {
+		region = getenv("AWS_DEFAULT_REGION")
+	}
+	if region == "" {
+		region = "us-east-1"
+	}
+
+	name := customName
+	if name == "" {
+		name = "env"
+	}
+
+	identity := &modules.Identity{
+		Name:         name,
+		Type:         "env",
+		AccessKeyID:  accessKeyID,
+		SecretKey:    secretKey,
+		SessionToken: sessionToken,
+		Region:       region,
+	}
+
+	// Honor AWS_CREDENTIAL_EXPIRATION (set by ECS/EC2 container credential
+	// providers) when present; otherwise assume short-lived session creds
+	// expire within an hour, matching the convention used for access keys.
+	if exp := strings.TrimSpace(getenv("AWS_CREDENTIAL_EXPIRATION")); exp != "" {
+		if expiresAt, err := time.Parse(time.RFC3339, exp); err == nil {
+			identity.ExpiresAt = &expiresAt
+		}
+	}
+	if identity.ExpiresAt == nil && sessionToken != "" {
+		expiresAt := time.Now().Add(1 * time.Hour)
+		identity.ExpiresAt = &expiresAt
+	}
+
+	return identity, nil
+}
+
+func (im *IdentityManager) addFromEnvVars(customName string) error {
+	identity, err := buildEnvVarsIdentity(os.Getenv, customName)
+	if err != nil {
+		return err
+	}
+
+	creds := credentials.NewStaticCredentialsProvider(identity.AccessKeyID, identity.SecretKey, identity.SessionToken)
+	cfg, err := config.LoadDefaultConfig(context.TODO(),
+		config.WithCredentialsProvider(creds),
+		config.WithRegion(identity.Region),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create config from environment variables: %v", err)
+	}
+	identity.SetConfig(cfg)
+
+	if err := identity.Validate(); err != nil {
+		return fmt.Errorf("environment variable credentials validation failed: %v", err)
+	}
+
+	im.storeIdentity(identity)
+
+	fmt.Printf("Added identity '%s' from environment variables\n", identity.Name)
+
+	// Prompt for admin check, then to switch
+	im.promptForAdminCheck(identity.Name)
+	im.promptToSwitch(identity.Name)
+	return nil
+}
+
+// probeIMDSRole queries the EC2 instance metadata service for the attached
+// instance role and the instance's region. It returns the role name and
+// region, or an error when IMDS is unreachable or no role is attached.
+func probeIMDSRole(ctx context.Context) (role string, region string, err error) {
+	client := imds.New(imds.Options{})
+
+	iamInfo, err := client.GetIAMInfo(ctx, &imds.GetIAMInfoInput{})
+	if err != nil {
+		return "", "", fmt.Errorf("instance metadata service unreachable or no instance role attached: %v", err)
+	}
+	// The instance profile ARN identifies the role attached to the instance;
+	// use its final path segment as a friendly name.
+	role = arnResourceName(iamInfo.InstanceProfileArn)
+
+	doc, err := client.GetInstanceIdentityDocument(ctx, &imds.GetInstanceIdentityDocumentInput{})
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get instance identity document: %v", err)
+	}
+
+	return role, doc.Region, nil
+}
+
+// arnResourceName returns the resource name portion of an ARN (the segment
+// after the last "/"), or the whole string when no slash is present.
+func arnResourceName(arn string) string {
+	if arn == "" {
+		return ""
+	}
+	if idx := strings.LastIndex(arn, "/"); idx >= 0 {
+		return arn[idx+1:]
+	}
+	return arn
+}
+
+func (im *IdentityManager) addFromIMDS(customName string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	role, region, err := probeIMDSRole(ctx)
+	if err != nil {
+		return fmt.Errorf("--from-imds requires running on an EC2 instance (or ECS container) with an attached instance role: %v", err)
+	}
+
+	if region == "" {
+		region = "us-east-1"
+	}
+
+	name := customName
+	if name == "" {
+		name = role
+	}
+	if name == "" {
+		name = "imds"
+	}
+
+	identity := &modules.Identity{
+		Name:   name,
+		Type:   "imds",
+		Region: region,
+		Metadata: map[string]string{
+			"role": role,
+		},
+	}
+
+	// Credentials are re-resolved from IMDS on each use, never snapshotted
+	cfg, err := modules.NewIMDSConfig(region)
+	if err != nil {
+		return fmt.Errorf("failed to create config from instance metadata: %v", err)
+	}
+	identity.SetConfig(cfg)
+
+	if err := identity.Validate(); err != nil {
+		return fmt.Errorf("IMDS credentials validation failed: %v", err)
+	}
+
+	im.storeIdentity(identity)
+
+	fmt.Printf("Added identity '%s' from EC2 instance metadata (role credentials refresh automatically)\n", identity.Name)
+
+	// Prompt for admin check, then to switch
+	im.promptForAdminCheck(identity.Name)
+	im.promptToSwitch(identity.Name)
+	return nil
 }
 
 func (im *IdentityManager) addFromEnvironment() error {

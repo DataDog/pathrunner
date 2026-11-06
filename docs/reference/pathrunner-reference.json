@@ -1,8 +1,8 @@
 {
   "generator": {
     "schemaVersion": "1.1.0",
-    "pathrunnerVersion": "v1.0.0-1-g8b40c61-dirty",
-    "gitCommit": "8b40c61",
+    "pathrunnerVersion": "v1.0.0-5-gb2d1ae6-dirty",
+    "gitCommit": "b2d1ae6",
     "generatedAt": ""
   },
   "counts": {
@@ -417,7 +417,7 @@
           "name": "add",
           "path": "pathrunner identity add",
           "short": "Add AWS identity",
-          "long": "Add AWS identity from environment, profile, keys, file, clipboard, or exploit output",
+          "long": "Add AWS identity from environment, IMDS, profile, keys, file, clipboard, or exploit output",
           "usage": "pathrunner identity add [flags]",
           "flags": [
             {
@@ -438,9 +438,21 @@
               "type": "bool"
             },
             {
+              "name": "from-env-vars",
+              "usage": "Read credentials from AWS_* environment variables only",
+              "default": "false",
+              "type": "bool"
+            },
+            {
               "name": "from-file",
               "usage": "Read credentials from file",
               "type": "string"
+            },
+            {
+              "name": "from-imds",
+              "usage": "Use the EC2 instance role via the metadata service (IMDS)",
+              "default": "false",
+              "type": "bool"
             },
             {
               "name": "from-output",

@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/credentials/ec2rolecreds"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
 
@@ -68,7 +69,37 @@ func (i *Identity) Validate() error {
 	return nil
 }
 
+// NewIMDSConfig builds an aws.Config whose credentials come exclusively from
+// the EC2 instance metadata service (IMDS). Credentials are resolved lazily
+// and re-retrieved on expiry by the provider's cache, so instance role
+// rotation is handled automatically. The region is taken from the argument
+// (normally resolved from the instance identity document at add time).
+func NewIMDSConfig(region string) (aws.Config, error) {
+	opts := []func(*config.LoadOptions) error{
+		config.WithCredentialsProvider(ec2rolecreds.New()),
+	}
+	if region != "" {
+		opts = append(opts, config.WithRegion(region))
+	}
+	return config.LoadDefaultConfig(context.Background(), opts...)
+}
+
 func (i *Identity) GetConfig() aws.Config {
+	// IMDS identities re-resolve credentials from the instance metadata service
+	// on every use because EC2 instance role credentials rotate.
+	if i.Type == "imds" {
+		cfg, err := NewIMDSConfig(i.Region)
+		if err == nil {
+			i.config = cfg
+			return cfg
+		}
+		// Fall back to stored config if a fresh IMDS config cannot be built
+		if i.config.Region == "" && i.Region != "" {
+			i.config.Region = i.Region
+		}
+		return i.config
+	}
+
 	// For profile identities, create fresh config to avoid stale credentials
 	if i.Type == "profile" && i.Profile != "" {
 		// Load config with region override if specified
@@ -158,6 +189,14 @@ func (i *Identity) RefreshConfig() error {
 		}
 		if i.Region != "" {
 			cfg.Region = i.Region
+		}
+		i.config = cfg
+		return nil
+
+	case "imds":
+		cfg, err := NewIMDSConfig(i.Region)
+		if err != nil {
+			return fmt.Errorf("failed to refresh IMDS config: %v", err)
 		}
 		i.config = cfg
 		return nil
