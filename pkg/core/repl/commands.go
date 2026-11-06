@@ -264,9 +264,11 @@ func (r *REPL) cmdExit(repl *REPL, args []string) error {
 // Help content methods
 func (r *REPL) showIdentityHelp() error {
 	fmt.Println("Identity Management Commands:")
-	fmt.Println("  identity add                    - Add credentials from environment variables")
+	fmt.Println("  identity add                    - Add credentials from the default AWS credential chain")
 	fmt.Println("  identity add --profile <name>   - Add credentials from AWS profile")
 	fmt.Println("  identity add --access <key> --secret <secret> [--token <token>] - Add credentials manually")
+	fmt.Println("  identity add --from-env-vars [--name <name>]  - Add credentials from AWS_* environment variables only")
+	fmt.Println("  identity add --from-imds [--name <name>]      - Add EC2 instance role via the metadata service (IMDS)")
 	fmt.Println("  identity add --from-output [--name <name>]      - Extract credentials from last command output")
 	fmt.Println("  identity add --from-file <path> [--name <name>] - Extract credentials from file")
 	fmt.Println("  identity add --from-clipboard [--name <name>]   - Extract credentials from clipboard")
@@ -311,7 +313,9 @@ func (r *REPL) showIdentityCheckHelp() error {
 
 func (r *REPL) showIdentityAddHelp() error {
 	fmt.Println("Identity Add Command:")
-	fmt.Println("  identity add                                    - Add credentials from environment variables")
+	fmt.Println("  identity add                                    - Add credentials from the default AWS credential chain (env vars, profile, IMDS)")
+	fmt.Println("  identity add --from-env-vars [--name <name>]    - Add credentials from AWS_* environment variables only (for Lambda/ECS)")
+	fmt.Println("  identity add --from-imds [--name <name>]        - Add the EC2 instance role via IMDS (credentials refresh automatically)")
 	fmt.Println("  identity add --profile <name>                   - Add credentials from AWS profile (SSO supported)")
 	fmt.Println("  identity add --access <key> --secret <secret> [--token <token>] [--name <name>] - Add credentials manually")
 	fmt.Println("  identity add --from-output [--name <name>]      - Extract credentials from last command output")
@@ -330,6 +334,9 @@ func (r *REPL) showIdentityAddHelp() error {
 	fmt.Println("  - Base64-encoded credentials")
 	fmt.Println()
 	fmt.Println("Examples:")
+	fmt.Println("  identity add --from-env-vars            # On Lambda: use the function's credentials")
+	fmt.Println("  identity add --from-imds                # On EC2: use the instance role")
+	fmt.Println("  identity add --from-imds --name ec2-target")
 	fmt.Println("  identity add --profile my-sso-profile")
 	fmt.Println("  identity add --access AKIAIOSFODNN7EXAMPLE --secret wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY")
 	fmt.Println("  identity add --access AKIAEXAMPLE --secret SECRET --token TOKEN123 --name my-target")
@@ -1086,7 +1093,9 @@ func (r *REPL) cmdAWS(repl *REPL, args []string) error {
 
 	// Get credentials from identity
 	var accessKey, secretKey, sessionToken, region string
-	if identity.Type == "profile" {
+	if identity.Type == "profile" || identity.Type == "imds" {
+		// Profile and IMDS identities hold live credential providers rather
+		// than static keys, so retrieve current values from the config
 		config := identity.GetConfig()
 		creds, err := config.Credentials.Retrieve(context.Background())
 		if err != nil {

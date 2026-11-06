@@ -51,7 +51,7 @@ func (c *CLI) createIdentityCmd() *cobra.Command {
 	addCmd := &cobra.Command{
 		Use:   "add",
 		Short: "Add AWS identity",
-		Long:  "Add AWS identity from environment, profile, keys, file, clipboard, or exploit output",
+		Long:  "Add AWS identity from environment, IMDS, profile, keys, file, clipboard, or exploit output",
 		Run: func(cmd *cobra.Command, args []string) {
 			// Build command based on flags
 			var replArgs []string
@@ -81,6 +81,16 @@ func (c *CLI) createIdentityCmd() *cobra.Command {
 				replArgs = append(replArgs, "--from-file", fromFile)
 			} else if fromClipboard, _ := cmd.Flags().GetBool("from-clipboard"); fromClipboard {
 				replArgs = append(replArgs, "--from-clipboard")
+			} else if fromEnvVars, _ := cmd.Flags().GetBool("from-env-vars"); fromEnvVars {
+				replArgs = append(replArgs, "--from-env-vars")
+				if name, _ := cmd.Flags().GetString("name"); name != "" {
+					replArgs = append(replArgs, "--name", name)
+				}
+			} else if fromIMDS, _ := cmd.Flags().GetBool("from-imds"); fromIMDS {
+				replArgs = append(replArgs, "--from-imds")
+				if name, _ := cmd.Flags().GetString("name"); name != "" {
+					replArgs = append(replArgs, "--name", name)
+				}
 			}
 
 			if autoSwitch, _ := cmd.Flags().GetBool("switch"); autoSwitch {
@@ -107,6 +117,8 @@ func (c *CLI) createIdentityCmd() *cobra.Command {
 	addCmd.Flags().Bool("from-output", false, "Extract credentials from last exploit output")
 	addCmd.Flags().String("from-file", "", "Read credentials from file")
 	addCmd.Flags().Bool("from-clipboard", false, "Read credentials from clipboard or stdin")
+	addCmd.Flags().Bool("from-env-vars", false, "Read credentials from AWS_* environment variables only")
+	addCmd.Flags().Bool("from-imds", false, "Use the EC2 instance role via the metadata service (IMDS)")
 	addCmd.Flags().Bool("switch", false, "Auto-switch to the new identity without prompting")
 	addCmd.Flags().Bool("check-admin", false, "Auto-check admin privileges after adding")
 	identityCmd.AddCommand(addCmd)

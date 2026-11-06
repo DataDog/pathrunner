@@ -183,3 +183,46 @@ func TestIdentityCommandValidation(t *testing.T) {
 		})
 	}
 }
+
+// TestIdentityAddFromEnvVarsRequiresEnvVars verifies that 'identity add
+// --from-env-vars' fails cleanly (without storing anything) when the AWS
+// environment variables are absent.
+func TestIdentityAddFromEnvVarsRequiresEnvVars(t *testing.T) {
+	r, _, im, cleanup := setupTest(t)
+	defer cleanup()
+
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+
+	err := r.ExecuteCommand("identity add --from-env-vars")
+	if err == nil {
+		t.Fatal("expected error when AWS environment variables are not set")
+	}
+	if !strings.Contains(err.Error(), "AWS_ACCESS_KEY_ID") {
+		t.Errorf("expected error to mention AWS_ACCESS_KEY_ID, got: %v", err)
+	}
+	if len(im.GetIdentities()) != 0 {
+		t.Error("expected no identity to be stored on failure")
+	}
+}
+
+// TestIdentityAddFromIMDSUnreachable verifies that 'identity add --from-imds'
+// fails cleanly (without storing anything) when the EC2 instance metadata
+// service is not available.
+func TestIdentityAddFromIMDSUnreachable(t *testing.T) {
+	r, _, im, cleanup := setupTest(t)
+	defer cleanup()
+
+	err := r.ExecuteCommand("identity add --from-imds")
+	if err == nil {
+		// The test host is an EC2 instance with an attached role; the
+		// identity was legitimately added.
+		t.Skip("IMDS available; running on an EC2 instance with an attached role")
+	}
+	if !strings.Contains(err.Error(), "--from-imds requires") {
+		t.Errorf("expected IMDS requirement message, got: %v", err)
+	}
+	if len(im.GetIdentities()) != 0 {
+		t.Error("expected no identity to be stored on failure")
+	}
+}
