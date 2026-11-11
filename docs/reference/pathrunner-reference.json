@@ -1,12 +1,12 @@
 {
   "generator": {
     "schemaVersion": "1.1.0",
-    "pathrunnerVersion": "v1.0.0-5-gb2d1ae6-dirty",
-    "gitCommit": "b2d1ae6",
+    "pathrunnerVersion": "v1.1.0-dirty",
+    "gitCommit": "efffd43",
     "generatedAt": ""
   },
   "counts": {
-    "commands": 22,
+    "commands": 23,
     "modules": 81,
     "payloads": 65,
     "services": 24
@@ -525,6 +525,28 @@
           "usage": "pathrunner identity current"
         },
         {
+          "name": "export",
+          "path": "pathrunner identity export",
+          "short": "Export identity credentials in paste-friendly formats",
+          "long": "Prints (or copies with --copy) the selected identity's AWS credentials as shell exports, an ~/.aws/credentials block, or JSON. Defaults to the current identity",
+          "usage": "pathrunner identity export [identity-name] [flags]",
+          "flags": [
+            {
+              "name": "copy",
+              "shorthand": "c",
+              "usage": "Copy to system clipboard instead of printing",
+              "default": "false",
+              "type": "bool"
+            },
+            {
+              "name": "format",
+              "usage": "Output format: env, profile, or json",
+              "default": "env",
+              "type": "string"
+            }
+          ]
+        },
+        {
           "name": "list",
           "path": "pathrunner identity list",
           "short": "List all configured identities",
@@ -818,6 +840,14 @@
       "group": "module",
       "short": "Set module or payload options",
       "usage": "pathrunner set \u003coption\u003e \u003cvalue\u003e"
+    },
+    {
+      "name": "shell",
+      "path": "pathrunner shell",
+      "group": "core",
+      "short": "Spawn a shell with current identity credentials",
+      "long": "Spawns $SHELL (fallback: /bin/bash) with the current identity's AWS credentials injected as environment variables. Type 'exit' to return to pathrunner",
+      "usage": "pathrunner shell"
     },
     {
       "name": "show",

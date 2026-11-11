@@ -41,6 +41,11 @@ func (r *REPL) cmdIdentity(repl *REPL, args []string) error {
 			r.showPmapperHint()
 		}
 		return err
+	case "export":
+		if len(args) > 1 && args[1] == "help" {
+			return r.showExportHelp()
+		}
+		return r.cmdExport(repl, args[1:])
 	case "check":
 		if len(args) > 1 && args[1] == "help" {
 			return r.showIdentityCheckHelp()

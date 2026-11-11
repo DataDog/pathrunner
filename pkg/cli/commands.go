@@ -20,6 +20,32 @@ func (c *CLI) createIdentityCmd() *cobra.Command {
 		Long:  "Add, list, switch, and manage AWS credential identities",
 	}
 
+	// identity export
+	exportCmd := &cobra.Command{
+		Use:   "export [identity-name]",
+		Short: "Export identity credentials in paste-friendly formats",
+		Long:  "Prints (or copies with --copy) the selected identity's AWS credentials as shell exports, an ~/.aws/credentials block, or JSON. Defaults to the current identity",
+		Args:  cobra.MaximumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			cmdStr := "identity export"
+
+			if format, _ := cmd.Flags().GetString("format"); format != "env" {
+				cmdStr += " --format " + format
+			}
+			if copy, _ := cmd.Flags().GetBool("copy"); copy {
+				cmdStr += " --copy"
+			}
+			if len(args) > 0 {
+				cmdStr += " " + args[0]
+			}
+
+			_ = c.executeREPLCommand(cmdStr)
+		},
+	}
+	exportCmd.Flags().String("format", "env", "Output format: env, profile, or json")
+	exportCmd.Flags().BoolP("copy", "c", false, "Copy to system clipboard instead of printing")
+	identityCmd.AddCommand(exportCmd)
+
 	// identity list
 	identityCmd.AddCommand(&cobra.Command{
 		Use:   "list",
@@ -644,6 +670,18 @@ func (c *CLI) createAWSCmd() *cobra.Command {
 				cmdStr += " " + strings.Join(args, " ")
 			}
 			_ = c.executeREPLCommand(cmdStr)
+		},
+	}
+}
+
+// Shell command (spawn $SHELL with current identity credentials)
+func (c *CLI) createShellCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "shell",
+		Short: "Spawn a shell with current identity credentials",
+		Long:  "Spawns $SHELL (fallback: /bin/bash) with the current identity's AWS credentials injected as environment variables. Type 'exit' to return to pathrunner",
+		Run: func(cmd *cobra.Command, args []string) {
+			_ = c.executeREPLCommand("shell")
 		},
 	}
 }

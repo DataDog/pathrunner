@@ -5,7 +5,6 @@
 package repl
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"os"
@@ -85,6 +84,11 @@ func (r *REPL) getCommands() map[string]*Command {
 			Description: "Execute AWS CLI commands with current identity credentials",
 			Handler:     r.cmdAWS,
 		},
+		"shell": {
+			Name:        "shell",
+			Description: "Spawn a shell with current identity credentials",
+			Handler:     r.cmdShell,
+		},
 		"search": {
 			Name:        "search",
 			Description: "Search modules by keyword",
@@ -160,7 +164,7 @@ func (r *REPL) cmdHelp(repl *REPL, args []string) error {
 
 	coreOrder := []string{
 		"modules", "search", "use",
-		"identity", "attacker", "sessions", "aws", "whoami",
+		"identity", "attacker", "sessions", "aws", "shell", "whoami",
 		"workspace", "context", "pmapper", "cloudfox", "resources",
 		"version", "help", "exit",
 	}
@@ -214,6 +218,8 @@ func (r *REPL) showSpecificHelp(command string) error {
 		return r.showExploitHelp()
 	case "whoami":
 		return r.showWhoamiHelp()
+	case "shell":
+		return r.showShellHelp()
 	case "workspace":
 		return r.showWorkspaceHelp()
 	case "context":
@@ -275,6 +281,7 @@ func (r *REPL) showIdentityHelp() error {
 	fmt.Println("  identity list                   - List all configured identities")
 	fmt.Println("  identity show                   - Show current identity details")
 	fmt.Println("  identity switch <name>          - Switch to a different identity")
+	fmt.Println("  identity export [name] [flags]  - Export credentials in paste-friendly formats")
 	fmt.Println("  identity check [name]           - Check if identity has admin privileges")
 	fmt.Println("  identity refresh                - Refresh current identity credentials")
 	fmt.Println("  identity clear [name]           - Remove identity by name")
@@ -738,6 +745,9 @@ func (r *REPL) buildContextData() (workspace, identityStr, moduleStr, payloadStr
 	session := r.sessionManager.GetCurrentSession()
 	workspace = session.GetName()
 
+	statusError := false
+	statusWarning := false
+
 	identity := r.identityManager.GetCurrent()
 	if identity != nil {
 		identityStr = identity.Name
@@ -757,15 +767,33 @@ func (r *REPL) buildContextData() (workspace, identityStr, moduleStr, payloadStr
 	}
 
 	if identity == nil {
-		status = "❌ No identity configured"
+		status = "No identity configured"
+		statusError = true
 	} else if identity.IsExpired() {
-		status = "❌ Identity expired"
+		status = "Identity expired"
+		statusError = true
 	} else if r.currentModule == nil {
-		status = "🟡 No module selected"
+		status = "No module selected"
+		statusWarning = true
 	} else if err := r.validateOptionsForContext(); err != nil {
-		status = "🟡 " + err.Error()
+		status = err.Error()
+		statusWarning = true
 	} else {
-		status = "✅ Ready for exploitation"
+		status = "Ready for exploitation"
+	}
+
+	// Color the status only when writing to a terminal. ANSI codes are
+	// zero-width for lipgloss box rendering, so the banner borders stay
+	// aligned in every terminal regardless of how it draws emoji.
+	if ui.IsTTY() {
+		switch {
+		case statusError:
+			status = ui.Error.Render(status)
+		case statusWarning:
+			status = ui.Warning.Render(status)
+		default:
+			status = ui.Success.Render(status)
+		}
 	}
 
 	return
@@ -1092,26 +1120,10 @@ func (r *REPL) cmdAWS(repl *REPL, args []string) error {
 	}
 
 	// Get credentials from identity
-	var accessKey, secretKey, sessionToken, region string
-	if identity.Type == "profile" || identity.Type == "imds" {
-		// Profile and IMDS identities hold live credential providers rather
-		// than static keys, so retrieve current values from the config
-		config := identity.GetConfig()
-		creds, err := config.Credentials.Retrieve(context.Background())
-		if err != nil {
-			return fmt.Errorf("failed to retrieve credentials from profile: %v", err)
-		}
-		accessKey = creds.AccessKeyID
-		secretKey = creds.SecretAccessKey
-		sessionToken = creds.SessionToken
-		region = config.Region
-	} else {
-		accessKey = identity.AccessKeyID
-		secretKey = identity.SecretKey
-		sessionToken = identity.SessionToken
-		region = identity.Region
+	accessKey, secretKey, sessionToken, region, err := identityCredentials(identity)
+	if err != nil {
+		return err
 	}
-
 	if accessKey == "" || secretKey == "" {
 		return fmt.Errorf("identity has no credentials available")
 	}
