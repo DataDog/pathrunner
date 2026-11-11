@@ -230,7 +230,6 @@ func (r *REPL) buildIdentityCompleter() readline.PrefixCompleterInterface {
 	for name := range identities {
 		identityItems = append(identityItems, readline.PcItem(name))
 	}
-	identityItems = append(identityItems, r.buildExportCompleter())
 
 	return readline.PcItem("identity",
 		readline.PcItem("add",
@@ -275,6 +274,7 @@ func (r *REPL) buildIdentityCompleter() readline.PrefixCompleterInterface {
 		readline.PcItem("show"),
 		readline.PcItem("switch", identityItems...),
 		readline.PcItem("check", identityItems...),
+		r.buildExportCompleter(),
 		readline.PcItem("refresh"),
 		readline.PcItem("clear",
 			readline.PcItem("--expired"),
