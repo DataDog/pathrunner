@@ -738,6 +738,9 @@ func (r *REPL) buildContextData() (workspace, identityStr, moduleStr, payloadStr
 	session := r.sessionManager.GetCurrentSession()
 	workspace = session.GetName()
 
+	statusError := false
+	statusWarning := false
+
 	identity := r.identityManager.GetCurrent()
 	if identity != nil {
 		identityStr = identity.Name
@@ -757,15 +760,33 @@ func (r *REPL) buildContextData() (workspace, identityStr, moduleStr, payloadStr
 	}
 
 	if identity == nil {
-		status = "❌ No identity configured"
+		status = "No identity configured"
+		statusError = true
 	} else if identity.IsExpired() {
-		status = "❌ Identity expired"
+		status = "Identity expired"
+		statusError = true
 	} else if r.currentModule == nil {
-		status = "🟡 No module selected"
+		status = "No module selected"
+		statusWarning = true
 	} else if err := r.validateOptionsForContext(); err != nil {
-		status = "🟡 " + err.Error()
+		status = err.Error()
+		statusWarning = true
 	} else {
-		status = "✅ Ready for exploitation"
+		status = "Ready for exploitation"
+	}
+
+	// Color the status only when writing to a terminal. ANSI codes are
+	// zero-width for lipgloss box rendering, so the banner borders stay
+	// aligned in every terminal regardless of how it draws emoji.
+	if ui.IsTTY() {
+		switch {
+		case statusError:
+			status = ui.Error.Render(status)
+		case statusWarning:
+			status = ui.Warning.Render(status)
+		default:
+			status = ui.Success.Render(status)
+		}
 	}
 
 	return

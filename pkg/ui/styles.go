@@ -39,11 +39,6 @@ var (
 	BoldWhite  = lipgloss.NewStyle().Bold(true).Foreground(ColorWhite)
 	BoldError  = lipgloss.NewStyle().Bold(true).Foreground(ColorError)
 
-	// Status indicators
-	StatusReady   = Success.Render("✅ Ready")
-	StatusWarning = Warning.Render("⚠️ ")
-	StatusError   = Error.Render("❌ ")
-
 	// Section heading
 	SectionStyle = lipgloss.NewStyle().
 			Bold(true).
