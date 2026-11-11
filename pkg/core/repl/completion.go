@@ -36,6 +36,7 @@ func (r *REPL) getCompleter() readline.AutoCompleter {
 			readline.PcItem("unset"),
 			readline.PcItem("exploit"),
 			readline.PcItem("whoami"),
+			readline.PcItem("shell"),
 			readline.PcItem("workspace"),
 			readline.PcItem("pmapper"),
 			readline.PcItem("context"),
@@ -58,6 +59,7 @@ func (r *REPL) getCompleter() readline.AutoCompleter {
 		aliasCompleter("identities", identityTree),
 		aliasCompleter("id", identityTree),
 		aliasCompleter("ids", identityTree),
+		readline.PcItem("shell"),
 		r.buildUseCompleter(),
 		readline.PcItem("show",
 			// Modules: read-only subcommands only (no mark-*, no search)
@@ -202,6 +204,24 @@ func (r *REPL) buildUseCompleter() readline.PrefixCompleterInterface {
 	return readline.PcItem("use", items...)
 }
 
+// buildExportCompleter builds completion for the 'identity export' subcommand
+func (r *REPL) buildExportCompleter() readline.PrefixCompleterInterface {
+	items := []readline.PrefixCompleterInterface{
+		readline.PcItem("--format",
+			readline.PcItem("env"),
+			readline.PcItem("profile"),
+			readline.PcItem("json"),
+		),
+		readline.PcItem("--copy"),
+	}
+
+	for name := range r.identityManager.GetIdentities() {
+		items = append(items, readline.PcItem(name))
+	}
+
+	return readline.PcItem("export", items...)
+}
+
 // buildIdentityCompleter builds completion for identity commands
 func (r *REPL) buildIdentityCompleter() readline.PrefixCompleterInterface {
 	var identityItems []readline.PrefixCompleterInterface
@@ -210,6 +230,7 @@ func (r *REPL) buildIdentityCompleter() readline.PrefixCompleterInterface {
 	for name := range identities {
 		identityItems = append(identityItems, readline.PcItem(name))
 	}
+	identityItems = append(identityItems, r.buildExportCompleter())
 
 	return readline.PcItem("identity",
 		readline.PcItem("add",

@@ -64,6 +64,19 @@ Show current identity details
 pathrunner identity current
 ```
 
+### `pathrunner identity export`
+
+Export identity credentials in paste-friendly formats
+
+```
+pathrunner identity export [identity-name] [flags]
+```
+
+| Flag | Short | Type | Default | Description |
+|------|-------|------|---------|-------------|
+| `--copy` | `-c` | bool | `false` | Copy to system clipboard instead of printing |
+| `--format` |  | string | `env` | Output format: env, profile, or json |
+
 ### `pathrunner identity list`
 
 List all configured identities

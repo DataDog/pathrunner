@@ -111,6 +111,7 @@ func (c *CLI) CreateRootCommand() *cobra.Command {
 	rootCmd.AddCommand(addToGroup(c.createUseCmd(), "core"))
 	rootCmd.AddCommand(addToGroup(c.createIdentityCmd(), "core"))
 	rootCmd.AddCommand(addToGroup(c.createAWSCmd(), "core"))
+	rootCmd.AddCommand(addToGroup(c.createShellCmd(), "core"))
 	rootCmd.AddCommand(addToGroup(c.createWhoamiCmd(), "core"))
 	rootCmd.AddCommand(addToGroup(c.createWorkspaceCmd(), "core"))
 	rootCmd.AddCommand(addToGroup(c.createPmapperCmd(), "core"))
