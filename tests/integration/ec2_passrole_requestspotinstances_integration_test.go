@@ -5,6 +5,7 @@
 package integration
 
 import (
+	"strings"
 	"testing"
 
 	_ "github.com/DataDog/pathrunner/pkg/exploits/ec2_passrole_requestspotinstances"
@@ -14,8 +15,8 @@ func TestEc2PassroleRequestSpotInstancesModuleUse(t *testing.T) {
 	r, _, _, cleanup := setupTest(t)
 	defer cleanup()
 
-	if err := r.ExecuteCommand("use ec2-004"); err != nil {
-		t.Fatalf("Failed to use ec2-004: %v", err)
+	if err := r.ExecuteCommand("use ec2-003"); err != nil {
+		t.Fatalf("Failed to use ec2-003: %v", err)
 	}
 }
 
@@ -32,8 +33,8 @@ func TestEc2PassroleRequestSpotInstancesModuleInfo(t *testing.T) {
 	r, _, _, cleanup := setupTest(t)
 	defer cleanup()
 
-	if err := r.ExecuteCommand("use ec2-004"); err != nil {
-		t.Fatalf("Failed to use ec2-004: %v", err)
+	if err := r.ExecuteCommand("use ec2-003"); err != nil {
+		t.Fatalf("Failed to use ec2-003: %v", err)
 	}
 
 	if err := r.ExecuteCommand("info"); err != nil {
@@ -45,8 +46,8 @@ func TestEc2PassroleRequestSpotInstancesModuleShowOptions(t *testing.T) {
 	r, _, _, cleanup := setupTest(t)
 	defer cleanup()
 
-	if err := r.ExecuteCommand("use ec2-004"); err != nil {
-		t.Fatalf("Failed to use ec2-004: %v", err)
+	if err := r.ExecuteCommand("use ec2-003"); err != nil {
+		t.Fatalf("Failed to use ec2-003: %v", err)
 	}
 
 	if err := r.ExecuteCommand("show options"); err != nil {
@@ -58,8 +59,8 @@ func TestEc2PassroleRequestSpotInstancesModuleSetOption(t *testing.T) {
 	r, _, _, cleanup := setupTest(t)
 	defer cleanup()
 
-	if err := r.ExecuteCommand("use ec2-004"); err != nil {
-		t.Fatalf("Failed to use ec2-004: %v", err)
+	if err := r.ExecuteCommand("use ec2-003"); err != nil {
+		t.Fatalf("Failed to use ec2-003: %v", err)
 	}
 
 	if err := r.ExecuteCommand("set INSTANCE_PROFILE my-admin-profile"); err != nil {
@@ -83,8 +84,8 @@ func TestEc2PassroleRequestSpotInstancesExploitNoIdentity(t *testing.T) {
 	r, _, _, cleanup := setupTest(t)
 	defer cleanup()
 
-	if err := r.ExecuteCommand("use ec2-004"); err != nil {
-		t.Fatalf("Failed to use ec2-004: %v", err)
+	if err := r.ExecuteCommand("use ec2-003"); err != nil {
+		t.Fatalf("Failed to use ec2-003: %v", err)
 	}
 
 	if err := r.ExecuteCommand("set INSTANCE_PROFILE my-admin-profile"); err != nil {
@@ -102,6 +103,27 @@ func TestEc2PassroleRequestSpotInstancesExploitNoIdentity(t *testing.T) {
 	}
 }
 
+func TestEc2004RetiredIDRejected(t *testing.T) {
+	r, _, _, cleanup := setupTest(t)
+	defer cleanup()
+
+	// ec2-004 is retired (the spot module is now ec2-003). `use` must refuse it
+	// with a rename hint rather than loading something or failing generically.
+	err := r.ExecuteCommand("use ec2-004")
+	if err == nil {
+		t.Fatal("Expected 'use ec2-004' to fail")
+	}
+	if !strings.Contains(err.Error(), "retired") || !strings.Contains(err.Error(), "ec2-003") {
+		t.Errorf("Expected retired-ID hint pointing at ec2-003, got: %v", err)
+	}
+
+	if err := r.ExecuteCommand("info ec2-004"); err == nil {
+		t.Error("Expected 'info ec2-004' to fail with a retired hint")
+	} else if !strings.Contains(err.Error(), "retired") {
+		t.Errorf("Expected retired-ID hint from info, got: %v", err)
+	}
+}
+
 func TestEc2PassroleRequestSpotInstancesSearchable(t *testing.T) {
 	r, _, _, cleanup := setupTest(t)
 	defer cleanup()
@@ -115,8 +137,8 @@ func TestEc2PassroleRequestSpotInstancesModuleUnsetOption(t *testing.T) {
 	r, _, _, cleanup := setupTest(t)
 	defer cleanup()
 
-	if err := r.ExecuteCommand("use ec2-004"); err != nil {
-		t.Fatalf("Failed to use ec2-004: %v", err)
+	if err := r.ExecuteCommand("use ec2-003"); err != nil {
+		t.Fatalf("Failed to use ec2-003: %v", err)
 	}
 
 	if err := r.ExecuteCommand("set INSTANCE_PROFILE my-admin-profile"); err != nil {

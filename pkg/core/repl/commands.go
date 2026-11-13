@@ -698,6 +698,13 @@ func (r *REPL) cmdInfo(repl *REPL, args []string) error {
 		}
 		mod, err := modules.LoadModule(moduleID)
 		if err != nil {
+			if replacement, ok := modules.RetiredModuleReplacement(moduleID); ok {
+				return &PathrunnerError{
+					Type:    ErrorModuleNotFound,
+					Message: fmt.Sprintf("module '%s' is retired: it is now '%s'", moduleID, replacement),
+					Context: map[string]interface{}{"module": moduleID, "replacement": replacement},
+				}
+			}
 			return NewModuleNotFoundError(moduleID)
 		}
 		return r.showInfoForModule(mod)

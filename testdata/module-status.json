@@ -231,23 +231,9 @@
       ]
     },
     "ec2-003": {
-      "status": "tested",
-      "last_tested": "2026-07-10",
-      "tested_against": "ec2-003-to-admin",
-      "notes": "",
-      "payload_results": [
-        {
-          "payload": "none",
-          "execution": "PASS",
-          "creds_obtained": "YES",
-          "verified": "YES"
-        }
-      ]
-    },
-    "ec2-004": {
       "status": "failing",
       "last_tested": "2026-07-10",
-      "tested_against": "ec2-004-to-admin",
+      "tested_against": "ec2-003-to-admin",
       "notes": "",
       "payload_results": [
         {
@@ -269,6 +255,20 @@
           "payload": "backdoor/attach-policy",
           "execution": "PASS",
           "creds_obtained": "NO",
+          "verified": "YES"
+        }
+      ]
+    },
+    "ec2instanceconnect-003": {
+      "status": "tested",
+      "last_tested": "2026-07-10",
+      "tested_against": "ec2instanceconnect-003-to-admin",
+      "notes": "",
+      "payload_results": [
+        {
+          "payload": "none",
+          "execution": "PASS",
+          "creds_obtained": "YES",
           "verified": "YES"
         }
       ]

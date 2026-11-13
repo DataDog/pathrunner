@@ -12,13 +12,13 @@ import (
 func TestEC2InstanceConnectModuleInit(t *testing.T) {
 	mod := ec2_instanceconnect.NewModule()
 
-	if mod.Name() != "ec2-003" {
-		t.Errorf("Expected name 'ec2-003', got '%s'", mod.Name())
+	if mod.Name() != "ec2instanceconnect-003" {
+		t.Errorf("Expected name 'ec2instanceconnect-003', got '%s'", mod.Name())
 	}
 
 	pathInfo := mod.PathInfo()
-	if pathInfo.ID != "ec2-003" {
-		t.Errorf("Expected ID 'ec2-003', got '%s'", pathInfo.ID)
+	if pathInfo.ID != "ec2instanceconnect-003" {
+		t.Errorf("Expected ID 'ec2instanceconnect-003', got '%s'", pathInfo.ID)
 	}
 	if pathInfo.Category != "existing-passrole" {
 		t.Errorf("Expected category 'existing-passrole', got '%s'", pathInfo.Category)
@@ -165,7 +165,7 @@ func TestEC2InstanceConnectEC2UserDefault(t *testing.T) {
 func TestEC2InstanceConnectRegistration(t *testing.T) {
 	// The module must be loadable by its primary ID.
 	mod := ec2_instanceconnect.NewModule()
-	if mod.PathInfo().ID != "ec2-003" {
-		t.Errorf("Expected module ID 'ec2-003', got '%s'", mod.PathInfo().ID)
+	if mod.PathInfo().ID != "ec2instanceconnect-003" {
+		t.Errorf("Expected module ID 'ec2instanceconnect-003', got '%s'", mod.PathInfo().ID)
 	}
 }
