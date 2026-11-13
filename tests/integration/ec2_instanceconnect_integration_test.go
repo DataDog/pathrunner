@@ -15,8 +15,8 @@ func TestEC2InstanceConnectModuleUse(t *testing.T) {
 	defer cleanup()
 
 	// Should be able to select the module by primary ID.
-	if err := r.ExecuteCommand("use ec2-003"); err != nil {
-		t.Fatalf("Failed to use ec2-003: %v", err)
+	if err := r.ExecuteCommand("use ec2instanceconnect-003"); err != nil {
+		t.Fatalf("Failed to use ec2instanceconnect-003: %v", err)
 	}
 }
 
@@ -34,8 +34,8 @@ func TestEC2InstanceConnectModuleInfo(t *testing.T) {
 	r, _, _, cleanup := setupTest(t)
 	defer cleanup()
 
-	if err := r.ExecuteCommand("use ec2-003"); err != nil {
-		t.Fatalf("Failed to use ec2-003: %v", err)
+	if err := r.ExecuteCommand("use ec2instanceconnect-003"); err != nil {
+		t.Fatalf("Failed to use ec2instanceconnect-003: %v", err)
 	}
 
 	if err := r.ExecuteCommand("info"); err != nil {
@@ -47,8 +47,8 @@ func TestEC2InstanceConnectModuleShowOptions(t *testing.T) {
 	r, _, _, cleanup := setupTest(t)
 	defer cleanup()
 
-	if err := r.ExecuteCommand("use ec2-003"); err != nil {
-		t.Fatalf("Failed to use ec2-003: %v", err)
+	if err := r.ExecuteCommand("use ec2instanceconnect-003"); err != nil {
+		t.Fatalf("Failed to use ec2instanceconnect-003: %v", err)
 	}
 
 	if err := r.ExecuteCommand("show options"); err != nil {
@@ -60,8 +60,8 @@ func TestEC2InstanceConnectModuleSetOption(t *testing.T) {
 	r, _, _, cleanup := setupTest(t)
 	defer cleanup()
 
-	if err := r.ExecuteCommand("use ec2-003"); err != nil {
-		t.Fatalf("Failed to use ec2-003: %v", err)
+	if err := r.ExecuteCommand("use ec2instanceconnect-003"); err != nil {
+		t.Fatalf("Failed to use ec2instanceconnect-003: %v", err)
 	}
 
 	if err := r.ExecuteCommand("set INSTANCE_ID i-0abc1234567890def"); err != nil {
@@ -85,8 +85,8 @@ func TestEC2InstanceConnectExploitNoIdentity(t *testing.T) {
 	r, _, _, cleanup := setupTest(t)
 	defer cleanup()
 
-	if err := r.ExecuteCommand("use ec2-003"); err != nil {
-		t.Fatalf("Failed to use ec2-003: %v", err)
+	if err := r.ExecuteCommand("use ec2instanceconnect-003"); err != nil {
+		t.Fatalf("Failed to use ec2instanceconnect-003: %v", err)
 	}
 
 	if err := r.ExecuteCommand("set INSTANCE_ID i-0abc1234567890def"); err != nil {
@@ -104,7 +104,7 @@ func TestEC2InstanceConnectSearchable(t *testing.T) {
 	r, _, _, cleanup := setupTest(t)
 	defer cleanup()
 
-	// Search for ec2 modules should include ec2-003.
+	// Search for ec2 modules should include ec2instanceconnect-003.
 	if err := r.ExecuteCommand("search ec2-instanceconnect"); err != nil {
 		t.Fatalf("Expected search to succeed: %v", err)
 	}
@@ -114,8 +114,8 @@ func TestEC2InstanceConnectModuleUnsetOption(t *testing.T) {
 	r, _, _, cleanup := setupTest(t)
 	defer cleanup()
 
-	if err := r.ExecuteCommand("use ec2-003"); err != nil {
-		t.Fatalf("Failed to use ec2-003: %v", err)
+	if err := r.ExecuteCommand("use ec2instanceconnect-003"); err != nil {
+		t.Fatalf("Failed to use ec2instanceconnect-003: %v", err)
 	}
 
 	if err := r.ExecuteCommand("set INSTANCE_ID i-0abc1234567890def"); err != nil {

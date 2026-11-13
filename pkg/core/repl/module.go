@@ -52,6 +52,15 @@ func (r *REPL) cmdUse(repl *REPL, args []string) error {
 	}
 	module, err := modules.LoadModule(moduleName)
 	if err != nil {
+		// Retired IDs (e.g. ec2-004) get a pointed rename hint instead of a
+		// generic not-found error.
+		if replacement, ok := modules.RetiredModuleReplacement(moduleName); ok {
+			return &PathrunnerError{
+				Type:    ErrorModuleNotFound,
+				Message: fmt.Sprintf("module '%s' is retired: it is now '%s'", moduleName, replacement),
+				Context: map[string]interface{}{"module": moduleName, "replacement": replacement},
+			}
+		}
 		return NewModuleNotFoundError(moduleName)
 	}
 

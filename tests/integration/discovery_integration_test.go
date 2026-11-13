@@ -19,11 +19,11 @@ import (
 	_ "github.com/DataDog/pathrunner/pkg/payloads/lambda"
 )
 
-func TestDiscoverOptionalOptionsSkippedInWizardEc2004(t *testing.T) {
+func TestDiscoverOptionalOptionsSkippedInWizardEc2003(t *testing.T) {
 	r, _, im, cleanup := setupTest(t)
 	defer cleanup()
 
-	err := r.ExecuteCommand("use ec2-004")
+	err := r.ExecuteCommand("use ec2-003")
 	if err != nil {
 		t.Fatalf("Failed to use module: %v", err)
 	}
@@ -40,7 +40,7 @@ func TestDiscoverOptionalOptionsSkippedInWizardEc2004(t *testing.T) {
 	// Set the required option so the wizard has nothing live to do; SUBNET_ID
 	// stays unset and must be skipped (non-interactive) rather than prompted,
 	// leaving it blank so the spot request uses the default VPC subnet.
-	err = r.ExecuteCommand("set INSTANCE_PROFILE pl-prod-ec2-004-to-admin-instance-profile")
+	err = r.ExecuteCommand("set INSTANCE_PROFILE pl-prod-ec2-003-to-admin-instance-profile")
 	if err != nil {
 		t.Fatalf("Failed to set option: %v", err)
 	}

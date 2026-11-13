@@ -11,14 +11,32 @@ import (
 )
 
 var (
-	registry     = make(map[string]func() Module)
-	aliasMap     = make(map[string]string) // alias -> primary ID
+	registry      = make(map[string]func() Module)
+	aliasMap      = make(map[string]string)   // alias -> primary ID
 	pathInfoCache = make(map[string]PathInfo) // primary ID -> PathInfo
+
+	// retiredIDs maps module IDs that no longer resolve to the module ID that
+	// now implements the same technique. These IDs were published at some
+	// point, so they must never be silently re-registered — LoadModule refuses
+	// them with a pointer to their replacement instead of a generic
+	// "unknown module" error.
+	retiredIDs = map[string]string{
+		// The PassRole + RequestSpotInstances module was ec2-004 until
+		// pathfinding.cloud realigned its EC2 path IDs (2026-11-13) and the
+		// technique moved to ec2-003. Retired IDs are never reused.
+		"ec2-004": "ec2-003",
+	}
 )
 
 // Register registers a module constructor under the given name.
 // If the module provides PathInfo with Aliases, those are auto-registered.
 func Register(name string, constructor func() Module) {
+	// Retired IDs are permanent: re-registering one would silently point
+	// every historical reference at the wrong module.
+	if replacement, retired := retiredIDs[name]; retired {
+		panic(fmt.Sprintf("refusing to register retired module ID %q (replaced by %q)", name, replacement))
+	}
+
 	registry[name] = constructor
 
 	// Eagerly build PathInfo cache and register aliases
@@ -42,6 +60,13 @@ func GetModule(modulePath string) Module {
 	return mod
 }
 
+// RetiredModuleReplacement returns the module ID that replaced the given
+// retired module ID. ok is false when moduleID is not a retired ID.
+func RetiredModuleReplacement(moduleID string) (replacement string, ok bool) {
+	replacement, ok = retiredIDs[moduleID]
+	return replacement, ok
+}
+
 // LoadModule loads a module by name or alias. Returns the module or an error.
 func LoadModule(modulePath string) (Module, error) {
 	// Direct lookup
@@ -53,6 +78,10 @@ func LoadModule(modulePath string) (Module, error) {
 		if constructor, exists := registry[primary]; exists {
 			return constructor(), nil
 		}
+	}
+	// Retired IDs get a pointed message instead of a generic one.
+	if replacement, ok := retiredIDs[modulePath]; ok {
+		return nil, fmt.Errorf("module %q is retired: it was renamed to %q", modulePath, replacement)
 	}
 	return nil, fmt.Errorf("unknown module: %s", modulePath)
 }

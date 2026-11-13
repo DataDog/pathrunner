@@ -14,13 +14,13 @@ import (
 func TestEc2PassroleRequestSpotInstancesModuleInit(t *testing.T) {
 	mod := ec2_passrole_requestspotinstances.NewModule()
 
-	if mod.Name() != "ec2-004" {
-		t.Errorf("Expected name 'ec2-004', got '%s'", mod.Name())
+	if mod.Name() != "ec2-003" {
+		t.Errorf("Expected name 'ec2-003', got '%s'", mod.Name())
 	}
 
 	pathInfo := mod.PathInfo()
-	if pathInfo.ID != "ec2-004" {
-		t.Errorf("Expected ID 'ec2-004', got '%s'", pathInfo.ID)
+	if pathInfo.ID != "ec2-003" {
+		t.Errorf("Expected ID 'ec2-003', got '%s'", pathInfo.ID)
 	}
 	if pathInfo.Category != "new-passrole" {
 		t.Errorf("Expected category 'new-passrole', got '%s'", pathInfo.Category)
@@ -163,12 +163,12 @@ func TestEc2PassroleRequestSpotInstancesSubnetIdOptional(t *testing.T) {
 }
 
 func TestEc2PassroleRequestSpotInstancesRegistration(t *testing.T) {
-	mod, err := modules.LoadModule("ec2-004")
+	mod, err := modules.LoadModule("ec2-003")
 	if err != nil {
-		t.Fatalf("Expected module 'ec2-004' to be registered: %v", err)
+		t.Fatalf("Expected module 'ec2-003' to be registered: %v", err)
 	}
-	if mod.Name() != "ec2-004" {
-		t.Errorf("Expected name 'ec2-004', got '%s'", mod.Name())
+	if mod.Name() != "ec2-003" {
+		t.Errorf("Expected name 'ec2-003', got '%s'", mod.Name())
 	}
 }
 
@@ -177,8 +177,8 @@ func TestEc2PassroleRequestSpotInstancesAliasRegistration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected alias 'ec2-passrole-spot' to be registered: %v", err)
 	}
-	if mod.Name() != "ec2-004" {
-		t.Errorf("Expected name 'ec2-004' via alias, got '%s'", mod.Name())
+	if mod.Name() != "ec2-003" {
+		t.Errorf("Expected name 'ec2-003' via alias, got '%s'", mod.Name())
 	}
 }
 
@@ -262,12 +262,33 @@ func TestEc2PassroleRequestSpotInstancesReferences(t *testing.T) {
 
 	foundPathfindingRef := false
 	for _, ref := range pathInfo.References {
-		if contains(ref.URL, "pathfinding.cloud/paths/ec2-004") {
+		if contains(ref.URL, "pathfinding.cloud/paths/ec2-003") {
 			foundPathfindingRef = true
 		}
 	}
 	if !foundPathfindingRef {
-		t.Error("Expected pathfinding.cloud reference for ec2-004")
+		t.Error("Expected pathfinding.cloud reference for ec2-003")
+	}
+}
+
+func TestEc2004IsRetired(t *testing.T) {
+	// ec2-004 previously identified this (spot) module. After the pathfinding.cloud
+	// EC2 ID realignment it must never resolve — instead it points at ec2-003.
+	_, err := modules.LoadModule("ec2-004")
+	if err == nil {
+		t.Fatal("Expected 'ec2-004' to be retired, but it loaded a module")
+	}
+	if !contains(err.Error(), "retired") || !contains(err.Error(), "ec2-003") {
+		t.Errorf("Expected retired-ID error pointing at 'ec2-003', got: %v", err)
+	}
+
+	replacement, ok := modules.RetiredModuleReplacement("ec2-004")
+	if !ok || replacement != "ec2-003" {
+		t.Errorf("Expected ec2-004 to be replaced by ec2-003, got %q (ok=%v)", replacement, ok)
+	}
+
+	if _, ok := modules.RetiredModuleReplacement("ec2-003"); ok {
+		t.Error("ec2-003 is a live module ID and must not be reported as retired")
 	}
 }
 
