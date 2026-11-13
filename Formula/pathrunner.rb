@@ -5,21 +5,21 @@
 class Pathrunner < Formula
   desc "AWS post-exploitation framework for automating privilege escalation paths"
   homepage "https://github.com/DataDog/pathrunner"
-  version "1.3.0"
+  version "1.4.0"
   license "Apache-2.0"
 
   on_macos do
     if Hardware::CPU.intel?
-      url "https://github.com/DataDog/pathrunner/releases/download/v1.3.0/pathrunner_1.3.0_darwin_amd64.tar.gz"
-      sha256 "9e809a4db272e023a87d724d9f6bb27c5eb418f4f2f4d5c4010a3b09c7de41f7"
+      url "https://github.com/DataDog/pathrunner/releases/download/v1.4.0/pathrunner_1.4.0_darwin_amd64.tar.gz"
+      sha256 "ecfa32b1f0cb041dd4a9ab1f97b8953ebf10fba938c2a340a8984225651e99b6"
 
       define_method(:install) do
         bin.install "pathrunner"
       end
     end
     if Hardware::CPU.arm?
-      url "https://github.com/DataDog/pathrunner/releases/download/v1.3.0/pathrunner_1.3.0_darwin_arm64.tar.gz"
-      sha256 "418317fdcfccbd006cfecd2d91cef8cadc29cb88c5ab6446a5cb20be47fe6e73"
+      url "https://github.com/DataDog/pathrunner/releases/download/v1.4.0/pathrunner_1.4.0_darwin_arm64.tar.gz"
+      sha256 "052ebc2a3deabe2d7d0cd4d397da018557ad5326531de9766ad284ae5f47d879"
 
       define_method(:install) do
         bin.install "pathrunner"
@@ -29,15 +29,15 @@ class Pathrunner < Formula
 
   on_linux do
     if Hardware::CPU.intel? && Hardware::CPU.is_64_bit?
-      url "https://github.com/DataDog/pathrunner/releases/download/v1.3.0/pathrunner_1.3.0_linux_amd64.tar.gz"
-      sha256 "f1724af252734529152c6c6c8427ffc8b928774c8042c764f486ad23d0a4abd7"
+      url "https://github.com/DataDog/pathrunner/releases/download/v1.4.0/pathrunner_1.4.0_linux_amd64.tar.gz"
+      sha256 "ceb013cdc2e7239cd609044f647cc675c6056b930ae886e6dfe62308dde21c1e"
       define_method(:install) do
         bin.install "pathrunner"
       end
     end
     if Hardware::CPU.arm? && Hardware::CPU.is_64_bit?
-      url "https://github.com/DataDog/pathrunner/releases/download/v1.3.0/pathrunner_1.3.0_linux_arm64.tar.gz"
-      sha256 "a6d9af5b21b39b2d06d9519c2e9f396ee170314e2be4d74c786b6d0ac1e5ef8b"
+      url "https://github.com/DataDog/pathrunner/releases/download/v1.4.0/pathrunner_1.4.0_linux_arm64.tar.gz"
+      sha256 "6702568a19336b91925890ce8418725dc5c33810eb2ab241d75414b8265a2e0c"
       define_method(:install) do
         bin.install "pathrunner"
       end
